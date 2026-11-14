@@ -23,14 +23,22 @@ import android.view.WindowInsetsAnimationController
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,6 +46,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -48,17 +57,23 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
@@ -68,8 +83,8 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -90,6 +105,12 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -100,9 +121,12 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
@@ -122,19 +146,20 @@ import coil.compose.AsyncImage
 import com.sameerasw.essentials.FeatureSettingsActivity
 import com.sameerasw.essentials.R
 import com.sameerasw.essentials.data.repository.SettingsRepository
-import com.sameerasw.essentials.domain.model.NotificationApp
 import com.sameerasw.essentials.domain.model.PixelSearchResultItem
 import com.sameerasw.essentials.domain.registry.FeatureRegistry
-import com.sameerasw.essentials.domain.registry.QSTileInfo
-import com.sameerasw.essentials.domain.registry.QSTileRegistry
 import com.sameerasw.essentials.domain.registry.SearchRegistry
+import com.sameerasw.essentials.search.AppFunctionItem
+import com.sameerasw.essentials.search.DiscoveredShortcut
+import com.sameerasw.essentials.search.EntityRouteItem
+import com.sameerasw.essentials.search.InternalCommandItem
+import com.sameerasw.essentials.search.PrefixSuggestion
+import com.sameerasw.essentials.search.SearchProvider
+import com.sameerasw.essentials.search.SearchProviderDiscovery
+import com.sameerasw.essentials.search.SearchProviderKind
 import com.sameerasw.essentials.ui.activities.PixelSearchbarSettingsActivity
-import com.sameerasw.essentials.ui.activities.WallpaperActivity
-import com.sameerasw.essentials.ui.activities.YourAndroidActivity
-import com.sameerasw.essentials.ui.components.menus.SegmentedDropdownMenuItem
 import com.sameerasw.essentials.ui.core.cards.FeatureCard
 import com.sameerasw.essentials.ui.core.containers.RoundedCardContainer
-import com.sameerasw.essentials.ui.features.tiles.QSTilesSearchResultCard
 import com.sameerasw.essentials.ui.modifiers.BlurDirection
 import com.sameerasw.essentials.ui.modifiers.progressiveBlur
 import com.sameerasw.essentials.ui.theme.EssentialsTheme
@@ -142,10 +167,8 @@ import com.sameerasw.essentials.ui.core.sheets.PixelSearchFileActionSheet
 import com.sameerasw.essentials.utils.AppUtil
 import com.sameerasw.essentials.utils.ColorUtil
 import com.sameerasw.essentials.utils.FileSearchUtil
-import com.sameerasw.essentials.utils.FreezeManager
 import com.sameerasw.essentials.utils.HapticUtil
 import com.sameerasw.essentials.utils.PermissionUtils
-import com.sameerasw.essentials.utils.ShortcutUtil
 import com.sameerasw.essentials.utils.WindowingUtils
 import com.sameerasw.essentials.viewmodels.MainViewModel
 import kotlinx.coroutines.Dispatchers
@@ -394,9 +417,22 @@ fun PixelSearchResultsScreen(
     var selectedFileForAction by remember { mutableStateOf<PixelSearchResultItem.FileItem?>(null) }
     var systemSettingResults by remember { mutableStateOf<List<PixelSearchResultItem.SystemSettingItem>>(emptyList()) }
     var settingResults by remember { mutableStateOf<List<PixelSearchResultItem.SettingItem>>(emptyList()) }
-    var matchingQsTiles by remember { mutableStateOf<List<QSTileInfo>>(emptyList()) }
-    var shortcutResults by remember { mutableStateOf<List<PixelSearchResultItem.ShortcutItem>>(emptyList()) }
+    var shortcutResults by remember { mutableStateOf<List<DiscoveredShortcut>>(emptyList()) }
+    var entityRoutes by remember { mutableStateOf<List<EntityRouteItem>>(emptyList()) }
+    var internalCommands by remember { mutableStateOf<List<InternalCommandItem>>(emptyList()) }
+    var appFunctions by remember { mutableStateOf<List<AppFunctionItem>>(emptyList()) }
+    var scopedPhotos by remember { mutableStateOf<List<PixelSearchResultItem.FileItem>>(emptyList()) }
+    var discoveredProviders by remember { mutableStateOf<List<SearchProvider>>(emptyList()) }
+    var activeScope by remember { mutableStateOf<SearchProvider?>(null) }
     var isSearching by remember { mutableStateOf(false) }
+
+    val prefixSuggestion = remember(query, activeScope, discoveredProviders) {
+        if (activeScope == null) {
+            SearchProviderDiscovery.matchPrefixSuggestion(query, discoveredProviders)
+        } else {
+            null
+        }
+    }
 
     val isAppsEnabled = remember { repository.isPixelSearchResultAppsEnabled() }
     val isContactsEnabled = remember { repository.isPixelSearchResultContactsEnabled() }
@@ -408,8 +444,172 @@ fun PixelSearchResultsScreen(
     val isBubblesWebEnabled = remember { repository.isPixelSearchBubblesWebEnabled() }
     val searchEngine = remember { repository.getPixelSearchEngine() }
 
-    fun performSearch(q: String) {
+    LaunchedEffect(Unit) {
+        discoveredProviders = SearchProviderDiscovery.discoverProviders(context)
+    }
+
+    BackHandler(enabled = activeScope != null) {
+        activeScope = null
+        query = ""
+    }
+
+    fun enterScope(provider: SearchProvider) {
+        HapticUtil.performVirtualKeyHaptic(view)
+        activeScope = provider
+        query = ""
+        focusRequester.requestFocus()
+    }
+
+    fun exitScope() {
+        HapticUtil.performVirtualKeyHaptic(view)
+        activeScope = null
+        query = ""
+        focusRequester.requestFocus()
+    }
+
+    fun performSearch(q: String, currentScope: SearchProvider?) {
         val trimmed = q.trim()
+        if (currentScope != null) {
+            isSearching = true
+            scope.launch(Dispatchers.IO) {
+                when (currentScope.kind) {
+                    SearchProviderKind.PHOTOS -> {
+                        val photos = if (PermissionUtils.hasMediaPermissions(context)) {
+                            SearchProviderDiscovery.searchPhotos(context, trimmed, limit = 36)
+                        } else {
+                            emptyList()
+                        }
+                        withContext(Dispatchers.Main) {
+                            scopedPhotos = photos
+                            appResults = emptyList()
+                            contactResults = emptyList()
+                            mediaResults = emptyList()
+                            fileResults = emptyList()
+                            systemSettingResults = emptyList()
+                            settingResults = emptyList()
+                            shortcutResults = emptyList()
+                            entityRoutes = emptyList()
+                            internalCommands = emptyList()
+                            appFunctions = emptyList()
+                            isSearching = false
+                        }
+                    }
+
+                    SearchProviderKind.APPS -> {
+                        val installed = AppUtil.getInstalledApps(context, includeSelf = true)
+                        val filteredApps = installed
+                            .filter { trimmed.isEmpty() || it.appName.contains(trimmed, ignoreCase = true) }
+                            .map {
+                                PixelSearchResultItem.AppItem(
+                                    appName = it.appName,
+                                    packageName = it.packageName,
+                                    icon = it.icon,
+                                    isSystemApp = it.isSystemApp,
+                                    isFrozen = false,
+                                )
+                            }
+                            .sortedBy { it.appName.lowercase() }
+                            .take(24)
+                        withContext(Dispatchers.Main) {
+                            appResults = filteredApps
+                            scopedPhotos = emptyList()
+                            isSearching = false
+                        }
+                    }
+
+                    SearchProviderKind.CONTACTS -> {
+                        val contacts = if (trimmed.isNotEmpty() && ContextCompat.checkSelfPermission(
+                                context,
+                                android.Manifest.permission.READ_CONTACTS,
+                            ) == PackageManager.PERMISSION_GRANTED
+                        ) {
+                            loadContacts(context, trimmed)
+                        } else {
+                            emptyList()
+                        }
+                        withContext(Dispatchers.Main) {
+                            contactResults = contacts
+                            scopedPhotos = emptyList()
+                            isSearching = false
+                        }
+                    }
+
+                    SearchProviderKind.FILES -> {
+                        val docs = if (trimmed.isNotEmpty() &&
+                            (PermissionUtils.hasManageExternalStoragePermission(context) || PermissionUtils.hasStoragePermission(context))
+                        ) {
+                            FileSearchUtil.searchFiles(context, trimmed, limit = 20, searchMedia = false, searchDocs = true).documentItems
+                        } else {
+                            emptyList()
+                        }
+                        withContext(Dispatchers.Main) {
+                            fileResults = docs
+                            scopedPhotos = emptyList()
+                            isSearching = false
+                        }
+                    }
+
+                    SearchProviderKind.SETTINGS -> {
+                        val sys = loadSystemSettings(context, trimmed)
+                        val mapped = if (trimmed.isNotEmpty()) {
+                            SearchRegistry.search(
+                                context,
+                                trimmed,
+                                repository.isEnableUnsupportedFeatures(),
+                                repository.isShowLegacyFeatures(),
+                            ).filter { it.featureKey != "Quick settings tiles" }
+                                .take(12)
+                                .map { PixelSearchResultItem.SettingItem(it) }
+                        } else {
+                            emptyList()
+                        }
+                        val cmds = SearchProviderDiscovery.matchInternalCommands(
+                            context = context,
+                            query = trimmed.ifEmpty { "settings" },
+                            onOpenExtensions = {
+                                context.startActivity(ExtensionsActivity.createIntent(context, openStore = false))
+                                onFinish()
+                            },
+                            onOpenStore = {
+                                context.startActivity(ExtensionsActivity.createIntent(context, openStore = true))
+                                onFinish()
+                            },
+                        )
+                        withContext(Dispatchers.Main) {
+                            systemSettingResults = sys
+                            settingResults = mapped
+                            internalCommands = cmds
+                            scopedPhotos = emptyList()
+                            isSearching = false
+                        }
+                    }
+
+                    SearchProviderKind.APP_INTENT -> {
+                        val pkgShortcuts = SearchProviderDiscovery.discoverShortcuts(
+                            context = context,
+                            query = trimmed,
+                            packageFilter = currentScope.packageName,
+                        )
+                        withContext(Dispatchers.Main) {
+                            shortcutResults = pkgShortcuts
+                            scopedPhotos = emptyList()
+                            isSearching = false
+                        }
+                    }
+
+                    SearchProviderKind.WEB,
+                    SearchProviderKind.EXTENSION,
+                    -> {
+                        withContext(Dispatchers.Main) {
+                            scopedPhotos = emptyList()
+                            isSearching = false
+                        }
+                    }
+                }
+            }
+            return
+        }
+
         if (trimmed.isEmpty()) {
             appResults = emptyList()
             contactResults = emptyList()
@@ -417,49 +617,49 @@ fun PixelSearchResultsScreen(
             fileResults = emptyList()
             systemSettingResults = emptyList()
             settingResults = emptyList()
-            matchingQsTiles = emptyList()
             shortcutResults = emptyList()
+            entityRoutes = emptyList()
+            internalCommands = emptyList()
+            appFunctions = emptyList()
+            scopedPhotos = emptyList()
             isSearching = false
             return
         }
 
         isSearching = true
         scope.launch(Dispatchers.IO) {
+            val matchedCommands = SearchProviderDiscovery.matchInternalCommands(
+                context = context,
+                query = trimmed,
+                onOpenExtensions = {
+                    context.startActivity(ExtensionsActivity.createIntent(context, openStore = false))
+                    onFinish()
+                },
+                onOpenStore = {
+                    context.startActivity(ExtensionsActivity.createIntent(context, openStore = true))
+                    onFinish()
+                },
+            )
+            withContext(Dispatchers.Main) {
+                internalCommands = matchedCommands
+            }
+
             if (isAppsEnabled) {
                 val installed = AppUtil.getInstalledApps(context, includeSelf = true)
-                val installedPkgs = installed.map { it.packageName }.toSet()
-                val freezeSelections = repository.loadFreezeSelectedApps()
-                val missingFrozenPkgs = freezeSelections
-                    .map { it.packageName }
-                    .filter { !installedPkgs.contains(it) }
-
-                val additionalFrozenApps = if (missingFrozenPkgs.isNotEmpty()) {
-                    AppUtil.getAppsByPackageNames(context, missingFrozenPkgs)
-                } else {
-                    emptyList()
-                }
-
-                val allApps = installed + additionalFrozenApps
-                val filteredApps = allApps
+                val filteredApps = installed
                     .filter { app ->
                         app.appName.contains(trimmed, ignoreCase = true)
                     }
                     .map {
-                        val isFrozen = FreezeManager.isAppFrozen(context, it.packageName)
-                        val icon = if (isFrozen) {
-                            applyGrayscaleFilter(it.icon)
-                        } else {
-                            it.icon
-                        }
                         PixelSearchResultItem.AppItem(
                             appName = it.appName,
                             packageName = it.packageName,
-                            icon = icon,
+                            icon = it.icon,
                             isSystemApp = it.isSystemApp,
-                            isFrozen = isFrozen,
+                            isFrozen = false,
                         )
                     }
-                    .sortedWith(compareBy({ !it.isFrozen }, { it.appName.lowercase() }))
+                    .sortedBy { it.appName.lowercase() }
                     .take(6)
                 withContext(Dispatchers.Main) {
                     appResults = filteredApps
@@ -508,12 +708,6 @@ fun PixelSearchResultsScreen(
                         repository.isEnableUnsupportedFeatures(),
                         repository.isShowLegacyFeatures(),
                     )
-                val qsTiles = QSTileRegistry.searchTiles(
-                    context = context,
-                    query = trimmed,
-                    includeUnsupported = repository.isEnableUnsupportedFeatures(),
-                    isUseUsageStats = repository.getBoolean(SettingsRepository.KEY_USE_USAGE_ACCESS),
-                )
                 val mappedSettings = results
                     .filter { it.featureKey != "Quick settings tiles" }
                     .take(6)
@@ -523,26 +717,28 @@ fun PixelSearchResultsScreen(
                 withContext(Dispatchers.Main) {
                     systemSettingResults = systemSettings
                     settingResults = mappedSettings
-                    matchingQsTiles = qsTiles
                 }
             }
 
-            if (isShortcutsEnabled) {
-                val shortcuts = loadShortcuts(context, trimmed)
-                withContext(Dispatchers.Main) {
-                    shortcutResults = shortcuts
-                }
+            val shortcuts = if (isShortcutsEnabled) {
+                SearchProviderDiscovery.discoverShortcuts(context, trimmed)
+            } else {
+                emptyList()
             }
-
+            val routes = SearchProviderDiscovery.resolveEntities(context, trimmed, shortcuts)
+            val appFns = SearchProviderDiscovery.discoverAppFunctions(context, trimmed)
             withContext(Dispatchers.Main) {
+                shortcutResults = shortcuts
+                entityRoutes = routes
+                appFunctions = appFns
                 isSearching = false
             }
         }
     }
 
-    LaunchedEffect(query) {
+    LaunchedEffect(query, activeScope) {
         userHasScrolled = false
-        performSearch(query)
+        performSearch(query, activeScope)
     }
 
     LaunchedEffect(selectedTab) {
@@ -552,6 +748,7 @@ fun PixelSearchResultsScreen(
 
     LaunchedEffect(
         selectedTab,
+        activeScope,
         appResults,
         contactResults,
         mediaResults,
@@ -559,6 +756,9 @@ fun PixelSearchResultsScreen(
         systemSettingResults,
         settingResults,
         shortcutResults,
+        entityRoutes,
+        internalCommands,
+        scopedPhotos,
     ) {
         if (!userHasScrolled && (listState.firstVisibleItemIndex != 0 || listState.firstVisibleItemScrollOffset != 0)) {
             listState.scrollToItem(0)
@@ -576,19 +776,101 @@ fun PixelSearchResultsScreen(
     val topBlurHeightPx = with(LocalDensity.current) { (statusBarHeight + 56.dp).toPx() }
 
     // Identify which section is topmost
+    val hasCommands = activeScope == null && internalCommands.isNotEmpty()
+    val hasRoutes = activeScope == null && !hasCommands && entityRoutes.isNotEmpty()
     val hasApps = (isAllTab || selectedTab == PixelSearchTab.APPS) && isAppsEnabled && appResults.isNotEmpty()
-    val hasContacts = !hasApps && (isAllTab || selectedTab == PixelSearchTab.CONTACTS) && isContactsEnabled && contactResults.isNotEmpty()
-    val hasMedia = !hasApps && !hasContacts && (isAllTab || selectedTab == PixelSearchTab.MEDIA) && isMediaEnabled && mediaResults.isNotEmpty()
-    val hasFiles = !hasApps && !hasContacts && !hasMedia && (isAllTab || selectedTab == PixelSearchTab.FILES) && isFilesEnabled && fileResults.isNotEmpty()
-    val hasSystemSettings = !hasApps && !hasContacts && !hasMedia && !hasFiles && (isAllTab || selectedTab == PixelSearchTab.SETTINGS) && isSettingsEnabled && systemSettingResults.isNotEmpty()
-    val hasEssentials = !hasApps && !hasContacts && !hasMedia && !hasFiles && !hasSystemSettings && (isAllTab || selectedTab == PixelSearchTab.SETTINGS) && isSettingsEnabled && (matchingQsTiles.isNotEmpty() || settingResults.isNotEmpty())
-    val hasShortcuts = !hasApps && !hasContacts && !hasMedia && !hasFiles && !hasSystemSettings && !hasEssentials && (isAllTab || selectedTab == PixelSearchTab.SETTINGS) && isShortcutsEnabled && shortcutResults.isNotEmpty()
+    val hasContacts = !hasCommands && !hasRoutes && !hasApps && (isAllTab || selectedTab == PixelSearchTab.CONTACTS) && isContactsEnabled && contactResults.isNotEmpty()
+    val hasMedia = !hasCommands && !hasRoutes && !hasApps && !hasContacts && (isAllTab || selectedTab == PixelSearchTab.MEDIA) && isMediaEnabled && mediaResults.isNotEmpty()
+    val hasFiles = !hasCommands && !hasRoutes && !hasApps && !hasContacts && !hasMedia && (isAllTab || selectedTab == PixelSearchTab.FILES) && isFilesEnabled && fileResults.isNotEmpty()
+    val hasSystemSettings = !hasCommands && !hasRoutes && !hasApps && !hasContacts && !hasMedia && !hasFiles && (isAllTab || selectedTab == PixelSearchTab.SETTINGS) && isSettingsEnabled && systemSettingResults.isNotEmpty()
+    val hasEssentials = !hasCommands && !hasRoutes && !hasApps && !hasContacts && !hasMedia && !hasFiles && !hasSystemSettings && (isAllTab || selectedTab == PixelSearchTab.SETTINGS) && isSettingsEnabled && settingResults.isNotEmpty()
+    val hasShortcuts = !hasCommands && !hasRoutes && !hasApps && !hasContacts && !hasMedia && !hasFiles && !hasSystemSettings && !hasEssentials && (isAllTab || selectedTab == PixelSearchTab.SETTINGS) && isShortcutsEnabled && shortcutResults.isNotEmpty()
 
     val highlightColor = MaterialTheme.colorScheme.secondaryContainer
     val normalCardColor = MaterialTheme.colorScheme.surfaceBright
 
     fun launchTopmostOrWeb() {
+        val currentScope = activeScope
+        if (currentScope != null) {
+            when (currentScope.kind) {
+                SearchProviderKind.PHOTOS -> {
+                    val topPhoto = scopedPhotos.firstOrNull()
+                    if (topPhoto != null) {
+                        SearchProviderDiscovery.launchPhotoInGallery(context, topPhoto)
+                        onFinish()
+                    }
+                }
+                SearchProviderKind.APP_INTENT -> {
+                    if (SearchProviderDiscovery.launchScopedProviderSearch(context, currentScope, query)) {
+                        onFinish()
+                    }
+                }
+                SearchProviderKind.APPS -> {
+                    appResults.firstOrNull()?.let {
+                        launchApp(context, it.packageName)
+                        onFinish()
+                    }
+                }
+                SearchProviderKind.CONTACTS -> {
+                    contactResults.firstOrNull()?.phoneNumber?.let {
+                        context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$it")))
+                        onFinish()
+                    }
+                }
+                SearchProviderKind.FILES -> {
+                    fileResults.firstOrNull()?.let {
+                        launchFile(context, it)
+                        onFinish()
+                    }
+                }
+                SearchProviderKind.SETTINGS -> {
+                    when {
+                        internalCommands.isNotEmpty() -> {
+                            internalCommands.first().onExecute(context)
+                            onFinish()
+                        }
+                        systemSettingResults.isNotEmpty() -> {
+                            context.startActivity(systemSettingResults.first().intent)
+                            onFinish()
+                        }
+                        settingResults.isNotEmpty() -> {
+                            val setting = settingResults.first().searchableItem
+                            context.startActivity(
+                                Intent(context, FeatureSettingsActivity::class.java).apply {
+                                    putExtra("feature", setting.featureKey)
+                                    setting.targetSettingHighlightKey?.let { putExtra("highlight_setting", it) }
+                                },
+                            )
+                            onFinish()
+                        }
+                    }
+                }
+                SearchProviderKind.WEB -> {
+                    if (query.isNotBlank()) {
+                        launchWebSearch(context, query, isBubblesWebEnabled, searchEngine)
+                        onFinish()
+                    }
+                }
+                SearchProviderKind.EXTENSION -> Unit
+            }
+            return
+        }
+
+        if (prefixSuggestion != null) {
+            enterScope(prefixSuggestion.provider)
+            return
+        }
+
         when {
+            hasCommands -> {
+                internalCommands.first().onExecute(context)
+                onFinish()
+            }
+            hasRoutes -> {
+                runCatching { context.startActivity(entityRoutes.first().navigationIntent) }
+                    .onFailure { runCatching { context.startActivity(entityRoutes.first().mapIntent) } }
+                onFinish()
+            }
             hasApps -> {
                 launchApp(context, appResults.first().packageName)
                 onFinish()
@@ -627,7 +909,7 @@ fun PixelSearchResultsScreen(
                 onFinish()
             }
             hasShortcuts -> {
-                context.startActivity(shortcutResults.first().intent)
+                SearchProviderDiscovery.launchShortcut(context, shortcutResults.first())
                 onFinish()
             }
             else -> {
@@ -765,6 +1047,358 @@ fun PixelSearchResultsScreen(
                     ),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
+                // STAGE 2: SCOPED PHOTOS GRID
+                if (activeScope?.kind == SearchProviderKind.PHOTOS) {
+                    val hasMediaPerm = PermissionUtils.hasMediaPermissions(context)
+                    item(key = "scoped_photos_header") {
+                        SearchSectionHeader(
+                            title = if (query.isBlank()) "Recent Photos" else "Photos matching \"$query\"",
+                            modifier = Modifier.animateItem(),
+                        )
+                    }
+                    if (!hasMediaPerm) {
+                        item(key = "scoped_photos_perm") {
+                            RoundedCardContainer(modifier = Modifier.animateItem()) {
+                                FeatureCard(
+                                    title = "Grant Photos Permission",
+                                    description = "Allow media access to search and browse device photos inline",
+                                    isEnabled = true,
+                                    onToggle = {},
+                                    onClick = {
+                                        HapticUtil.performVirtualKeyHaptic(view)
+                                        context.startActivity(
+                                            Intent().setClassName(context, "com.sameerasw.essentials.SettingsActivity").apply {
+                                                putExtra("expand_permissions", true)
+                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            },
+                                        )
+                                        onFinish()
+                                    },
+                                    containerColor = highlightColor,
+                                    iconRes = R.drawable.rounded_photo_library_24,
+                                    showToggle = false,
+                                    hasMoreSettings = false,
+                                )
+                            }
+                        }
+                    } else if (scopedPhotos.isEmpty() && !isSearching) {
+                        item(key = "scoped_photos_empty") {
+                            RoundedCardContainer(modifier = Modifier.animateItem()) {
+                                FeatureCard(
+                                    title = "No matching photos",
+                                    description = "Try searching by album (Screenshots, Camera), filename, or month",
+                                    isEnabled = true,
+                                    onToggle = {},
+                                    onClick = {
+                                        activeScope?.packageName?.let { pkg ->
+                                            launchApp(context, pkg)
+                                            onFinish()
+                                        }
+                                    },
+                                    containerColor = normalCardColor,
+                                    iconRes = R.drawable.rounded_photo_library_24,
+                                    showToggle = false,
+                                    hasMoreSettings = false,
+                                )
+                            }
+                        }
+                    } else {
+                        val rows = scopedPhotos.chunked(3)
+                        items(
+                            items = rows,
+                            key = { row -> "photo_row_${row.first().id}" },
+                        ) { rowItems ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .animateItem(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                for (photo in rowItems) {
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .aspectRatio(1f)
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .combinedClickable(
+                                                onClick = {
+                                                    HapticUtil.performVirtualKeyHaptic(view)
+                                                    SearchProviderDiscovery.launchPhotoInGallery(context, photo)
+                                                    onFinish()
+                                                },
+                                                onLongClick = {
+                                                    HapticUtil.performVirtualKeyHaptic(view)
+                                                    selectedFileForAction = photo
+                                                },
+                                            ),
+                                    ) {
+                                        Box(modifier = Modifier.fillMaxSize()) {
+                                            AsyncImage(
+                                                model = photo.uri,
+                                                contentDescription = photo.displayName,
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier.fillMaxSize(),
+                                            )
+                                            photo.path?.let { album ->
+                                                Surface(
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = Color.Black.copy(alpha = 0.52f),
+                                                    modifier = Modifier
+                                                        .align(Alignment.BottomStart)
+                                                        .padding(6.dp),
+                                                ) {
+                                                    Text(
+                                                        text = album,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = Color.White,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                repeat(3 - rowItems.size) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // STAGE 2: SCOPED APP INTENT SEARCH
+                if (activeScope?.kind == SearchProviderKind.APP_INTENT) {
+                    val scopeProvider = activeScope!!
+                    item(key = "scoped_app_intent_header") {
+                        SearchSectionHeader(
+                            title = "Search in ${scopeProvider.title}",
+                            modifier = Modifier.animateItem(),
+                        )
+                    }
+                    item(key = "scoped_app_intent_card") {
+                        RoundedCardContainer(modifier = Modifier.animateItem()) {
+                            FeatureCard(
+                                title = if (query.isBlank()) {
+                                    "Open ${scopeProvider.title}"
+                                } else {
+                                    "Search \"${query.trim()}\" in ${scopeProvider.title}"
+                                },
+                                description = scopeProvider.subtitle,
+                                isEnabled = true,
+                                onToggle = {},
+                                onClick = {
+                                    HapticUtil.performVirtualKeyHaptic(view)
+                                    SearchProviderDiscovery.launchScopedProviderSearch(context, scopeProvider, query)
+                                    onFinish()
+                                },
+                                containerColor = highlightColor,
+                                iconRes = scopeProvider.iconRes,
+                                iconPainter = scopeProvider.appIcon?.let { remember(it) { BitmapPainter(it) } },
+                                hasIconBackground = scopeProvider.appIcon == null,
+                                showToggle = false,
+                                hasMoreSettings = false,
+                            )
+                        }
+                    }
+                }
+
+                // STAGE 1: EMPTY QUERY QUICK PROVIDERS
+                if (activeScope == null && query.isBlank() && discoveredProviders.isNotEmpty()) {
+                    item(key = "quick_providers_header") {
+                        SearchSectionHeader("Search Providers", Modifier.animateItem())
+                    }
+                    item(key = "quick_providers_row") {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.animateItem(),
+                        ) {
+                            items(
+                                items = discoveredProviders.take(12),
+                                key = { it.id },
+                            ) { provider ->
+                                AssistChip(
+                                    onClick = { enterScope(provider) },
+                                    label = {
+                                        Text(
+                                            text = provider.title,
+                                            maxLines = 1,
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        if (provider.appIcon != null) {
+                                            Image(
+                                                painter = BitmapPainter(provider.appIcon),
+                                                contentDescription = null,
+                                                modifier = Modifier
+                                                    .size(18.dp)
+                                                    .clip(CircleShape),
+                                            )
+                                        } else {
+                                            Icon(
+                                                painter = painterResource(provider.iconRes),
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp),
+                                            )
+                                        }
+                                    },
+                                    colors = AssistChipDefaults.assistChipColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceBright,
+                                    ),
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // STAGE 1: PREFIX SCOPE SUGGESTION
+                if (activeScope == null && prefixSuggestion != null) {
+                    val suggestion = prefixSuggestion
+                    item(key = "prefix_scope_header") {
+                        SearchSectionHeader("Scope Search", Modifier.animateItem())
+                    }
+                    item(key = "prefix_scope_card") {
+                        RoundedCardContainer(modifier = Modifier.animateItem()) {
+                            FeatureCard(
+                                title = "Search in ${suggestion.provider.title}",
+                                description = "${suggestion.provider.subtitle} • Press Tab or Enter to lock scope",
+                                isEnabled = true,
+                                onToggle = {},
+                                onClick = { enterScope(suggestion.provider) },
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                iconRes = suggestion.provider.iconRes,
+                                iconPainter = suggestion.provider.appIcon?.let { remember(it) { BitmapPainter(it) } },
+                                hasIconBackground = suggestion.provider.appIcon == null,
+                                showToggle = false,
+                                hasMoreSettings = false,
+                            )
+                        }
+                    }
+                }
+
+                // STAGE 1 / SETTINGS SCOPE: INTERNAL COMMANDS
+                if (internalCommands.isNotEmpty()) {
+                    item(key = "commands_header") {
+                        SearchSectionHeader("Essentials Commands", Modifier.animateItem())
+                    }
+                    item(key = "commands_cards") {
+                        RoundedCardContainer(modifier = Modifier.animateItem()) {
+                            internalCommands.forEachIndexed { index, cmd ->
+                                val isTopmost = index == 0 && hasCommands
+                                FeatureCard(
+                                    title = cmd.title,
+                                    description = cmd.description,
+                                    isEnabled = true,
+                                    onToggle = {},
+                                    onClick = {
+                                        HapticUtil.performVirtualKeyHaptic(view)
+                                        cmd.onExecute(context)
+                                        onFinish()
+                                    },
+                                    containerColor = if (isTopmost) highlightColor else normalCardColor,
+                                    iconRes = cmd.iconRes,
+                                    showToggle = false,
+                                    hasMoreSettings = true,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // STAGE 1: CONTEXTUAL ENTITY ROUTES (WORK / HOME / CALENDAR / CONTACTS)
+                if (activeScope == null && entityRoutes.isNotEmpty()) {
+                    item(key = "routes_header") {
+                        SearchSectionHeader("Directions & Places", Modifier.animateItem())
+                    }
+                    item(key = "routes_cards") {
+                        RoundedCardContainer(modifier = Modifier.animateItem()) {
+                            entityRoutes.forEachIndexed { index, route ->
+                                val isTopmost = index == 0 && hasRoutes
+                                Surface(
+                                    color = if (isTopmost) highlightColor else normalCardColor,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            HapticUtil.performVirtualKeyHaptic(view)
+                                            runCatching { context.startActivity(route.navigationIntent) }
+                                                .onFailure { runCatching { context.startActivity(route.mapIntent) } }
+                                            onFinish()
+                                        },
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.rounded_location_on_24),
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(24.dp),
+                                            )
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = route.label,
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                )
+                                                Text(
+                                                    text = "${route.address} • ${route.sourceLabel}",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 2,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                )
+                                            }
+                                        }
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        ) {
+                                            FilledTonalButton(
+                                                onClick = {
+                                                    HapticUtil.performVirtualKeyHaptic(view)
+                                                    runCatching { context.startActivity(route.navigationIntent) }
+                                                        .onFailure { runCatching { context.startActivity(route.mapIntent) } }
+                                                    onFinish()
+                                                },
+                                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                                            ) {
+                                                Icon(
+                                                    painter = painterResource(R.drawable.rounded_navigation_24),
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp),
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text("Navigate", style = MaterialTheme.typography.labelMedium)
+                                            }
+                                            OutlinedButton(
+                                                onClick = {
+                                                    HapticUtil.performVirtualKeyHaptic(view)
+                                                    runCatching { context.startActivity(route.mapIntent) }
+                                                    onFinish()
+                                                },
+                                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                                            ) {
+                                                Text("View Map", style = MaterialTheme.typography.labelMedium)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // APPS
                 if ((isAllTab || selectedTab == PixelSearchTab.APPS) && isAppsEnabled && appResults.isNotEmpty()) {
                     item(key = "apps_header") {
@@ -780,65 +1414,12 @@ fun PixelSearchResultsScreen(
                                     onToggle = {},
                                     onClick = {
                                         HapticUtil.performVirtualKeyHaptic(view)
-                                        if (app.isFrozen) {
-                                            viewModel.launchAndUnfreezeApp(context, app.packageName)
-                                        } else {
-                                            launchApp(context, app.packageName)
-                                        }
+                                        launchApp(context, app.packageName)
                                         onFinish()
                                     },
                                     containerColor = if (isTopmost) highlightColor else normalCardColor,
                                     showToggle = false,
-                                    hasMoreSettings = app.isFrozen,
-                                    description = if (app.isFrozen) stringResource(R.string.action_unfreeze) else null,
-                                    customTrailingContent = if (app.isFrozen) {
-                                        {
-                                            Icon(
-                                                painter = painterResource(R.drawable.rounded_mode_cool_24),
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(20.dp),
-                                            )
-                                        }
-                                    } else null,
-                                    additionalMenuItems = if (app.isFrozen) {
-                                        { onDismiss ->
-                                            SegmentedDropdownMenuItem(
-                                                text = { TranslatableText(R.string.action_unfreeze) },
-                                                onClick = {
-                                                    onDismiss()
-                                                    scope.launch(Dispatchers.IO) {
-                                                        FreezeManager.unfreezeApp(context, app.packageName)
-                                                        viewModel.refreshFreezePickedApps(context, silent = true)
-                                                        performSearch(query)
-                                                    }
-                                                },
-                                                leadingIcon = {
-                                                    Icon(
-                                                        painter = painterResource(R.drawable.rounded_mode_cool_off_24),
-                                                        contentDescription = null,
-                                                    )
-                                                },
-                                            )
-                                            SegmentedDropdownMenuItem(
-                                                text = { TranslatableText(R.string.action_app_info) },
-                                                onClick = {
-                                                    onDismiss()
-                                                    val infoIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                                        data = Uri.fromParts("package", app.packageName, null)
-                                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                    }
-                                                    context.startActivity(infoIntent)
-                                                },
-                                                leadingIcon = {
-                                                    Icon(
-                                                        painter = painterResource(R.drawable.rounded_info_24),
-                                                        contentDescription = null,
-                                                    )
-                                                },
-                                            )
-                                        }
-                                    } else null,
+                                    hasMoreSettings = false,
                                     iconPainter = if (app.icon != null) {
                                         BitmapPainter(app.icon)
                                     } else null,
@@ -1191,96 +1772,80 @@ fun PixelSearchResultsScreen(
                 }
 
                 // ESSENTIALS
-                if ((isAllTab || selectedTab == PixelSearchTab.SETTINGS) && isSettingsEnabled && (matchingQsTiles.isNotEmpty() || settingResults.isNotEmpty())) {
+                if ((isAllTab || selectedTab == PixelSearchTab.SETTINGS) && isSettingsEnabled && settingResults.isNotEmpty()) {
                     item(key = "essentials_header") {
                         SearchSectionHeader(
                             stringResource(R.string.app_name),
                             modifier = Modifier.animateItem(),
                         )
                     }
-                    if (settingResults.isNotEmpty()) {
-                        item(key = "essentials_cards") {
-                            RoundedCardContainer(modifier = Modifier.animateItem()) {
-                                settingResults.forEachIndexed { index, item ->
-                                    val isTopmost = index == 0 && hasEssentials
-                                    val setting = item.searchableItem
-                                    FeatureCard(
-                                        title = setting.title,
-                                        isEnabled = true,
-                                        onToggle = {},
-                                        onClick = {
-                                            HapticUtil.performVirtualKeyHaptic(view)
-                                            val feature = FeatureRegistry.ALL_FEATURES.find { it.id == setting.featureKey }
-                                            val targetFeatureKey =
-                                                if (feature?.searchTargetFeatureId != null) {
-                                                    feature.searchTargetFeatureId
-                                                } else if (feature != null && !feature.hasMoreSettings && feature.parentFeatureId != null) {
-                                                    feature.parentFeatureId
-                                                } else {
-                                                    setting.featureKey
-                                                }
-                                            val highlightKey =
-                                                if (feature != null && !feature.hasMoreSettings && feature.parentFeatureId != null) {
-                                                    feature.id
-                                                } else {
-                                                    setting.targetSettingHighlightKey
-                                                }
-
-                                            val intent =
-                                                if (targetFeatureKey == "Pixel Searchbar") {
-                                                    Intent(context, PixelSearchbarSettingsActivity::class.java)
-                                                } else if (targetFeatureKey == "LiveWallpaper" || targetFeatureKey == "Daily Wallpaper") {
-                                                    Intent(context, WallpaperActivity::class.java).apply {
-                                                        putExtra(
-                                                            "tab",
-                                                            if (targetFeatureKey == "LiveWallpaper") "live" else "daily",
-                                                        )
-                                                    }
-                                                } else if (targetFeatureKey == "App updates") {
-                                                    Intent(context, YourAndroidActivity::class.java)
-                                                } else {
-                                                    Intent(context, FeatureSettingsActivity::class.java).apply {
-                                                        putExtra("feature", targetFeatureKey)
-                                                        highlightKey?.let {
-                                                            putExtra("highlight_setting", it)
-                                                        }
-                                                    }
-                                                }
-                                            context.startActivity(intent)
-                                            onFinish()
-                                        },
-                                        containerColor = if (isTopmost) highlightColor else normalCardColor,
-                                        iconRes = setting.icon ?: R.drawable.rounded_settings_24,
-                                        showToggle = false,
-                                        hasMoreSettings = true,
-                                        description = setting.description,
-                                        isBeta = setting.isBeta,
-                                        isLegacy = setting.isLegacy,
-                                        isUnsupported = setting.isUnsupported,
-                                        descriptionOverride =
-                                            if (setting.parentFeature != null) {
-                                                "${setting.parentFeature} > ${setting.description}"
+                    item(key = "essentials_cards") {
+                        RoundedCardContainer(modifier = Modifier.animateItem()) {
+                            settingResults.forEachIndexed { index, item ->
+                                val isTopmost = index == 0 && hasEssentials
+                                val setting = item.searchableItem
+                                FeatureCard(
+                                    title = setting.title,
+                                    isEnabled = true,
+                                    onToggle = {},
+                                    onClick = {
+                                        HapticUtil.performVirtualKeyHaptic(view)
+                                        val feature = FeatureRegistry.ALL_FEATURES.find { it.id == setting.featureKey }
+                                        val targetFeatureKey =
+                                            if (feature?.searchTargetFeatureId != null) {
+                                                feature.searchTargetFeatureId
+                                            } else if (feature != null && !feature.hasMoreSettings && feature.parentFeatureId != null) {
+                                                feature.parentFeatureId
                                             } else {
-                                                setting.description
-                                            },
-                                    )
-                                }
+                                                setting.featureKey
+                                            }
+                                        val highlightKey =
+                                            if (feature != null && !feature.hasMoreSettings && feature.parentFeatureId != null) {
+                                                feature.id
+                                            } else {
+                                                setting.targetSettingHighlightKey
+                                            }
+
+                                        val intent =
+                                            if (targetFeatureKey == "Pixel Searchbar") {
+                                                Intent(context, PixelSearchbarSettingsActivity::class.java)
+                                            } else {
+                                                Intent(context, FeatureSettingsActivity::class.java).apply {
+                                                    putExtra("feature", targetFeatureKey)
+                                                    highlightKey?.let {
+                                                        putExtra("highlight_setting", it)
+                                                    }
+                                                }
+                                            }
+                                        context.startActivity(intent)
+                                        onFinish()
+                                    },
+                                    containerColor = if (isTopmost) highlightColor else normalCardColor,
+                                    iconRes = setting.icon ?: R.drawable.rounded_settings_24,
+                                    showToggle = false,
+                                    hasMoreSettings = true,
+                                    description = setting.description,
+                                    isBeta = setting.isBeta,
+                                    isLegacy = setting.isLegacy,
+                                    isUnsupported = setting.isUnsupported,
+                                    descriptionOverride =
+                                        if (setting.parentFeature != null) {
+                                            "${setting.parentFeature} > ${setting.description}"
+                                        } else {
+                                            setting.description
+                                        },
+                                )
                             }
-                        }
-                    }
-                    if (matchingQsTiles.isNotEmpty()) {
-                        item(key = "essentials_qs_tiles") {
-                            QSTilesSearchResultCard(
-                                tiles = matchingQsTiles,
-                                viewModel = viewModel,
-                                modifier = Modifier.animateItem(),
-                            )
                         }
                     }
                 }
 
                 // SHORTCUTS
-                if ((isAllTab || selectedTab == PixelSearchTab.SETTINGS) && isShortcutsEnabled && shortcutResults.isNotEmpty()) {
+                if ((activeScope == null || activeScope?.kind == SearchProviderKind.APP_INTENT) &&
+                    (isAllTab || selectedTab == PixelSearchTab.SETTINGS) &&
+                    isShortcutsEnabled &&
+                    shortcutResults.isNotEmpty()
+                ) {
                     item(key = "shortcuts_header") {
                         SearchSectionHeader(
                             stringResource(R.string.pixel_search_section_shortcuts),
@@ -1292,19 +1857,54 @@ fun PixelSearchResultsScreen(
                             shortcutResults.forEachIndexed { index, shortcut ->
                                 val isTopmost = index == 0 && hasShortcuts
                                 FeatureCard(
-                                    title = shortcut.label,
+                                    title = shortcut.shortLabel,
                                     isEnabled = true,
                                     onToggle = {},
                                     onClick = {
                                         HapticUtil.performVirtualKeyHaptic(view)
-                                        context.startActivity(shortcut.intent)
+                                        SearchProviderDiscovery.launchShortcut(context, shortcut)
                                         onFinish()
                                     },
                                     containerColor = if (isTopmost) highlightColor else normalCardColor,
-                                    iconRes = shortcut.iconRes,
+                                    iconRes = shortcut.fallbackIconRes,
+                                    iconPainter = shortcut.icon?.let { remember(it) { BitmapPainter(it) } },
+                                    hasIconBackground = shortcut.icon == null,
                                     showToggle = false,
                                     hasMoreSettings = false,
-                                    description = shortcut.subtitle,
+                                    description = if (shortcut.fromShizuku) "${shortcut.appName} • Shizuku" else shortcut.appName,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // APP FUNCTIONS (Android 16+)
+                if (activeScope == null && appFunctions.isNotEmpty()) {
+                    item(key = "app_functions_header") {
+                        SearchSectionHeader("App Functions", modifier = Modifier.animateItem())
+                    }
+                    item(key = "app_functions_cards") {
+                        RoundedCardContainer(modifier = Modifier.animateItem()) {
+                            appFunctions.forEach { fn ->
+                                FeatureCard(
+                                    title = fn.functionLabel,
+                                    description = "${fn.appName} • App Function",
+                                    isEnabled = true,
+                                    onToggle = {},
+                                    onClick = {
+                                        HapticUtil.performVirtualKeyHaptic(view)
+                                        fn.launchIntent?.let {
+                                            it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            context.startActivity(it)
+                                        }
+                                        onFinish()
+                                    },
+                                    containerColor = normalCardColor,
+                                    iconRes = R.drawable.rounded_extension_24,
+                                    iconPainter = fn.icon?.let { remember(it) { BitmapPainter(it) } },
+                                    hasIconBackground = fn.icon == null,
+                                    showToggle = false,
+                                    hasMoreSettings = false,
                                 )
                             }
                         }
@@ -1312,8 +1912,12 @@ fun PixelSearchResultsScreen(
                 }
 
                 // WEB SEARCH
-                if ((isAllTab || selectedTab == PixelSearchTab.WEB) && isWebEnabled && query.isNotBlank()) {
-                    val isTopmost = !hasApps && !hasContacts && !hasMedia && !hasFiles && !hasSystemSettings && !hasEssentials && !hasShortcuts
+                if ((activeScope == null || activeScope?.kind == SearchProviderKind.WEB) &&
+                    (isAllTab || selectedTab == PixelSearchTab.WEB) &&
+                    isWebEnabled &&
+                    query.isNotBlank()
+                ) {
+                    val isTopmost = !hasCommands && !hasRoutes && !hasApps && !hasContacts && !hasMedia && !hasFiles && !hasSystemSettings && !hasEssentials && !hasShortcuts
                     item(key = "web_header") {
                         SearchSectionHeader(
                             stringResource(R.string.pixel_search_section_web),
@@ -1372,57 +1976,220 @@ fun PixelSearchResultsScreen(
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                 ),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .animateContentSize(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)),
             ) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .focusRequester(focusRequester),
-                    placeholder = {
-                        TranslatableText(
-                            stringResId = R.string.pixel_search_input_hint,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                ) {
+                    AnimatedVisibility(
+                        visible = activeScope != null,
+                        enter = fadeIn() + scaleIn(initialScale = 0.88f),
+                        exit = fadeOut() + scaleOut(targetScale = 0.88f),
+                    ) {
+                        activeScope?.let { scopeProvider ->
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier
+                                    .padding(end = 10.dp)
+                                    .clip(CircleShape)
+                                    .clickable { exitScope() },
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.padding(start = 10.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                                ) {
+                                    if (scopeProvider.appIcon != null) {
+                                        Image(
+                                            painter = BitmapPainter(scopeProvider.appIcon),
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .size(18.dp)
+                                                .clip(CircleShape),
+                                        )
+                                    } else {
+                                        Icon(
+                                            painter = painterResource(scopeProvider.iconRes),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                    }
+                                    Text(
+                                        text = scopeProvider.title,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                    )
+                                    Icon(
+                                        painter = painterResource(R.drawable.rounded_close_24),
+                                        contentDescription = "Exit scope",
+                                        modifier = Modifier.size(14.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    val bodyLargeStyle = MaterialTheme.typography.bodyLarge
+                    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+                    val hintColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.58f)
+
+                    Box(
+                        contentAlignment = Alignment.CenterStart,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 6.dp, vertical = 6.dp),
+                    ) {
+                        if (query.isEmpty()) {
+                            val currentScope = activeScope
+                            if (currentScope != null) {
+                                Text(
+                                    text = "Search ${currentScope.title.lowercase()}...",
+                                    style = bodyLargeStyle,
+                                    color = hintColor,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            } else {
+                                TranslatableText(
+                                    stringResId = R.string.pixel_search_input_hint,
+                                    style = bodyLargeStyle,
+                                    color = hintColor,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        } else if (activeScope == null && prefixSuggestion != null) {
+                            val suggestion = prefixSuggestion
+                            val ghostAnnotated = buildAnnotatedString {
+                                withStyle(SpanStyle(color = Color.Transparent)) {
+                                    append(query)
+                                }
+                                if (suggestion.ghostSuffix.isNotEmpty()) {
+                                    withStyle(SpanStyle(color = hintColor)) {
+                                        append(suggestion.ghostSuffix)
+                                    }
+                                }
+                                withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.72f))) {
+                                    append("  • Tab")
+                                }
+                            }
+                            Text(
+                                text = ghostAnnotated,
+                                style = bodyLargeStyle,
+                                maxLines = 1,
+                                overflow = TextOverflow.Clip,
+                            )
+                        }
+
+                        BasicTextField(
+                            value = query,
+                            onValueChange = { query = it },
+                            singleLine = true,
+                            textStyle = bodyLargeStyle.copy(color = onSurfaceColor),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            keyboardOptions = KeyboardOptions(
+                                imeAction = ImeAction.Search,
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onSearch = {
+                                    HapticUtil.performVirtualKeyHaptic(view)
+                                    if (activeScope == null && prefixSuggestion != null) {
+                                        enterScope(prefixSuggestion.provider)
+                                    } else {
+                                        keyboardController?.hide()
+                                        launchTopmostOrWeb()
+                                    }
+                                },
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(focusRequester)
+                                .onPreviewKeyEvent { keyEvent ->
+                                    if (keyEvent.type == KeyEventType.KeyDown) {
+                                        when {
+                                            keyEvent.key == Key.Tab && activeScope == null && prefixSuggestion != null -> {
+                                                enterScope(prefixSuggestion.provider)
+                                                true
+                                            }
+                                            keyEvent.key == Key.Backspace && activeScope != null && query.isEmpty() -> {
+                                                exitScope()
+                                                true
+                                            }
+                                            else -> false
+                                        }
+                                    } else {
+                                        false
+                                    }
+                                },
                         )
-                    },
-                    trailingIcon = {
-                        when {
-                            isSearching -> LoadingIndicator()
-                            query.isNotEmpty() -> IconButton(onClick = {
-                                HapticUtil.performVirtualKeyHaptic(view)
-                                query = ""
-                            }) {
+                    }
+
+                    if (activeScope == null && prefixSuggestion != null) {
+                        val suggestion = prefixSuggestion
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier
+                                .padding(end = 4.dp)
+                                .clip(CircleShape)
+                                .clickable { enterScope(suggestion.provider) },
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            ) {
+                                Text(
+                                    text = suggestion.provider.title,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                )
                                 Icon(
-                                    painter = painterResource(R.drawable.rounded_close_24),
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    painter = painterResource(R.drawable.rounded_arrow_forward_24),
+                                    contentDescription = "Scope to ${suggestion.provider.title}",
+                                    modifier = Modifier.size(14.dp),
                                 )
                             }
                         }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(28.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent,
-                        focusedBorderColor = Color.Transparent,
-                        unfocusedBorderColor = Color.Transparent,
-                    ),
-                    keyboardOptions = KeyboardOptions(
-                        imeAction = ImeAction.Search,
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onSearch = {
-                            HapticUtil.performVirtualKeyHaptic(view)
-                            keyboardController?.hide()
-                            launchTopmostOrWeb()
+                    }
+
+                    when {
+                        isSearching -> Box(modifier = Modifier.padding(end = 6.dp)) { LoadingIndicator() }
+                        query.isNotEmpty() -> IconButton(
+                            onClick = {
+                                HapticUtil.performVirtualKeyHaptic(view)
+                                query = ""
+                            },
+                            modifier = Modifier.size(36.dp),
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.rounded_close_24),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
-                    ),
-                )
+                        activeScope != null -> IconButton(
+                            onClick = { exitScope() },
+                            modifier = Modifier.size(36.dp),
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.rounded_close_24),
+                                contentDescription = "Exit scope",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -1673,37 +2440,5 @@ private fun loadSystemSettings(context: Context, query: String): List<PixelSearc
 }
 
 private fun loadShortcuts(context: Context, query: String): List<PixelSearchResultItem.ShortcutItem> {
-    val items = mutableListOf<PixelSearchResultItem.ShortcutItem>()
-    val q = query.lowercase()
-
-    if ("wallpaper".contains(q) || "daily".contains(q) || "background".contains(q)) {
-        items.add(
-            PixelSearchResultItem.ShortcutItem(
-                id = "shortcut_wallpaper",
-                label = context.getString(R.string.feat_daily_wallpaper_title),
-                subtitle = context.getString(R.string.pixel_search_shortcut_wallpaper),
-                iconRes = R.drawable.rounded_wallpaper_24,
-                intent = Intent(context, WallpaperActivity::class.java).apply {
-                    action = Intent.ACTION_VIEW
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                },
-            )
-        )
-    }
-
-    if ("freeze".contains(q) || "app".contains(q) || "hibernate".contains(q)) {
-        items.add(
-            PixelSearchResultItem.ShortcutItem(
-                id = "shortcut_freeze",
-                label = context.getString(R.string.freeze_activity_title),
-                subtitle = context.getString(R.string.pixel_search_shortcut_freeze),
-                iconRes = R.drawable.rounded_mode_cool_24,
-                intent = Intent(context, AppFreezingActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                },
-            )
-        )
-    }
-
-    return items
+    return emptyList()
 }

@@ -19,7 +19,6 @@ import com.sameerasw.essentials.domain.HapticFeedbackType
 
 class SettingsViewModel : ViewModel() {
     val pinnedFeatureKeys = mutableStateOf<List<String>>(emptyList())
-    val pinnedQsTileKeys = mutableStateOf<List<String>>(emptyList())
     val hapticFeedbackType = mutableStateOf(HapticFeedbackType.SUBTLE)
     val defaultTab = mutableStateOf(DIYTabs.ESSENTIALS)
 
@@ -31,7 +30,6 @@ class SettingsViewModel : ViewModel() {
     fun loadSettings(context: Context) {
         val repo = SettingsRepository(context)
         pinnedFeatureKeys.value = repo.getPinnedFeatures()
-        pinnedQsTileKeys.value = repo.getPinnedQsTiles()
     }
 
     /**

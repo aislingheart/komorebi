@@ -38,7 +38,6 @@ import com.sameerasw.essentials.island.ui.components.EqualizerBars
 import com.sameerasw.essentials.island.ui.components.MediaArtCue
 import com.sameerasw.essentials.island.ui.components.TrackSkipPill
 import com.sameerasw.essentials.island.ui.components.IslandBitmap
-import com.sameerasw.essentials.services.NotificationListener
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -383,7 +382,6 @@ class MediaPlugin : BaseIslandPlugin() {
     }
 
     private fun like() {
-        context.sendBroadcast(Intent(NotificationListener.ACTION_LIKE_CURRENT_SONG).setPackage(context.packageName))
         ctx?.mainHandler?.postDelayed({
             active?.let { liked = MediaSessionSource.isLiked(it) }
             render()

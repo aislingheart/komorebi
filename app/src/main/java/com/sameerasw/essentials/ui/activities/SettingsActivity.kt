@@ -11,13 +11,11 @@ package com.sameerasw.essentials
 
 import com.sameerasw.essentials.R
 import com.sameerasw.essentials.translation.TranslatableText
-import com.sameerasw.essentials.ui.navigation.AppRoutes
 import com.sameerasw.essentials.BuildConfig
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.sameerasw.essentials.ui.components.rememberPullTitleHeaderState
 import com.sameerasw.essentials.ui.components.PullTitleHeader
 import com.sameerasw.essentials.data.repository.SettingsRepository
-import com.sameerasw.essentials.ui.activities.WallpaperStagingActivity
 import com.sameerasw.essentials.ui.core.cards.ConfigPickerItem
 import android.Manifest
 import android.content.ClipData
@@ -99,7 +97,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.core.app.ActivityCompat
-import com.sameerasw.essentials.domain.DIYTabs
 import com.sameerasw.essentials.domain.registry.FeatureRegistry
 import com.sameerasw.essentials.domain.registry.PermissionRegistry
 import com.sameerasw.essentials.translation.TranslationManager
@@ -116,7 +113,6 @@ import com.sameerasw.essentials.ui.core.cards.PermissionCard
 import com.sameerasw.essentials.ui.core.containers.RoundedCardContainer
 import com.sameerasw.essentials.ui.core.pickers.AppIconPicker
 import com.sameerasw.essentials.ui.core.pickers.CrashReportingPicker
-import com.sameerasw.essentials.ui.core.pickers.DefaultTabPicker
 import com.sameerasw.essentials.ui.core.pickers.LanguagePicker
 import com.sameerasw.essentials.ui.core.sheets.GitHubAuthSheet
 import com.sameerasw.essentials.ui.core.sheets.ImportConfigConfirmationSheet
@@ -152,10 +148,31 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-class SettingsActivity : android.app.Activity() {
+class SettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        AppRoutes.redirectToMain(this)
+        enableEdgeToEdge()
+        val expandPermissionsInitial = intent.getBooleanExtra("expand_permissions", false)
+        setContent {
+            val viewModel: MainViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+            val context = LocalContext.current
+            remember(context) { viewModel.check(context) }
+            val isPitchBlackThemeEnabled by viewModel.isPitchBlackThemeEnabled
+            EssentialsTheme(pitchBlackTheme = isPitchBlackThemeEnabled) {
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.surfaceContainer),
+                ) {
+                    SettingsContent(
+                        viewModel = viewModel,
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
+                        expandPermissionsInitial = expandPermissionsInitial,
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -195,14 +212,6 @@ fun SettingsContent(
     val updateInfo by viewModel.updateInfo
     val isUpdateAvailable by viewModel.isUpdateAvailable
     val isAutoUpdateEnabled by viewModel.isAutoUpdateEnabled
-    val isGenAIAutomationEnabled by viewModel.isGenAIAutomationEnabled
-    var isGenAISupported by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        isGenAISupported =
-            com.sameerasw.essentials.domain.genai.GenAIAutomationService
-                .isSupported()
-    }
 
     val isUpdateNotificationEnabled by viewModel.isUpdateNotificationEnabled
     val isPreReleaseCheckEnabled by viewModel.isPreReleaseCheckEnabled
@@ -498,6 +507,53 @@ fun SettingsContent(
             )
         }
 
+        // Extensions & Semantic Search
+        var indexedPhotosCount by remember { mutableStateOf(0) }
+        var isIndexingPhotos by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) {
+            indexedPhotosCount = com.sameerasw.essentials.search.semantic.PhotoSemanticEngine.getIndexedCount(context)
+        }
+        Text(
+            text = "Extensions & Semantic Search",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        RoundedCardContainer {
+            IconToggleItem(
+                iconRes = R.drawable.rounded_extension_24,
+                title = "Extensions & Store",
+                description = "Manage installed Raycast & Vicinae extensions or browse the store",
+                showToggle = false,
+                onClick = {
+                    context.startActivity(
+                        com.sameerasw.essentials.ui.activities.ExtensionsActivity.createIntent(context, openStore = false),
+                    )
+                },
+            )
+            IconToggleItem(
+                iconRes = R.drawable.rounded_image_24,
+                title = if (isIndexingPhotos) "Indexing photos on-device..." else "Semantic Photo Index ($indexedPhotosCount photos)",
+                description = "Run on-device OCR & visual indexing for offline semantic photo search",
+                showToggle = false,
+                onClick = {
+                    if (!isIndexingPhotos) {
+                        isIndexingPhotos = true
+                        grantScope.launch {
+                            val added = com.sameerasw.essentials.search.semantic.PhotoSemanticEngine.indexBatch(context, maxToIndex = 200)
+                            indexedPhotosCount = com.sameerasw.essentials.search.semantic.PhotoSemanticEngine.getIndexedCount(context)
+                            isIndexingPhotos = false
+                            Toast.makeText(
+                                context,
+                                if (added > 0) "Indexed $added photos ($indexedPhotosCount total)" else "Photo index up to date ($indexedPhotosCount total)",
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                    }
+                },
+            )
+        }
+
         // Updates 
         TranslatableText(
             stringResId = R.string.label_updates,
@@ -604,21 +660,6 @@ fun SettingsContent(
             LanguagePicker(
                 selectedLanguageCode = appLanguage,
                 onLanguageSelected = { viewModel.setAppLanguage(it) },
-            )
-
-            val defaultTab by viewModel.defaultTab
-            val availableTabs = remember { DIYTabs.entries.filter { it != DIYTabs.SETTINGS } }
-            DefaultTabPicker(
-                selectedTab = defaultTab,
-                onTabSelected = { viewModel.setDefaultTab(it, context) },
-                options = availableTabs,
-            )
-
-            IconToggleItem(
-                iconRes = R.drawable.rounded_touch_app_24,
-                title = stringResource(R.string.setting_swipe_tabs_title),
-                isChecked = viewModel.isSwipeTabsEnabled.value,
-                onCheckedChange = { viewModel.setSwipeTabsEnabled(it) },
             )
 
             val hapticModeLabels = mapOf(
@@ -987,16 +1028,6 @@ fun SettingsContent(
                 isChecked = viewModel.isUseUsageAccess.value,
                 onCheckedChange = { viewModel.setUseUsageAccess(it, context) },
             )
-
-            if (isGenAISupported) {
-                IconToggleItem(
-                    iconRes = R.drawable.rounded_auto_awesome_24,
-                    title = stringResource(R.string.settings_genai_automation_title),
-                    description = stringResource(R.string.settings_genai_automation_desc),
-                    isChecked = isGenAIAutomationEnabled,
-                    onCheckedChange = { viewModel.setGenAIAutomationEnabled(it, context) },
-                )
-            }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -1028,16 +1059,6 @@ fun SettingsContent(
                     }
                 },
             )
-
-            if (viewModel.isEnableUnsupportedFeatures.value && DeviceUtils.isTorchRestrictedDevice()) {
-                IconToggleItem(
-                    iconRes = R.drawable.rounded_flashlight_on_24,
-                    title = stringResource(R.string.setting_force_flashlight_controls_title),
-                    description = stringResource(R.string.setting_force_flashlight_controls_desc),
-                    isChecked = viewModel.isForceFlashlightControls.value,
-                    onCheckedChange = { enabled -> viewModel.setForceFlashlightControls(enabled) },
-                )
-            }
 
             IconToggleItem(
                 iconRes = R.drawable.rounded_archive_24,
@@ -1478,273 +1499,6 @@ fun SettingsContent(
                     isChecked = viewModel.isDebugUiMarginOverlay.value,
                     onCheckedChange = { viewModel.setDebugUiMarginOverlay(it) },
                 )
-            }
-
-            val gitHubUser = viewModel.gitHubUser.value
-            if (gitHubUser?.login == "sameerasw") {
-                Spacer(modifier = Modifier.height(16.dp))
-
-                TranslatableText(
-                    stringResId = R.string.label_wallpaper_update,
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-
-                val workflowToken by remember { mutableStateOf(viewModel.gitHubWorkflowToken) }
-                val hasWorkflowToken = !workflowToken.value.isNullOrEmpty()
-
-                RoundedCardContainer {
-                    if (!hasWorkflowToken) {
-                        Column(
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .background(color = MaterialTheme.colorScheme.surfaceBright)
-                                    .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            TranslatableText(
-                                stringResId = R.string.wallpaper_workflow_auth_required,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-
-                            val workflowAuthState by viewModel.workflowAuthState
-
-                            when (workflowAuthState) {
-                                is com.sameerasw.essentials.viewmodels.AuthState.Idle -> {
-                                    Button(
-                                        onClick = {
-                                            viewModel.startWorkflowAuthFlow(context)
-                                        },
-                                        modifier = Modifier.fillMaxWidth(),
-                                    ) {
-                                        TranslatableText(R.string.wallpaper_grant_workflow_access)
-                                    }
-                                }
-
-                                is com.sameerasw.essentials.viewmodels.AuthState.Loading -> {
-                                    Box(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                                    }
-                                }
-
-                                is com.sameerasw.essentials.viewmodels.AuthState.CodeReceived -> {
-                                    val codeData =
-                                        workflowAuthState as com.sameerasw.essentials.viewmodels.AuthState.CodeReceived
-                                    Column(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                                    ) {
-                                        TranslatableText(
-                                            stringResId = R.string.github_verification_code,
-                                            style = MaterialTheme.typography.titleSmall,
-                                        )
-                                        Text(
-                                            text = codeData.userCode,
-                                            style =
-                                                MaterialTheme.typography.headlineMedium.copy(
-                                                    fontWeight = FontWeight.Bold,
-                                                ),
-                                            color = MaterialTheme.colorScheme.primary,
-                                        )
-                                        TranslatableText(
-                                            stringResId = R.string.github_go_to,
-                                            formatArgs = listOf(codeData.verificationUri),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        ) {
-                                            Button(
-                                                onClick = {
-                                                    val intent =
-                                                        Intent(
-                                                            Intent.ACTION_VIEW,
-                                                            Uri.parse(codeData.verificationUri),
-                                                        )
-                                                    context.startActivity(intent)
-                                                },
-                                            ) {
-                                                TranslatableText(R.string.action_open_page)
-                                            }
-                                            TextButton(
-                                                onClick = {
-                                                    viewModel.cancelWorkflowAuthFlow()
-                                                },
-                                            ) {
-                                                TranslatableText(R.string.action_cancel)
-                                            }
-                                        }
-                                    }
-                                }
-
-                                is com.sameerasw.essentials.viewmodels.AuthState.Error -> {
-                                    val err =
-                                        workflowAuthState as com.sameerasw.essentials.viewmodels.AuthState.Error
-                                    Column(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                                    ) {
-                                        TranslatableText(
-                                            stringResId = err.messageRes,
-                                            formatArgs = listOf(err.formatArg.orEmpty()),
-                                            color = MaterialTheme.colorScheme.error,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                        )
-                                        Button(
-                                            onClick = {
-                                                viewModel.startWorkflowAuthFlow(context)
-                                            },
-                                        ) {
-                                            TranslatableText(R.string.action_retry)
-                                        }
-                                    }
-                                }
-
-                                is com.sameerasw.essentials.viewmodels.AuthState.Authenticated -> {
-                                    // Handled by token recomposition
-                                }
-                            }
-                        }
-                    } else {
-                        Column(
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .background(color = MaterialTheme.colorScheme.surfaceBright)
-                                    .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            TranslatableText(
-                                stringResId = R.string.wallpaper_trigger_update_desc,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                val triggerState by viewModel.wallpaperTriggerState
-                                val isTriggering = triggerState != null
-
-                                Button(
-                                    onClick = {
-                                        HapticUtil.performUIHaptic(view)
-                                        viewModel.triggerWallpaperUpdate("desktop")
-                                    },
-                                    modifier =
-                                        Modifier
-                                            .weight(1f)
-                                            .defaultMinSize(minHeight = 44.dp),
-                                    shape = ButtonGroupDefaults.connectedLeadingButtonShapes().shape,
-                                    enabled = !isTriggering,
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.rounded_laptop_mac_24),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp),
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    TranslatableText(R.string.btn_wallpaper_desktop)
-                                }
-                                Button(
-                                    onClick = {
-                                        HapticUtil.performUIHaptic(view)
-                                        viewModel.triggerWallpaperUpdate("both")
-                                    },
-                                    modifier =
-                                        Modifier
-                                            .weight(1f)
-                                            .defaultMinSize(minHeight = 44.dp),
-                                    shape = ButtonGroupDefaults.connectedMiddleButtonShapes().shape,
-                                    enabled = !isTriggering,
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.rounded_devices_24),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp),
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    TranslatableText(R.string.btn_wallpaper_both)
-                                }
-                                Button(
-                                    onClick = {
-                                        HapticUtil.performUIHaptic(view)
-                                        viewModel.triggerWallpaperUpdate("mobile")
-                                    },
-                                    modifier =
-                                        Modifier
-                                            .weight(1f)
-                                            .defaultMinSize(minHeight = 44.dp),
-                                    shape = ButtonGroupDefaults.connectedTrailingButtonShapes().shape,
-                                    enabled = !isTriggering,
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.rounded_mobile_24),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp),
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    TranslatableText(R.string.btn_wallpaper_mobile)
-                                }
-                            }
-
-                            val triggerState by viewModel.wallpaperTriggerState
-                            if (triggerState != null) {
-                                Text(
-                                    text =
-                                        when (triggerState) {
-                                            "loading" -> stringResource(R.string.wallpaper_trigger_sending)
-                                            "success" -> stringResource(R.string.wallpaper_trigger_success)
-                                            "error" -> stringResource(R.string.wallpaper_trigger_failed)
-                                            else -> ""
-                                        },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color =
-                                        when (triggerState) {
-                                            "success" -> MaterialTheme.colorScheme.primary
-                                            "error" -> MaterialTheme.colorScheme.error
-                                            else -> MaterialTheme.colorScheme.onSurfaceVariant
-                                        },
-                                    modifier = Modifier.align(Alignment.CenterHorizontally),
-                                )
-                            }
-
-                            Button(
-                                onClick = {
-                                    HapticUtil.performUIHaptic(view)
-                                    val intent = Intent(context, WallpaperStagingActivity::class.java)
-                                    context.startActivity(intent)
-                                },
-                                modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 44.dp),
-                                colors =
-                                    ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    ),
-                            ) {
-                                Icon(
-                                    painter = painterResource(id = R.drawable.rounded_wallpaper_24),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                TranslatableText(stringResId = R.string.feat_wallpaper_staging_title)
-                            }
-                        }
-                    }
-                }
             }
         }
 

@@ -87,8 +87,6 @@ import coil.decode.ImageDecoderDecoder
 import coil.request.ImageRequest
 import com.sameerasw.essentials.R
 import com.sameerasw.essentials.translation.TranslatableText
-import com.sameerasw.essentials.ui.components.ShakeForHelpCard
-import com.sameerasw.essentials.ui.components.WhatsNewCustomContent
 import com.sameerasw.essentials.ui.components.text.SimpleMarkdown
 import com.sameerasw.essentials.ui.core.cards.IconToggleItem
 import com.sameerasw.essentials.ui.core.pickers.PrivilegedModePicker
@@ -635,14 +633,6 @@ fun FeatureIntroStepContent(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            var shakeCardExpanded by rememberSaveable { mutableStateOf(true) }
-            ShakeForHelpCard(
-                expanded = shakeCardExpanded,
-                onToggle = { shakeCardExpanded = !shakeCardExpanded },
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
             TranslatableText(
                 stringResId = R.string.feature_intro_desc,
                 style = MaterialTheme.typography.bodyLarge,
@@ -834,13 +824,6 @@ fun WhatsNewStepContent(
             )
 
             Spacer(modifier = Modifier.height(24.dp))
-
-            // Custom content slot
-            Box(modifier = Modifier.padding(horizontal = 24.dp)) {
-                WhatsNewCustomContent(mainViewModel = viewModel)
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
 
             // Release Notes / Markdown
             Box(

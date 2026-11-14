@@ -20,6 +20,11 @@ import kotlinx.coroutines.launch
 object AppFunctionAvailabilityManager {
     private const val TAG = "AppFunctionAvailabilityManager"
 
+    fun isSupported(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < 36) return false
+        return runCatching { AppFunctionManager.getInstance(context) != null }.getOrDefault(false)
+    }
+
     fun updateAvailability(context: Context) {
         if (Build.VERSION.SDK_INT < 36) return
 

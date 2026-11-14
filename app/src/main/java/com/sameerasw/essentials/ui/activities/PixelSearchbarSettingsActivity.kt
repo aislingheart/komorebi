@@ -12,24 +12,18 @@ package com.sameerasw.essentials.ui.activities
 import com.sameerasw.essentials.translation.TranslatableText
 import com.sameerasw.essentials.ui.navigation.ProvideBottomBar
 import com.sameerasw.essentials.ui.navigation.BottomBarSpec
-import com.sameerasw.essentials.ui.navigation.AppRoutes
 import com.sameerasw.essentials.ui.navigation.AppRoute
 import android.Manifest
 import android.app.Activity
-import android.appwidget.AppWidgetHost
-import android.appwidget.AppWidgetManager
-import android.appwidget.AppWidgetProviderInfo
 import android.content.Context
-import android.content.Intent
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -55,12 +49,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -74,17 +66,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sameerasw.essentials.R
 import com.sameerasw.essentials.domain.model.Feature
-import com.sameerasw.essentials.services.widgets.WidgetScraperService
-import com.sameerasw.essentials.ui.features.widgets.WidgetPickerSheet
-import kotlinx.coroutines.delay
-import com.sameerasw.essentials.ui.components.EssentialsFloatingToolbar
 import com.sameerasw.essentials.ui.components.animations.LottieFeatureAnimation
 import com.sameerasw.essentials.ui.components.menus.SegmentedDropdownMenuItem
-import com.sameerasw.essentials.ui.components.sliders.ConfigSliderItem
 import com.sameerasw.essentials.ui.core.cards.ConfigPickerItem
 import com.sameerasw.essentials.ui.core.cards.IconToggleItem
 import com.sameerasw.essentials.ui.core.containers.RoundedCardContainer
@@ -92,8 +78,6 @@ import com.sameerasw.essentials.ui.core.pickers.SegmentedPicker
 import com.sameerasw.essentials.ui.core.sheets.FeatureHelpBottomSheet
 import com.sameerasw.essentials.ui.core.sheets.PermissionsBottomSheet
 import com.sameerasw.essentials.ui.core.sheets.ShakeForHelp
-import com.sameerasw.essentials.ui.modifiers.BlurDirection
-import com.sameerasw.essentials.ui.modifiers.progressiveBlur
 import com.sameerasw.essentials.ui.modifiers.scrollMotionBlur
 import com.sameerasw.essentials.ui.theme.EssentialsTheme
 import com.sameerasw.essentials.utils.HapticUtil
@@ -270,10 +254,13 @@ fun PixelSearchbarSettingsScreen(onBack: () -> Unit) {
     }
 }
 
-class PixelSearchbarSettingsActivity : android.app.Activity() {
+class PixelSearchbarSettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        AppRoutes.redirectToMain(this)
+        enableEdgeToEdge()
+        setContent {
+            PixelSearchbarSettingsScreen(onBack = { finish() })
+        }
     }
 }
 
@@ -305,110 +292,13 @@ fun PixelSearchbarSettingsUI(
             viewModel.setPixelSearchResultContactsEnabled(isGranted)
         }
 
-    val options = listOf("searchbar", "empty", "date", "widget", "music")
+    val options = listOf("searchbar", "empty", "date")
     val labels =
         mapOf(
             "searchbar" to stringResource(R.string.pixel_searchbar_style_searchbar),
             "empty" to stringResource(R.string.pixel_searchbar_style_empty),
             "date" to stringResource(R.string.pixel_searchbar_style_date),
-            "widget" to stringResource(R.string.pixel_searchbar_style_widget),
-            "music" to stringResource(R.string.pixel_searchbar_style_music),
         )
-
-    val awm = remember { AppWidgetManager.getInstance(context) }
-    val widgetHost = remember { AppWidgetHost(context, WidgetScraperService.HOST_ID) }
-
-    var pendingWidgetId by remember { mutableStateOf(AppWidgetManager.INVALID_APPWIDGET_ID) }
-    var showWidgetPicker by remember { mutableStateOf(false) }
-    var isWidgetUnsupported by remember { mutableStateOf(false) }
-
-    LaunchedEffect(currentType) {
-        while (currentType == "widget") {
-            isWidgetUnsupported = WidgetScraperService.isUnsupported
-            delay(1000)
-        }
-        isWidgetUnsupported = false
-    }
-
-    fun discardPending() {
-        if (pendingWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-            widgetHost.deleteAppWidgetId(pendingWidgetId)
-            pendingWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
-        }
-    }
-
-    fun finishBinding() {
-        val widgetId = pendingWidgetId
-        pendingWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
-        if (widgetId == AppWidgetManager.INVALID_APPWIDGET_ID) return
-        val previousId = viewModel.pixelSearchbarWidgetId.intValue
-        if (previousId != AppWidgetManager.INVALID_APPWIDGET_ID && previousId != widgetId) {
-            widgetHost.deleteAppWidgetId(previousId)
-        }
-        val providerName = awm.getAppWidgetInfo(widgetId)?.provider?.flattenToString()
-        viewModel.setPixelSearchbarType("widget", context)
-        viewModel.setPixelSearchbarWidgetId(widgetId, providerName, context)
-        WidgetScraperService.start(context)
-    }
-
-    val configureLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            if (result.resultCode == Activity.RESULT_OK) finishBinding() else discardPending()
-        }
-
-    fun configureOrFinish(info: AppWidgetProviderInfo) {
-        val configurationOptional =
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                info.widgetFeatures and AppWidgetProviderInfo.WIDGET_FEATURE_CONFIGURATION_OPTIONAL != 0
-        val configure = info.configure
-        if (configure != null && !configurationOptional) {
-            try {
-                configureLauncher.launch(
-                    Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE).apply {
-                        component = configure
-                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, pendingWidgetId)
-                    },
-                )
-                return
-            } catch (_: Exception) {
-            }
-        }
-        finishBinding()
-    }
-
-    val bindLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            val info = awm.getAppWidgetInfo(pendingWidgetId)
-            if (result.resultCode == Activity.RESULT_OK && info != null) configureOrFinish(info) else discardPending()
-        }
-
-    fun onWidgetPicked(info: AppWidgetProviderInfo) {
-        showWidgetPicker = false
-        discardPending()
-        pendingWidgetId = widgetHost.allocateAppWidgetId()
-        if (awm.bindAppWidgetIdIfAllowed(pendingWidgetId, info.profile, info.provider, null)) {
-            configureOrFinish(info)
-        } else {
-            bindLauncher.launch(
-                Intent(AppWidgetManager.ACTION_APPWIDGET_BIND).apply {
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, pendingWidgetId)
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, info.provider)
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER_PROFILE, info.profile)
-                },
-            )
-        }
-    }
-
-    fun openWidgetPicker() {
-        showWidgetPicker = true
-    }
-
-    if (showWidgetPicker) {
-        WidgetPickerSheet(
-            onPick = { onWidgetPicked(it) },
-            onDismiss = { showWidgetPicker = false },
-        )
-    }
 
     Column(
         modifier =
@@ -457,172 +347,11 @@ fun PixelSearchbarSettingsUI(
                         selectedItem = currentType,
                         onItemSelected = { type ->
                             HapticUtil.performVirtualKeyHaptic(view)
-                            when {
-                                type == "widget" -> openWidgetPicker()
-                                type == "music" -> {
-                                    WidgetScraperService.start(context)
-                                    viewModel.setPixelSearchbarType(type, context)
-                                }
-
-                                currentType == "widget" || currentType == "music" -> {
-                                    WidgetScraperService.stop(context)
-                                    viewModel.setPixelSearchbarType(type, context)
-                                }
-
-                                else -> viewModel.setPixelSearchbarType(type, context)
-                            }
+                            viewModel.setPixelSearchbarType(type, context)
                         },
                         labelProvider = { labels[it] ?: it },
                         modifier = Modifier.fillMaxWidth(),
                     )
-                }
-
-                // Widget mode controls
-                AnimatedVisibility(
-                    visible = currentType == "widget",
-                    enter = expandVertically(),
-                    exit = shrinkVertically(),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    val widgetProvider = viewModel.pixelSearchbarWidgetProvider.value
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        RoundedCardContainer(spacing = 2.dp) {
-                            ListItem(
-                                onClick = {
-                                    HapticUtil.performVirtualKeyHaptic(view)
-                                    openWidgetPicker()
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                leadingContent = {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.rounded_widgets_24),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(24.dp),
-                                        tint = MaterialTheme.colorScheme.primary,
-                                    )
-                                },
-                                trailingContent = {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.rounded_chevron_right_24),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(24.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                    )
-                                },
-                                supportingContent = {
-                                    val hostedInfo =
-                                        remember(viewModel.pixelSearchbarWidgetId.intValue) {
-                                            awm.getAppWidgetInfo(viewModel.pixelSearchbarWidgetId.intValue)
-                                        }
-                                    val widgetLabel =
-                                        remember(hostedInfo) { hostedInfo?.loadLabel(context.packageManager) }
-                                    Text(
-                                        text =
-                                            when {
-                                                isWidgetUnsupported ->
-                                                    stringResource(R.string.pixel_searchbar_widget_unsupported, widgetLabel ?: "")
-                                                widgetLabel != null -> widgetLabel
-                                                widgetProvider != null -> widgetProvider.substringAfterLast("/")
-                                                else -> stringResource(R.string.pixel_searchbar_widget_none)
-                                            },
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color =
-                                            if (isWidgetUnsupported) {
-                                                MaterialTheme.colorScheme.error
-                                            } else {
-                                                MaterialTheme.colorScheme.onSurfaceVariant
-                                            },
-                                    )
-                                },
-                                colors =
-                                    ListItemDefaults.colors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceBright,
-                                    ),
-                            ) {
-                                Text(
-                                    text =
-                                        if (widgetProvider != null) {
-                                            stringResource(R.string.pixel_searchbar_widget_change)
-                                        } else {
-                                            stringResource(R.string.pixel_searchbar_widget_picker_title)
-                                        },
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                )
-                            }
-
-                            AnimatedVisibility(
-                                visible = widgetProvider != null,
-                                enter = expandVertically(),
-                                exit = shrinkVertically(),
-                            ) {
-                                ListItem(
-                                    onClick = {
-                                        HapticUtil.performVirtualKeyHaptic(view)
-                                        viewModel.clearPixelSearchbarWidget(context)
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    leadingContent = {
-                                        Icon(
-                                            painter = painterResource(id = R.drawable.rounded_delete_24),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(24.dp),
-                                            tint = MaterialTheme.colorScheme.error,
-                                        )
-                                    },
-                                    colors =
-                                        ListItemDefaults.colors(
-                                            containerColor = MaterialTheme.colorScheme.surfaceBright,
-                                        ),
-                                ) {
-                                    TranslatableText(
-                                        stringResId = R.string.pixel_searchbar_widget_remove,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.error,
-                                    )
-                                }
-                            }
-                        }
-
-                        // Horizontal and Vertical Padding sliders
-                        RoundedCardContainer(spacing = 2.dp) {
-                            ConfigSliderItem(
-                                title = stringResource(R.string.pixel_searchbar_widget_padding_h),
-                                value = viewModel.pixelSearchbarWidgetPaddingH.intValue.toFloat(),
-                                onValueChange = {
-                                    viewModel.pixelSearchbarWidgetPaddingH.intValue = it.toInt()
-                                },
-                                onValueChangeFinished = {
-                                    viewModel.setPixelSearchbarWidgetPaddingH(
-                                        viewModel.pixelSearchbarWidgetPaddingH.intValue,
-                                        context,
-                                    )
-                                },
-                                valueRange = 0f..100f,
-                                increment = 4f,
-                                iconRes = R.drawable.rounded_rounded_corner_24,
-                            )
-                            ConfigSliderItem(
-                                title = stringResource(R.string.pixel_searchbar_widget_padding_v),
-                                value = viewModel.pixelSearchbarWidgetPaddingV.intValue.toFloat(),
-                                onValueChange = {
-                                    viewModel.pixelSearchbarWidgetPaddingV.intValue = it.toInt()
-                                },
-                                onValueChangeFinished = {
-                                    viewModel.setPixelSearchbarWidgetPaddingV(
-                                        viewModel.pixelSearchbarWidgetPaddingV.intValue,
-                                        context,
-                                    )
-                                },
-                                valueRange = 0f..100f,
-                                increment = 4f,
-                                iconRes = R.drawable.rounded_rounded_corner_24,
-                            )
-                        }
-                    }
                 }
 
                 AnimatedVisibility(
@@ -739,19 +468,7 @@ fun PixelSearchbarSettingsUI(
                 RoundedCardContainer {
                     val tapActionEnabled = viewModel.pixelSearchbarTapActionEnabled.value
                     ListItem(
-                        onClick = {
-                            if (tapActionEnabled) {
-                                HapticUtil.performVirtualKeyHaptic(view)
-                                val intent =
-                                    com.sameerasw.essentials.utils.AppIconUtil.mainIntent(context).apply {
-                                        putExtra(
-                                            "target_tab",
-                                            com.sameerasw.essentials.domain.DIYTabs.DIY.name,
-                                        )
-                                    }
-                                context.startActivity(intent)
-                            }
-                        },
+                        onClick = {},
                         modifier = Modifier.fillMaxWidth(),
                         leadingContent = {
                             Icon(

@@ -9,32 +9,27 @@
 
 package com.sameerasw.essentials.ui.core.sheets
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
-import androidx.compose.ui.text.font.FontWeight
-import com.sameerasw.essentials.R
-import com.sameerasw.essentials.translation.TranslatableText
-import com.sameerasw.essentials.utils.DeviceUtils
-import com.sameerasw.essentials.ui.features.consciousgate.HoldToContinueButton
-import com.sameerasw.essentials.ui.features.consciousgate.UnscaledMotion
-import kotlinx.coroutines.withContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.sameerasw.essentials.R
+import com.sameerasw.essentials.translation.TranslatableText
 import com.sameerasw.essentials.ui.core.containers.RoundedCardContainer
+import com.sameerasw.essentials.utils.DeviceUtils
 
 @Composable
 fun UnsupportedFeaturesConfirmationSheet(
@@ -43,12 +38,6 @@ fun UnsupportedFeaturesConfirmationSheet(
     featureTitleResIds: List<Int>,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val waitProgress = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        withContext(UnscaledMotion) {
-            waitProgress.animateTo(1f, tween(10_000, easing = LinearEasing))
-        }
-    }
 
     EssentialsBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -106,18 +95,17 @@ fun UnsupportedFeaturesConfirmationSheet(
                 }
             }
 
-            HoldToContinueButton(
-                waitTimeProgress = waitProgress.value,
-                onContinue = onConfirm,
-                onHoldingChange = {},
+            Button(
+                onClick = onConfirm,
                 modifier = Modifier.fillMaxWidth(),
-                holdDurationMillis = 3_000L,
-                waitLabel = stringResource(R.string.unsupported_please_wait),
-                holdLabel = stringResource(R.string.unsupported_hold_to_enable),
-                containerColor = MaterialTheme.colorScheme.errorContainer,
-                progressColor = MaterialTheme.colorScheme.error,
-                contentColor = MaterialTheme.colorScheme.onErrorContainer,
-            )
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    ),
+            ) {
+                Text(stringResource(R.string.unsupported_hold_to_enable))
+            }
             OutlinedButton(
                 onClick = onDismissRequest,
                 modifier = Modifier.fillMaxWidth(),

@@ -9,34 +9,17 @@
 
 package com.sameerasw.essentials.ui.activities
 
-import com.sameerasw.essentials.R
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
-import androidx.lifecycle.lifecycleScope
-import com.sameerasw.essentials.domain.diy.Automation
-import com.sameerasw.essentials.domain.diy.DIYRepository
-import com.sameerasw.essentials.services.automation.executors.CombinedActionExecutor
-import kotlinx.coroutines.launch
+import com.sameerasw.essentials.R
 
 class ActionShortcutActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        DIYRepository.init(applicationContext)
-        val automation =
-            DIYRepository.automations.value.find { it.type == Automation.Type.ACTION_SHORTCUT }
-
-        if (automation != null && automation.actionList.isNotEmpty()) {
-            lifecycleScope.launch {
-                CombinedActionExecutor.executeAll(applicationContext, automation.actionList)
-                finish()
-            }
-        } else {
-            Toast
-                .makeText(this, getString(R.string.action_shortcut_not_configured), Toast.LENGTH_SHORT)
-                .show()
-            finish()
-        }
+        Toast
+            .makeText(this, getString(R.string.action_shortcut_not_configured), Toast.LENGTH_SHORT)
+            .show()
+        finish()
     }
 }

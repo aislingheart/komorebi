@@ -26,7 +26,6 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.IconCompat
 import com.sameerasw.essentials.R
-import com.sameerasw.essentials.ui.activities.BubbleWebActivity
 
 object WindowingUtils {
     private const val TAG = "WindowingUtils"
@@ -125,11 +124,9 @@ object WindowingUtils {
         val iconRes = R.drawable.rounded_globe_24
         val bubbleIcon = IconCompat.createWithResource(context, iconRes)
 
-        val bubbleIntent = Intent(context, BubbleWebActivity::class.java).apply {
-            action = Intent.ACTION_VIEW
-            data = uri
-            putExtra(BubbleWebActivity.EXTRA_URL, targetUrl)
-            putExtra(BubbleWebActivity.EXTRA_PRIVATE_MODE, isPrivate)
+        val bubbleIntent = Intent(Intent.ACTION_VIEW, uri).apply {
+            putExtra("extra_url", targetUrl)
+            putExtra("extra_private_mode", isPrivate)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
 

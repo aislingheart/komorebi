@@ -124,28 +124,6 @@ object ShortcutUtil {
 
             val shortcuts = mutableListOf<ShortcutInfo>()
 
-            // Wallpaper
-            val wallpaperIntent =
-                Intent(
-                    context,
-                    com.sameerasw.essentials.ui.activities.WallpaperActivity::class.java,
-                ).apply {
-                    action = Intent.ACTION_VIEW
-                }
-            val wallpaperShortcut =
-                ShortcutInfo
-                    .Builder(context, "shortcut_wallpaper")
-                    .setShortLabel(context.getString(com.sameerasw.essentials.R.string.feat_daily_wallpaper_title))
-                    .setLongLabel(context.getString(com.sameerasw.essentials.R.string.feat_daily_wallpaper_title))
-                    .setIcon(
-                        Icon.createWithResource(
-                            context,
-                            com.sameerasw.essentials.R.drawable.rounded_wallpaper_24,
-                        ),
-                    ).setIntent(wallpaperIntent)
-                    .build()
-            shortcuts.add(wallpaperShortcut)
-
             // Dynamic shortcuts
             val pinnedKeys = repository.getPinnedFeatures()
             val featuresMap =

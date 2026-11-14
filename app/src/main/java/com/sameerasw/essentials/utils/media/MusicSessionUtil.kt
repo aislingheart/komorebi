@@ -5,12 +5,11 @@ import android.content.Context
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
-import com.sameerasw.essentials.services.NotificationListener
 
 object MusicSessionUtil {
     fun playingMusicSession(context: Context, excluded: Set<String> = emptySet()): MediaController? = try {
         val manager = context.getSystemService(Context.MEDIA_SESSION_SERVICE) as? MediaSessionManager
-        val component = ComponentName(context, NotificationListener::class.java)
+        val component = ComponentName(context, "com.sameerasw.essentials.services.NotificationListener")
         manager?.getActiveSessions(component)?.firstOrNull { controller ->
             val state = controller.playbackState
             state?.state == PlaybackState.STATE_PLAYING &&

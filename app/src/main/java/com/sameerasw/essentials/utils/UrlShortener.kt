@@ -20,7 +20,6 @@ import android.util.Base64
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.sameerasw.essentials.R
-import com.sameerasw.essentials.receivers.UrlShortenerActionReceiver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -189,10 +188,10 @@ object UrlShortener {
         }
 
         // Action 1: Copy
-        val copyIntent = Intent(context, UrlShortenerActionReceiver::class.java).apply {
-            action = UrlShortenerActionReceiver.ACTION_COPY
-            putExtra(UrlShortenerActionReceiver.EXTRA_URL, shortUrl)
-            putExtra(UrlShortenerActionReceiver.EXTRA_NOTIFICATION_ID, NOTIFICATION_ID)
+        val copyIntent = Intent("com.sameerasw.essentials.URL_SHORTENER_COPY").apply {
+            setPackage(context.packageName)
+            putExtra("extra_url", shortUrl)
+            putExtra("extra_notification_id", NOTIFICATION_ID)
         }
         val copyPendingIntent = PendingIntent.getBroadcast(
             context,
@@ -202,10 +201,10 @@ object UrlShortener {
         )
 
         // Action 2: Share
-        val shareIntent = Intent(context, UrlShortenerActionReceiver::class.java).apply {
-            action = UrlShortenerActionReceiver.ACTION_SHARE
-            putExtra(UrlShortenerActionReceiver.EXTRA_URL, shortUrl)
-            putExtra(UrlShortenerActionReceiver.EXTRA_NOTIFICATION_ID, NOTIFICATION_ID)
+        val shareIntent = Intent("com.sameerasw.essentials.URL_SHORTENER_SHARE").apply {
+            setPackage(context.packageName)
+            putExtra("extra_url", shortUrl)
+            putExtra("extra_notification_id", NOTIFICATION_ID)
         }
         val sharePendingIntent = PendingIntent.getBroadcast(
             context,

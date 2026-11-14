@@ -17,11 +17,15 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
-import com.sameerasw.essentials.services.NotificationListener
-import com.sameerasw.essentials.services.receivers.SecurityDeviceAdminReceiver
-import com.sameerasw.essentials.services.tiles.ScreenOffAccessibilityService
 
 object PermissionUtils {
+    private const val ACCESSIBILITY_SERVICE_CLASS =
+        "com.sameerasw.essentials.services.tiles.ScreenOffAccessibilityService"
+    private const val NOTIFICATION_LISTENER_CLASS =
+        "com.sameerasw.essentials.services.NotificationListener"
+    private const val DEVICE_ADMIN_RECEIVER_CLASS =
+        "com.sameerasw.essentials.services.receivers.SecurityDeviceAdminReceiver"
+
     fun requestPermissionsSafely(
         activity: android.app.Activity,
         permissions: Array<String>,
@@ -46,7 +50,7 @@ object PermissionUtils {
                 context.contentResolver,
                 Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
             )
-        val serviceName = "${context.packageName}/${ScreenOffAccessibilityService::class.java.name}"
+        val serviceName = "${context.packageName}/$ACCESSIBILITY_SERVICE_CLASS"
         return enabledServices?.contains(serviceName) == true
     }
 
@@ -110,7 +114,7 @@ object PermissionUtils {
                     context.contentResolver,
                     "enabled_notification_listeners",
                 ) ?: return false
-            val componentName = ComponentName(context, NotificationListener::class.java)
+            val componentName = ComponentName(context, NOTIFICATION_LISTENER_CLASS)
             enabledServices.contains(componentName.flattenToString())
         } catch (_: Exception) {
             false
@@ -123,12 +127,7 @@ object PermissionUtils {
      * @param context [Context] Target context.
      * @return The resulting Boolean data.
      */
-    fun canDrawOverlays(context: Context): Boolean =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Settings.canDrawOverlays(context)
-        } else {
-            true
-        }
+    fun canDrawOverlays(context: Context): Boolean = Settings.canDrawOverlays(context)
 
     /**
      * Executes the is device admin active operation.
@@ -138,7 +137,7 @@ object PermissionUtils {
      */
     fun isDeviceAdminActive(context: Context): Boolean {
         val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
-        val adminComponent = ComponentName(context, SecurityDeviceAdminReceiver::class.java)
+        val adminComponent = ComponentName(context, DEVICE_ADMIN_RECEIVER_CLASS)
         return dpm.isAdminActive(adminComponent)
     }
 
@@ -156,7 +155,7 @@ object PermissionUtils {
                     Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
                 )
             val serviceName =
-                "${context.packageName}/${ScreenOffAccessibilityService::class.java.name}"
+                "${context.packageName}/$ACCESSIBILITY_SERVICE_CLASS"
             enabledServices?.contains(serviceName) == true
         } catch (e: Exception) {
             false
@@ -279,7 +278,7 @@ object PermissionUtils {
                 // ACTION_ACCESSIBILITY_DETAILS_SETTINGS / EXTRA_ACCESSIBILITY_COMPONENT_NAME are
                 // hidden from the public SDK stub (no compile-time constants), but the platform
                 // still honors these literal action/extra strings from third-party callers on API 31+.
-                val componentName = ComponentName(context, ScreenOffAccessibilityService::class.java)
+                val componentName = ComponentName(context, ACCESSIBILITY_SERVICE_CLASS)
                 val intent = Intent("android.settings.ACCESSIBILITY_DETAILS_SETTINGS")
                 intent.putExtra("android.provider.extra.ACCESSIBILITY_COMPONENT_NAME", componentName.flattenToString())
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -584,7 +583,7 @@ object PermissionUtils {
     fun openDeviceAdminSettings(context: Context) {
         try {
             val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
-            val adminComponent = ComponentName(context, SecurityDeviceAdminReceiver::class.java)
+            val adminComponent = ComponentName(context, DEVICE_ADMIN_RECEIVER_CLASS)
             intent.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent)
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)

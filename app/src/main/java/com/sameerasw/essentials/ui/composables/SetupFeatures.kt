@@ -70,10 +70,7 @@ import com.sameerasw.essentials.FeatureSettingsActivity
 import com.sameerasw.essentials.R
 import com.sameerasw.essentials.domain.registry.FeatureRegistry
 import com.sameerasw.essentials.domain.registry.PermissionRegistry
-import com.sameerasw.essentials.domain.registry.QSTileRegistry
 import com.sameerasw.essentials.ui.activities.PixelSearchbarSettingsActivity
-import com.sameerasw.essentials.ui.activities.WallpaperActivity
-import com.sameerasw.essentials.ui.activities.YourAndroidActivity
 import com.sameerasw.essentials.ui.components.FavoriteCarousel
 import com.sameerasw.essentials.ui.components.buttons.ListExpandToggleButton
 import com.sameerasw.essentials.ui.core.cards.FeatureCard
@@ -81,10 +78,7 @@ import com.sameerasw.essentials.ui.core.containers.RoundedCardContainer
 import com.sameerasw.essentials.ui.core.sheets.PermissionItem
 import com.sameerasw.essentials.ui.core.sheets.PermissionsBottomSheet
 import com.sameerasw.essentials.ui.core.sheets.ReorderFavoritesBottomSheet
-import com.sameerasw.essentials.ui.features.freeze.FrozenAppsSearchResultCard
 import com.sameerasw.essentials.ui.features.permissions.PermissionsSearchResultCard
-import com.sameerasw.essentials.ui.features.tiles.QSTilesSearchResultCard
-import com.sameerasw.essentials.utils.FreezeManager
 import com.sameerasw.essentials.utils.PermissionUIHelper
 import com.sameerasw.essentials.ui.modifiers.scrollMotionBlur
 import com.sameerasw.essentials.utils.BiometricSecurityHelper
@@ -108,14 +102,10 @@ fun SetupFeatures(
     val isShizukuPermissionGranted by viewModel.isShizukuPermissionGranted
     val isNotificationListenerEnabled by viewModel.isNotificationListenerEnabled
     val isOverlayPermissionGranted by viewModel.isOverlayPermissionGranted
-    val isNotificationLightingAccessibilityEnabled by viewModel.isNotificationLightingAccessibilityEnabled
+    val isNotificationLightingAccessibilityEnabled = false
     val isRootEnabled by viewModel.isRootEnabled
     val isRootPermissionGranted by viewModel.isRootPermissionGranted
     val isReadPhoneStateEnabled by viewModel.isReadPhoneStateEnabled
-    viewModel.isButtonRemapEnabled.value
-    viewModel.isDynamicNightLightEnabled.value
-
-    viewModel.isScreenLockedSecurityEnabled.value
     val pinnedFeatureKeys by viewModel.pinnedFeatureKeys
     val context = LocalContext.current
 
@@ -131,23 +121,7 @@ fun SetupFeatures(
         )
     }
 
-    val watchViewModel: com.sameerasw.essentials.viewmodels.WatchViewModel =
-        androidx.lifecycle.viewmodel.compose
-            .viewModel()
-    val isWearUpdateRequired = watchViewModel.isWearUpdateRequired.value
-
-    LaunchedEffect(Unit) {
-        watchViewModel.check(context)
-        viewModel.refreshFreezePickedApps(context, silent = true)
-    }
-
-    // Periodic check for Caffeinate status
-    LaunchedEffect(Unit) {
-        while (true) {
-            viewModel.checkCaffeinateActive(context)
-            delay(2000)
-        }
-    }
+    val isWearUpdateRequired = false
 
     LaunchedEffect(
         showSheet,
@@ -890,15 +864,6 @@ fun SetupFeatures(
     val searchResults = viewModel.searchResults.value
     val isSearchingViewModel = viewModel.isSearching.value
     val recentSearches by viewModel.recentSearches
-    val matchingTiles =
-        remember(searchQuery, viewModel.isEnableUnsupportedFeatures.value, viewModel.isUseUsageAccess.value) {
-            QSTileRegistry.searchTiles(
-                context = context,
-                query = searchQuery,
-                includeUnsupported = viewModel.isEnableUnsupportedFeatures.value,
-                isUseUsageStats = viewModel.isUseUsageAccess.value,
-            )
-        }
     val matchingPermissions =
         remember(searchQuery, viewModel) {
             PermissionUIHelper.searchPermissions(
@@ -907,19 +872,6 @@ fun SetupFeatures(
                 viewModel = viewModel,
                 activity = context as? Activity,
             )
-        }
-    val freezePickedApps by viewModel.freezePickedApps
-    val matchingFrozenApps =
-        remember(searchQuery, freezePickedApps) {
-            if (searchQuery.isBlank()) {
-                emptyList()
-            } else {
-                freezePickedApps.filter { app ->
-                    (app.appName.contains(searchQuery, ignoreCase = true) ||
-                        app.packageName.contains(searchQuery, ignoreCase = true)) &&
-                        FreezeManager.isAppFrozen(context, app.packageName)
-                }
-            }
         }
 
     val isMotionBlurEnabled by viewModel.isMotionBlurEnabled
@@ -998,7 +950,7 @@ fun SetupFeatures(
                         )
                     }
                 } else if (searchQuery.isNotEmpty()) {
-                    if (!isSearchingViewModel && searchResults.isEmpty() && matchingTiles.isEmpty() && matchingPermissions.isEmpty() && matchingFrozenApps.isEmpty()) {
+                    if (!isSearchingViewModel && searchResults.isEmpty() && matchingPermissions.isEmpty()) {
                         item {
                             Column(
                                 modifier =
@@ -1308,25 +1260,13 @@ private fun RecentSearchesSection(
                                 feature = feature,
                                 action = {
                                     val intent =
-                                        if (targetFeatureKey == "LiveWallpaper" || targetFeatureKey == "Daily Wallpaper") {
-                                            Intent(
-                                                context,
-                                                com.sameerasw.essentials.ui.activities.WallpaperActivity::class.java,
-                                            ).apply {
-                                                putExtra(
-                                                    "tab",
-                                                    if (targetFeatureKey == "LiveWallpaper") "live" else "daily",
-                                                )
-                                            }
-                                        } else {
-                                            Intent(
-                                                context,
-                                                FeatureSettingsActivity::class.java,
-                                            ).apply {
-                                                putExtra("feature", targetFeatureKey)
-                                                highlightKey?.let {
-                                                    putExtra("highlight_setting", it)
-                                                }
+                                        Intent(
+                                            context,
+                                            FeatureSettingsActivity::class.java,
+                                        ).apply {
+                                            putExtra("feature", targetFeatureKey)
+                                            highlightKey?.let {
+                                                putExtra("highlight_setting", it)
                                             }
                                         }
                                     context.startActivity(intent)
@@ -1361,15 +1301,6 @@ private fun SearchResultsSection(
     onNavigateToTab: ((com.sameerasw.essentials.domain.DIYTabs) -> Unit)? = null,
 ) {
     val query = viewModel.searchQuery.value
-    val matchingTiles =
-        remember(query, viewModel.isEnableUnsupportedFeatures.value, viewModel.isUseUsageAccess.value) {
-            QSTileRegistry.searchTiles(
-                context = context,
-                query = query,
-                includeUnsupported = viewModel.isEnableUnsupportedFeatures.value,
-                isUseUsageStats = viewModel.isUseUsageAccess.value,
-            )
-        }
     val matchingPermissions =
         remember(query, viewModel) {
             PermissionUIHelper.searchPermissions(
@@ -1378,18 +1309,6 @@ private fun SearchResultsSection(
                 viewModel = viewModel,
                 activity = context as? Activity,
             )
-        }
-    val freezePickedApps by viewModel.freezePickedApps
-    val matchingFrozenApps =
-        remember(query, freezePickedApps) {
-            if (query.isBlank()) {
-                emptyList()
-            } else {
-                freezePickedApps.filter { app ->
-                    app.appName.contains(query, ignoreCase = true) ||
-                        app.packageName.contains(query, ignoreCase = true)
-                }
-            }
         }
 
     var isExpanded by rememberSaveable(query) { mutableStateOf(false) }
@@ -1406,7 +1325,7 @@ private fun SearchResultsSection(
             nonQSSearchResults
         }
 
-    if (matchingTiles.isNotEmpty() || nonQSSearchResults.isNotEmpty() || matchingPermissions.isNotEmpty() || matchingFrozenApps.isNotEmpty()) {
+    if (nonQSSearchResults.isNotEmpty() || matchingPermissions.isNotEmpty()) {
         if (nonQSSearchResults.isNotEmpty()) {
             TranslatableText(
                 stringResId = R.string.search_results_title,
@@ -1461,21 +1380,6 @@ private fun SearchResultsSection(
                                                         context,
                                                         PixelSearchbarSettingsActivity::class.java,
                                                     )
-                                                } else if (targetFeatureKey == "LiveWallpaper" || targetFeatureKey == "Daily Wallpaper") {
-                                                    Intent(
-                                                        context,
-                                                        WallpaperActivity::class.java,
-                                                    ).apply {
-                                                        putExtra(
-                                                            "tab",
-                                                            if (targetFeatureKey == "LiveWallpaper") "live" else "daily",
-                                                        )
-                                                    }
-                                                } else if (targetFeatureKey == "App updates") {
-                                                    Intent(
-                                                        context,
-                                                        YourAndroidActivity::class.java,
-                                                    )
                                                 } else {
                                                     Intent(
                                                         context,
@@ -1496,21 +1400,6 @@ private fun SearchResultsSection(
                                             Intent(
                                                 context,
                                                 PixelSearchbarSettingsActivity::class.java,
-                                            )
-                                        } else if (result.featureKey == "LiveWallpaper" || result.featureKey == "Daily Wallpaper") {
-                                            Intent(
-                                                context,
-                                                WallpaperActivity::class.java,
-                                            ).apply {
-                                                putExtra(
-                                                    "tab",
-                                                    if (result.featureKey == "LiveWallpaper") "live" else "daily",
-                                                )
-                                            }
-                                        } else if (result.featureKey == "App updates") {
-                                            Intent(
-                                                context,
-                                                YourAndroidActivity::class.java,
                                             )
                                         } else {
                                             Intent(context, FeatureSettingsActivity::class.java).apply {
@@ -1561,23 +1450,6 @@ private fun SearchResultsSection(
                             .padding(top = 8.dp, bottom = 4.dp),
                 )
             }
-        }
-
-        if (matchingFrozenApps.isNotEmpty()) {
-            FrozenAppsSearchResultCard(
-                apps = matchingFrozenApps,
-                viewModel = viewModel,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                onNavigateToFreezeTab = onNavigateToTab?.let { nav -> { nav(com.sameerasw.essentials.domain.DIYTabs.FREEZE) } },
-            )
-        }
-
-        if (matchingTiles.isNotEmpty()) {
-            QSTilesSearchResultCard(
-                tiles = matchingTiles,
-                viewModel = viewModel,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
         }
 
         if (matchingPermissions.isNotEmpty()) {

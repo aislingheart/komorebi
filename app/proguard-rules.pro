@@ -64,3 +64,20 @@
 -keep class com.sameerasw.essentials.appfunctions.** { *; }
 -keep class androidx.appfunctions.** { *; }
 
+# Komorebi Raycast / Vicinae runtime & store DTOs (Gson + QuickJS JNI)
+-keep class com.sameerasw.essentials.raycast.** { *; }
+-keepclassmembers class com.sameerasw.essentials.raycast.** { *; }
+-keep class com.dokar.quickjs.** { *; }
+-keepclassmembers class com.dokar.quickjs.** { *; }
+
+# Semantic photo search & Room models
+-keep class com.sameerasw.essentials.search.** { *; }
+-keepclassmembers class com.sameerasw.essentials.search.** { *; }
+
+# Optional compression/optional runtime codecs referenced by commons-compress / quickjs / litert / mlkit
+-dontwarn org.tukaani.xz.**
+-dontwarn com.github.luben.zstd.**
+-dontwarn org.brotli.dec.**
+-dontwarn javax.naming.**
+-dontwarn java.lang.instrument.**
+

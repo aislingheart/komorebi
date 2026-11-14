@@ -115,14 +115,27 @@ android {
         applicationId = "com.sameerasw.essentials"
         minSdk = 26
         targetSdk = 37
-        versionCode = 74
-        versionName = "21.3-beta.1"
+        versionCode = 75
+        versionName = "21.3.1-komorebi"
 
         val whatsNewCounter = 8
         buildConfigField("int", "WHATS_NEW_COUNTER", whatsNewCounter.toString())
         buildConfigField("int", "REQUIRED_WEAR_VERSION_CODE", "8")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        val signingPropsFile = File(System.getProperty("user.home"), ".android/komorebi-signing.properties")
+        if (signingPropsFile.exists()) {
+            val props = Properties().apply { signingPropsFile.inputStream().use { load(it) } }
+            create("release") {
+                storeFile = File(props.getProperty("storeFile"))
+                storePassword = props.getProperty("storePassword")
+                keyAlias = props.getProperty("keyAlias")
+                keyPassword = props.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
@@ -141,6 +154,7 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfigs.findByName("release")?.let { signingConfig = it }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -165,6 +179,8 @@ android {
 
 dependencies {
     compileOnly(project(":stub"))
+    implementation(project(":island-sdk"))
+
     implementation(libs.aboutlibraries.core)
     implementation(libs.aboutlibraries.compose.m3)
     implementation(libs.androidx.core.ktx)
@@ -177,19 +193,15 @@ dependencies {
     implementation(libs.androidx.material3.adaptive)
     implementation(libs.androidx.lifecycle.viewmodel.navigation3)
     implementation(platform(libs.androidx.compose.bom))
-
-    // Android 12+ SplashScreen API with backward compatibility attributes
     implementation(libs.androidx.core.splashscreen)
-
-    // Force latest Material3 1.5.0-alpha17 for new MaterialShapes
     implementation(libs.androidx.compose.material3.v150alpha24)
-
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.biometric)
-
+    implementation(libs.androidx.palette)
     implementation(libs.coil.compose)
     implementation(libs.coil.gif)
     implementation(libs.androidx.compose.foundation.layout)
@@ -200,85 +212,48 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.foundation.layout)
     implementation(libs.androidx.foundation)
+    implementation(libs.shizuku.api)
+    implementation(libs.shizuku.provider)
+    implementation("com.github.d4rken-org.porter-api:shizuku-bridge:+")
+    implementation(libs.api.v1315)
+    implementation(libs.hiddenapibypass)
+    implementation(libs.gson.v2140)
+    implementation(libs.gson)
+    implementation(libs.reorderable)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(kotlin("reflect"))
+    implementation(libs.symspellkt)
+    implementation(libs.androidx.glance.appwidget)
+    implementation(libs.androidx.glance.material3)
+    implementation(libs.jsoup)
+    implementation(libs.sentry.android)
+    implementation(libs.androidx.graphics.shapes)
+    implementation(libs.autoupdater)
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.common)
+    implementation(libs.androidx.media3.ui)
+    implementation(libs.lottie.compose)
+    implementation(libs.mlkit.genai.prompt)
+    ksp(libs.mlkit.genai.schema.compiler)
+    implementation(libs.androidx.appfunctions)
+    ksp(libs.androidx.appfunctions.compiler)
+    implementation(libs.zxing.core)
+    implementation(libs.play.services.code.scanner)
+    implementation(libs.quickjs.kt)
+    implementation(libs.okhttp)
+    implementation(libs.androidx.browser)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+    implementation(libs.mlkit.text.recognition)
+    implementation(libs.litert)
+    implementation(libs.commons.compress)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
-
-    // Shizuku
-    implementation(libs.shizuku.api)
-    implementation(libs.shizuku.provider)
-    implementation("com.github.d4rken-org.porter-api:shizuku-bridge:+")
-    implementation(libs.androidx.car.app)
-
-    // Hidden API Bypass
-    implementation(libs.hiddenapibypass)
-
-    // Gson for JSON serialization
-    implementation(libs.gson.v2140)
-    implementation(libs.androidx.palette)
-
-    // Reorderable library
-    implementation(libs.reorderable)
-
-    // Volume Long Press
-    implementation(libs.kotlinx.coroutines.android)
-    implementation(libs.api.v1315)
-
-    // Google Maps & Location
-    implementation(libs.play.services.location)
-    implementation(libs.play.services.wearable)
-    implementation(libs.androidx.wear.remote.interactions)
-    implementation(libs.androidx.work.runtime.ktx)
-    implementation(libs.gson)
-    implementation(project(":island-sdk"))
-
-    // Kotlin Reflect for dynamic sealed class serialization
-    implementation(kotlin("reflect"))
-
-    // SymSpell for word suggestions
-    implementation(libs.symspellkt)
-
-    implementation(libs.androidx.glance.appwidget)
-    implementation(libs.androidx.glance.material3)
-
-    // Watermark dependencies
-    implementation(libs.androidx.exifinterface)
-    implementation(libs.androidx.compose.material.icons.extended) // Compatible with Compose BOM
-
-    // GSMArena Parsing
-    implementation(libs.jsoup)
-    implementation(libs.sentry.android)
-    implementation(libs.androidx.graphics.shapes)
-
-    // AutoUpdater
-    implementation(libs.autoupdater)
-
-    // Media3 for Live Wallpaper & Online Help Media
-    implementation(libs.androidx.media3.exoplayer)
-    implementation(libs.androidx.media3.common)
-    implementation(libs.androidx.media3.ui)
-
-    // RemoteIntent support
-    implementation(libs.androidx.wear.remote.interactions.v110alpha02)
-
-    // tandard wearable library
-    implementation(libs.play.services.wearable.v1900)
-
-    // Lottie for animations
-    implementation(libs.lottie.compose)
-
-    // ML Kit GenAI Prompt API & Structured Output Compiler
-    implementation(libs.mlkit.genai.prompt)
-    ksp(libs.mlkit.genai.schema.compiler)
-
-    // AppFunctions API
-    implementation(libs.androidx.appfunctions)
-    ksp(libs.androidx.appfunctions.compiler)
-
-    // QR Code Engine
-    implementation(libs.zxing.core)
-    implementation(libs.play.services.code.scanner)
 }

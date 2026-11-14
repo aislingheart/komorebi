@@ -63,7 +63,7 @@ fun updateIconBlacklistSetting(
     val position =
         context
             .getSharedPreferences("essentials_prefs", Context.MODE_PRIVATE)
-            .getInt(com.sameerasw.essentials.viewmodels.StatusBarIconViewModel.PREF_CLOCK_POSITION, 0)
+            .getInt("clock_position", 0)
     val names = blacklistNames + clockPositionBlacklist(position)
 
     writeSecureSetting(

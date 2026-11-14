@@ -13,7 +13,7 @@ import android.accessibilityservice.AccessibilityButtonController
 import android.accessibilityservice.AccessibilityService
 import android.os.Build
 import android.view.accessibility.AccessibilityEvent
-import com.sameerasw.essentials.services.automation.AutomationManager
+import com.sameerasw.essentials.utils.OmniTriggerUtil
 import com.sameerasw.essentials.utils.SplitScreenUtil
 
 abstract class BaseAccessibilityShortcutService(private val slot: Int) : AccessibilityService() {
@@ -42,7 +42,7 @@ abstract class BaseAccessibilityShortcutService(private val slot: Int) : Accessi
     }
 
     protected open fun onShortcutClicked() {
-        AutomationManager.triggerAccessibilityShortcut(this, slot)
+        OmniTriggerUtil.trigger(this)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {

@@ -16,9 +16,6 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.CalendarContract
 import android.util.Log
-import com.google.android.gms.wearable.DataMap
-import com.google.android.gms.wearable.PutDataMapRequest
-import com.google.android.gms.wearable.Wearable
 import com.sameerasw.essentials.data.repository.SettingsRepository
 
 object CalendarSyncManager {
@@ -330,38 +327,7 @@ object CalendarSyncManager {
         secondaryColor: Int?,
         tertiaryColor: Int?,
     ) {
-        val putDataMapReq = PutDataMapRequest.create(SYNC_PATH)
-        val dataMap = putDataMapReq.dataMap
-
-        val eventList = ArrayList<DataMap>()
-        for (event in events) {
-            val map = DataMap()
-            map.putLong("id", event.id)
-            map.putString("title", event.title ?: "No Title")
-            map.putLong("begin", event.begin)
-            map.putLong("end", event.end)
-            map.putBoolean("allDay", event.allDay)
-            map.putString("location", event.location ?: "")
-            eventList.add(map)
-        }
-
-        dataMap.putDataMapArrayList("events", eventList)
-        primaryColor?.let { dataMap.putInt("theme_primary_color", it) }
-        secondaryColor?.let { dataMap.putInt("theme_secondary_color", it) }
-        tertiaryColor?.let { dataMap.putInt("theme_tertiary_color", it) }
-        dataMap.putLong("timestamp", System.currentTimeMillis())
-
-        val putDataReq = putDataMapReq.asPutDataRequest()
-        putDataReq.setUrgent()
-
-        Wearable
-            .getDataClient(context)
-            .putDataItem(putDataReq)
-            .addOnSuccessListener {
-                Log.d(TAG, "Successfully synced ${events.size} events to wearable")
-            }.addOnFailureListener { e ->
-                Log.e(TAG, "Failed to sync events to wearable", e)
-            }
+        Log.d(TAG, "Wearable sync skipped (pruned from Komorebi); ${events.size} events queried")
     }
 
     data class CalendarEvent(

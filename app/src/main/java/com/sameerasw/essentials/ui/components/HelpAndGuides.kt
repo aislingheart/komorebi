@@ -99,66 +99,6 @@ fun HelpAndGuidesContent() {
                     ),
             ),
             InstructionSection(
-                title = stringResource(R.string.instruction_section_maps_title),
-                iconRes = R.drawable.rounded_navigation_24,
-                description = stringResource(R.string.instruction_section_maps_desc),
-            ),
-            InstructionSection(
-                title = stringResource(R.string.instruction_section_freeze_title),
-                iconRes = R.drawable.rounded_mode_cool_24,
-                description = stringResource(R.string.instruction_section_freeze_desc),
-            ),
-            InstructionSection(
-                title = stringResource(R.string.instruction_section_security_title),
-                iconRes = R.drawable.rounded_security_24,
-                description = stringResource(R.string.instruction_section_security_desc),
-            ),
-            InstructionSection(
-                title = stringResource(R.string.instruction_section_battery_saver_title),
-                iconRes = R.drawable.rounded_battery_charging_60_24,
-                description = stringResource(R.string.instruction_section_battery_saver_desc),
-            ),
-            InstructionSection(
-                title = stringResource(R.string.instruction_section_lighting_title),
-                iconRes = R.drawable.rounded_blur_linear_24,
-                description = stringResource(R.string.instruction_section_lighting_desc),
-            ),
-            InstructionSection(
-                title = stringResource(R.string.instruction_section_button_title),
-                iconRes = R.drawable.rounded_switch_access_3_24,
-                description = stringResource(R.string.instruction_section_button_desc),
-            ),
-            InstructionSection(
-                title = stringResource(R.string.instruction_section_flashlight_title),
-                iconRes = R.drawable.rounded_flashlight_on_24,
-                description = stringResource(R.string.instruction_section_flashlight_desc),
-            ),
-            InstructionSection(
-                title = stringResource(R.string.instruction_section_notification_snoozing_title),
-                iconRes = R.drawable.rounded_notifications_paused_24,
-                description = stringResource(R.string.instruction_section_notification_snoozing_desc),
-            ),
-            InstructionSection(
-                title = stringResource(R.string.instruction_section_safe_volume_title),
-                iconRes = R.drawable.rounded_sound_detection_loud_sound_24,
-                description = stringResource(R.string.instruction_section_safe_volume_desc),
-            ),
-            InstructionSection(
-                title = stringResource(R.string.instruction_section_genai_title),
-                iconRes = R.drawable.rounded_auto_awesome_24,
-                description = stringResource(R.string.instruction_section_genai_desc),
-            ),
-            InstructionSection(
-                title = stringResource(R.string.instruction_section_freezetags_title),
-                iconRes = R.drawable.rounded_bookmark_24,
-                description = stringResource(R.string.instruction_section_freezetags_desc),
-            ),
-            InstructionSection(
-                title = stringResource(R.string.instruction_section_diy_title),
-                iconRes = R.drawable.rounded_settings_24,
-                description = stringResource(R.string.instruction_section_diy_desc),
-            ),
-            InstructionSection(
                 title = stringResource(R.string.instruction_section_backup_title),
                 iconRes = R.drawable.rounded_save_24,
                 description = stringResource(R.string.instruction_section_backup_desc),

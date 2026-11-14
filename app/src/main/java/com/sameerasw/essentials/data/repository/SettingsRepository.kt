@@ -491,6 +491,8 @@ class SettingsRepository(
         const val KEY_PIXEL_SEARCH_RESULT_FILES = "pixel_search_result_files"
         const val KEY_PIXEL_SEARCH_BUBBLES_WEB = "pixel_search_bubbles_web"
         const val KEY_PIXEL_SEARCH_ENGINE = "pixel_search_engine"
+        const val KEY_HOME_ADDRESS = "pixel_search_home_address"
+        const val KEY_WORK_ADDRESS = "pixel_search_work_address"
         const val KEY_AUTO_ACCESSIBILITY_ENABLED = "auto_accessibility_enabled"
         const val KEY_USE_BLUR = "use_blur"
         const val KEY_USE_RIPPLE = "use_ripple"
@@ -2547,7 +2549,6 @@ class SettingsRepository(
     fun incrementPixelSearchbarWidgetRevision() {
         val current = getPixelSearchbarWidgetRevision()
         prefs.edit().putInt(KEY_PIXEL_SEARCHBAR_WIDGET_REVISION, current + 1).apply()
-        com.sameerasw.essentials.services.widgets.SearchbarRenderState.bump()
     }
 
     /**
@@ -3835,6 +3836,12 @@ class SettingsRepository(
 
     fun getPixelSearchEngine(): String = getString(KEY_PIXEL_SEARCH_ENGINE, "Google") ?: "Google"
     fun setPixelSearchEngine(engine: String) = putString(KEY_PIXEL_SEARCH_ENGINE, engine)
+
+    fun getHomeAddress(): String? = getString(KEY_HOME_ADDRESS, null)
+    fun setHomeAddress(address: String?) = putString(KEY_HOME_ADDRESS, address)
+
+    fun getWorkAddress(): String? = getString(KEY_WORK_ADDRESS, null)
+    fun setWorkAddress(address: String?) = putString(KEY_WORK_ADDRESS, address)
 
     fun isBubbleWebFullscreen(): Boolean = getBoolean(KEY_BUBBLE_WEB_FULLSCREEN, false)
     fun setBubbleWebFullscreen(fullscreen: Boolean) = putBoolean(KEY_BUBBLE_WEB_FULLSCREEN, fullscreen)

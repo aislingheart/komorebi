@@ -47,3 +47,5 @@ sentry.properties
 .claude/
 
 .DS_Store
+# Reference repositories
+.reference/

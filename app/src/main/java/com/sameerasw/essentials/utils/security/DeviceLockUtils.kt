@@ -11,6 +11,7 @@ package com.sameerasw.essentials.utils
 
 import android.accessibilityservice.AccessibilityService
 import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -19,7 +20,6 @@ import android.widget.Toast
 import com.sameerasw.essentials.R
 import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.domain.ScreenOffMethod
-import com.sameerasw.essentials.services.tiles.ScreenOffAccessibilityService
 
 object DeviceLockUtils {
     fun performLockdownTileAction(
@@ -74,14 +74,18 @@ object DeviceLockUtils {
                         ).show()
                     return false
                 }
-                if (ScreenOffAccessibilityService.instance != null) {
-                    performAccessibilityLock(ScreenOffAccessibilityService.instance!!)
-                } else {
-                    val serviceIntent =
-                        Intent(context, ScreenOffAccessibilityService::class.java).apply {
-                            action = "LOCK_SCREEN"
-                        }
+                val serviceIntent =
+                    Intent().apply {
+                        component =
+                            ComponentName(
+                                context,
+                                "com.sameerasw.essentials.services.tiles.ScreenOffAccessibilityService",
+                            )
+                        action = "LOCK_SCREEN"
+                    }
+                try {
                     context.startService(serviceIntent)
+                } catch (_: Exception) {
                 }
                 true
             }

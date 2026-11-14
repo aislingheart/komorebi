@@ -181,7 +181,7 @@ object FileSearchUtil {
             }
     }
 
-    private fun getIconForMimeType(mime: String, name: String): Int {
+    fun getIconForMimeType(mime: String, name: String): Int {
         val ext = name.substringAfterLast(".", "").lowercase()
         return when {
             ext == "apk" || mime == "application/vnd.android.package-archive" -> R.drawable.rounded_android_24

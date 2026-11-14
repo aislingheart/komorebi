@@ -18,7 +18,6 @@ import com.sameerasw.essentials.utils.ShizukuUtils
 
 class PermissionViewModel : ViewModel() {
     val isAccessibilityEnabled = mutableStateOf(false)
-    val isWidgetEnabled = mutableStateOf(false)
     val isStatusBarIconControlEnabled = mutableStateOf(false)
     val isWriteSecureSettingsEnabled = mutableStateOf(false)
     val isReadPhoneStateEnabled = mutableStateOf(false)
@@ -27,7 +26,6 @@ class PermissionViewModel : ViewModel() {
     val isShizukuAvailable = mutableStateOf(false)
     val isNotificationListenerEnabled = mutableStateOf(false)
     val isOverlayPermissionGranted = mutableStateOf(false)
-    val isNotificationLightingAccessibilityEnabled = mutableStateOf(false)
 
     /**
      * Refreshes all system and app permissions status.
@@ -44,7 +42,5 @@ class PermissionViewModel : ViewModel() {
         isNotificationListenerEnabled.value =
             PermissionUtils.hasNotificationListenerPermission(context)
         isOverlayPermissionGranted.value = PermissionUtils.canDrawOverlays(context)
-        isNotificationLightingAccessibilityEnabled.value =
-            PermissionUtils.isNotificationLightingAccessibilityServiceEnabled(context)
     }
 }

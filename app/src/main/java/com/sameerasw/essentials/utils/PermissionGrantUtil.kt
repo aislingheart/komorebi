@@ -15,10 +15,13 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Process
 import android.provider.Settings
-import com.sameerasw.essentials.services.NotificationListener
-import com.sameerasw.essentials.services.tiles.ScreenOffAccessibilityService
 
 object PermissionGrantUtil {
+    private const val ACCESSIBILITY_SERVICE_CLASS =
+        "com.sameerasw.essentials.services.tiles.ScreenOffAccessibilityService"
+    private const val NOTIFICATION_LISTENER_CLASS =
+        "com.sameerasw.essentials.services.NotificationListener"
+
     private val APP_OPS = listOf(
         "SYSTEM_ALERT_WINDOW",
         "WRITE_SETTINGS",
@@ -37,11 +40,11 @@ object PermissionGrantUtil {
         requestedPermissions(context).forEach { commands += "pm grant $pkg $it" }
         APP_OPS.forEach { commands += "appops set $pkg $it allow" }
 
-        commands += "cmd notification allow_listener $pkg/${NotificationListener::class.java.name}"
+        commands += "cmd notification allow_listener $pkg/$NOTIFICATION_LISTENER_CLASS"
         commands += "cmd notification allow_dnd $pkg"
         commands += "cmd deviceidle whitelist +$pkg"
 
-        val accessibility = "$pkg/${ScreenOffAccessibilityService::class.java.name}"
+        val accessibility = "$pkg/$ACCESSIBILITY_SERVICE_CLASS"
         val enabled = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES).orEmpty()
         if (!enabled.split(':').contains(accessibility)) {
             val updated = if (enabled.isBlank()) accessibility else "$enabled:$accessibility"
@@ -67,7 +70,7 @@ object PermissionGrantUtil {
 
     fun grantSensitiveNotifications(context: Context, featureName: String? = null) {
         val pkg = context.packageName
-        val listener = "$pkg/${NotificationListener::class.java.name}"
+        val listener = "$pkg/$NOTIFICATION_LISTENER_CLASS"
         ShellUtils.runCommandWithOutput(
             context,
             "appops set $pkg RECEIVE_SENSITIVE_NOTIFICATIONS allow; " +

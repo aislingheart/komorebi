@@ -16,7 +16,6 @@ import android.content.Context
 import android.content.Intent
 import android.widget.Toast
 import com.sameerasw.essentials.R
-import com.sameerasw.essentials.services.LiveWallpaperService
 
 object LiveWallpaperUtil {
     fun openLiveWallpaperPicker(context: Context) {
@@ -24,7 +23,7 @@ object LiveWallpaperUtil {
             Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).apply {
                 putExtra(
                     WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT,
-                    ComponentName(context, LiveWallpaperService::class.java),
+                    ComponentName(context, "com.sameerasw.essentials.services.LiveWallpaperService"),
                 )
             }
         val chooserIntent = Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER)

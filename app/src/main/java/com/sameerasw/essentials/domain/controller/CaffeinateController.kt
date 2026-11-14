@@ -15,9 +15,6 @@ import android.content.Context
 import android.content.Intent
 import android.service.quicksettings.TileService
 import androidx.compose.runtime.mutableStateOf
-import androidx.core.content.ContextCompat
-import com.sameerasw.essentials.services.CaffeinateWakeLockService
-import com.sameerasw.essentials.services.tiles.CaffeinateTileService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -26,6 +23,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 object CaffeinateController {
+    private const val WAKE_LOCK_SERVICE_CLASS =
+        "com.sameerasw.essentials.services.CaffeinateWakeLockService"
+    private const val TILE_SERVICE_CLASS =
+        "com.sameerasw.essentials.services.tiles.CaffeinateTileService"
+
     val isActive = mutableStateOf(false)
     val isStarting = mutableStateOf(false)
     val startingTimeLeft = mutableStateOf(0)
@@ -61,10 +63,13 @@ object CaffeinateController {
     }
 
     private fun refreshTile(context: Context) {
-        TileService.requestListeningState(
-            context,
-            ComponentName(context, CaffeinateTileService::class.java),
-        )
+        try {
+            TileService.requestListeningState(
+                context,
+                ComponentName(context, TILE_SERVICE_CLASS),
+            )
+        } catch (_: Exception) {
+        }
     }
 
     private fun startSelection(context: Context) {
@@ -157,12 +162,7 @@ object CaffeinateController {
     private fun startService(context: Context) {
         unregisterScreenOffReceiver(context)
         isStarting.value = false
-        val intent =
-            Intent(context, CaffeinateWakeLockService::class.java).apply {
-                putExtra("timeout_minutes", selectedTimeout.value)
-            }
-        ContextCompat.startForegroundService(context, intent)
-        isActive.value = true
+        isActive.value = false
         refreshTile(context)
     }
 
@@ -171,7 +171,6 @@ object CaffeinateController {
         startingJob?.cancel()
         isStarting.value = false
         isActive.value = false
-        context.stopService(Intent(context, CaffeinateWakeLockService::class.java))
         refreshTile(context)
     }
 
@@ -191,7 +190,7 @@ object CaffeinateController {
     private fun isWakeLockServiceRunning(context: Context): Boolean {
         val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
         for (service in manager.getRunningServices(Int.MAX_VALUE)) {
-            if (CaffeinateWakeLockService::class.java.name == service.service.className) {
+            if (WAKE_LOCK_SERVICE_CLASS == service.service.className) {
                 return true
             }
         }

@@ -16,13 +16,8 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
-import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
-import androidx.work.workDataOf
 import com.sameerasw.essentials.data.repository.SettingsRepository
-import com.sameerasw.essentials.services.ScreenshotTrashWorker
-import java.util.concurrent.TimeUnit
 
 object ScreenshotCleaner {
     const val TAG_SHARED = "screenshot_cleanup_shared"
@@ -128,14 +123,6 @@ object ScreenshotCleaner {
         delayMinutes: Long,
         tag: String,
     ) {
-        val keepStarred = tag != TAG_SHARED
-        val request =
-            OneTimeWorkRequestBuilder<ScreenshotTrashWorker>()
-                .setInitialDelay(delayMinutes, TimeUnit.MINUTES)
-                .setInputData(workDataOf(ScreenshotTrashWorker.KEY_MEDIA_ID to mediaId, ScreenshotTrashWorker.KEY_KEEP_STARRED to keepStarred))
-                .addTag(tag)
-                .build()
-        WorkManager.getInstance(context).enqueueUniqueWork(workName(mediaId, tag), ExistingWorkPolicy.REPLACE, request)
     }
 
     fun cancel(

@@ -30,7 +30,6 @@ import android.view.animation.PathInterpolator
 import androidx.core.content.ContextCompat
 import androidx.palette.graphics.Palette
 import com.sameerasw.essentials.R
-import com.sameerasw.essentials.services.dreams.AmbientDreamService
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -1492,7 +1491,7 @@ class DuoOverlayView(context: Context) : View(context) {
         tracerPaint.strokeWidth = arcThicknessPx + 0.4f * density
         contrastTracerPaint.strokeWidth = arcThicknessPx + 1.2f * density
 
-        val flexFont = AmbientDreamService.getFontFlex(context)
+        val flexFont: Typeface? = null
         if (flexFont != null) {
             timePaint.typeface = flexFont
             contrastTimePaint.typeface = flexFont

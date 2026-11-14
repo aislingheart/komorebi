@@ -16,9 +16,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
-import com.sameerasw.essentials.MainActivity
 import com.sameerasw.essentials.R
-import com.sameerasw.essentials.services.receivers.DownloadUpdateReceiver
 
 object UpdateNotificationHelper {
     private const val CHANNEL_ID = "app_updates"
@@ -42,7 +40,7 @@ object UpdateNotificationHelper {
     fun showUpdateNotification(
         context: Context,
         version: String,
-        downloadUrl: String,
+        downloadUrl: String?,
     ) {
         createNotificationChannel(context)
 
@@ -60,8 +58,8 @@ object UpdateNotificationHelper {
             )
 
         val downloadIntent =
-            Intent(context, DownloadUpdateReceiver::class.java).apply {
-                action = "com.sameerasw.essentials.ACTION_DOWNLOAD_UPDATE"
+            Intent("com.sameerasw.essentials.ACTION_DOWNLOAD_UPDATE").apply {
+                setPackage(context.packageName)
                 putExtra("download_url", downloadUrl)
                 putExtra("version", version)
             }

@@ -48,13 +48,20 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.os.Handler
+import android.os.Looper
+import android.widget.Toast
 import com.sameerasw.essentials.R
+import com.sameerasw.essentials.domain.diy.Action
 import com.sameerasw.essentials.domain.model.NotificationApp
-import com.sameerasw.essentials.services.automation.executors.CombinedActionExecutor
 import com.sameerasw.essentials.translation.TranslatableText
 import com.sameerasw.essentials.ui.core.sheets.ActivityPickerSheet
 import com.sameerasw.essentials.utils.AppUtil
 import com.sameerasw.essentials.utils.HapticUtil
+import com.sameerasw.essentials.utils.ShellUtils
 import kotlinx.coroutines.launch
 
 @Composable
@@ -157,8 +164,33 @@ fun ActivityLauncherSettingsUI(
         ActivityPickerSheet(
             packageName = packageName,
             onDismiss = { selectedPackage = null },
-            onActivitySelected = { action -> scope.launch { CombinedActionExecutor.execute(context, action) } },
+            onActivitySelected = { action -> scope.launch { openActivity(context, action) } },
         )
+    }
+}
+
+private fun openActivity(context: Context, action: Action.OpenActivity) {
+    if (action.packageName.isBlank() || action.className.isBlank()) return
+    val component = ComponentName(action.packageName, action.className)
+    val startCommand = "am start -n '${component.flattenToShortString()}'"
+    if (action.requiresRoot) {
+        if (ShellUtils.isRootEnabled(context)) {
+            ShellUtils.runCommand(context, startCommand, featureName = context.getString(action.title))
+        } else {
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(context, R.string.activity_picker_root_required_toast, Toast.LENGTH_SHORT).show()
+            }
+        }
+        return
+    }
+    try {
+        context.startActivity(Intent().setComponent(component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    } catch (e: Exception) {
+        if (ShellUtils.isRootEnabled(context)) {
+            ShellUtils.runCommand(context, startCommand)
+        } else {
+            e.printStackTrace()
+        }
     }
 }
 

@@ -10,24 +10,16 @@
 package com.sameerasw.essentials
 
 import android.app.Application
-import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
-import androidx.core.content.ContextCompat
 import com.sameerasw.essentials.data.repository.SettingsRepository
-import com.sameerasw.essentials.services.receivers.SecurityReceiver
-import com.sameerasw.essentials.services.widgets.BatteriesWidgetReceiver
 import com.sameerasw.essentials.utils.ShizukuUtils
 import eu.darken.porter.bridge.PorterShizukuBridge
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import io.sentry.android.core.SentryAndroid
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 
@@ -37,16 +29,8 @@ class EssentialsApp : Application() {
             private set
     }
 
-    private val securityReceiver = SecurityReceiver()
-    private val powerReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            context.sendBroadcast(Intent(context, BatteriesWidgetReceiver::class.java).setAction(BatteriesWidgetReceiver.ACTION_POWER_STATE_CHANGED))
-        }
-    }
-
     override fun onCreate() {
         super.onCreate()
-        com.sameerasw.essentials.data.repository.SettingsRepository(this).syncTorchRestriction()
         context = applicationContext
         com.sameerasw.essentials.utils.HapticUtil.initialize(this)
 
@@ -62,22 +46,11 @@ class EssentialsApp : Application() {
 
         PorterShizukuBridge.start(CoroutineScope(SupervisorJob() + Dispatchers.Default))
         ShizukuUtils.initialize()
-        com.sameerasw.essentials.utils.CarConnectionMonitor
-            .initialize(this)
         com.sameerasw.essentials.utils.LogManager
             .init(this)
 
-        // Init Automation
-        com.sameerasw.essentials.domain.diy.DIYRepository
-            .init(this)
-        com.sameerasw.essentials.services.automation.AutomationManager
-            .init(this)
         com.sameerasw.essentials.services.CalendarSyncManager
             .init(this)
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-            com.sameerasw.essentials.services.DeviceInfoSyncManager
-                .init(this@EssentialsApp)
-        }
         com.sameerasw.essentials.utils.ServiceUtils
             .startRequiredServices(this)
 
@@ -85,35 +58,6 @@ class EssentialsApp : Application() {
             .updateAvailability(this)
 
         initSentry()
-
-        val intentFilter =
-            IntentFilter().apply {
-                addAction(Intent.ACTION_SCREEN_OFF)
-                addAction(Intent.ACTION_SCREEN_ON)
-                addAction(Intent.ACTION_USER_PRESENT)
-            }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(securityReceiver, intentFilter, RECEIVER_EXPORTED)
-        } else {
-            registerReceiver(securityReceiver, intentFilter)
-        }
-
-        ContextCompat.registerReceiver(
-            this,
-            powerReceiver,
-            IntentFilter().apply {
-                addAction(Intent.ACTION_POWER_CONNECTED)
-                addAction(Intent.ACTION_POWER_DISCONNECTED)
-            },
-            ContextCompat.RECEIVER_NOT_EXPORTED,
-        )
-    }
-
-    override fun onTerminate() {
-        super.onTerminate()
-        unregisterReceiver(securityReceiver)
-        unregisterReceiver(powerReceiver)
     }
 
     private fun initSentry() {

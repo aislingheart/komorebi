@@ -7,7 +7,6 @@ import android.os.SystemClock
 import com.sameerasw.essentials.island.plugins.alarm.AlarmPlugin
 import com.sameerasw.essentials.island.plugins.timer.TimerPlugin
 import com.sameerasw.essentials.island.remote.ProviderTrustStore
-import com.sameerasw.essentials.island.plugins.call.CallPlugin
 import android.accessibilityservice.AccessibilityService
 import android.app.KeyguardManager
 import android.content.BroadcastReceiver
@@ -48,22 +47,17 @@ import com.sameerasw.essentials.utils.StatusBarManager
 import com.sameerasw.essentials.island.model.IslandPluginContext
 import com.sameerasw.essentials.island.model.IslandStage
 import com.sameerasw.essentials.island.plugins.calendar.CalendarPlugin
-import com.sameerasw.essentials.island.plugins.consciousgate.ConsciousGatePlugin
 import com.sameerasw.essentials.island.plugins.flashlight.FlashlightPlugin
-import com.sameerasw.essentials.island.plugins.navigation.NavigationPlugin
 import com.sameerasw.essentials.island.plugins.hotspot.HotspotPlugin
 import com.sameerasw.essentials.island.plugins.network.NetworkPlugin
 import com.sameerasw.essentials.island.plugins.signal.SignalPlugin
 import com.sameerasw.essentials.island.plugins.devices.DevicesPlugin
 import com.sameerasw.essentials.island.plugins.brief.BriefPlugin
-import com.sameerasw.essentials.island.plugins.progress.ProgressPlugin
 import com.sameerasw.essentials.island.plugins.soundmode.SoundModePlugin
 import com.sameerasw.essentials.island.remote.ProviderPriorities
 import com.sameerasw.essentials.island.remote.RemoteProvidersPlugin
-import com.sameerasw.essentials.island.plugins.travel.TravelPlugin
 import com.sameerasw.essentials.island.plugins.caffeinate.CaffeinatePlugin
 import com.sameerasw.essentials.island.plugins.media.MediaPlugin
-import com.sameerasw.essentials.island.plugins.notifications.NotificationsPlugin
 import com.sameerasw.essentials.island.plugins.timebattery.TimeBatteryPlugin
 import com.sameerasw.essentials.island.state.CameraAnchor
 import com.sameerasw.essentials.island.state.CompactCellWidths
@@ -142,21 +136,15 @@ class IslandCoordinator(
     }
 
     private val plugins: List<IslandPlugin> = listOf(
-        CallPlugin(),
         TimeBatteryPlugin(),
-        NotificationsPlugin(),
-        ProgressPlugin(),
         MediaPlugin(),
         CalendarPlugin(),
-        ConsciousGatePlugin(),
         FlashlightPlugin(),
         TimerPlugin(),
         SoundModePlugin(),
         AlarmPlugin(),
         RemoteProvidersPlugin(),
         CaffeinatePlugin(),
-        TravelPlugin(),
-        NavigationPlugin(),
         NetworkPlugin(),
         SignalPlugin(),
         HotspotPlugin(),
@@ -408,7 +396,7 @@ class IslandCoordinator(
     }
 
     fun updateConsciousGateState() {
-        mainHandler.post { plugins.filterIsInstance<ConsciousGatePlugin>().forEach { it.refresh() } }
+        // ConsciousGatePlugin pruned from Komorebi
     }
 
     private var pendingFullscreen = false

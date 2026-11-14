@@ -13,7 +13,6 @@ import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.os.Handler
 import android.os.SystemClock
-import com.sameerasw.essentials.services.NotificationListener
 import com.sameerasw.essentials.utils.AppUtil
 import java.io.File
 import kotlin.math.abs
@@ -33,17 +32,7 @@ class MediaSessionSource(
     val all: List<MediaController> get() = controllers
 
     fun start() {
-        val mgr = manager ?: return
-        if (sessionsListener != null) return
-        try {
-            val component = ComponentName(context, NotificationListener::class.java)
-            val listener = MediaSessionManager.OnActiveSessionsChangedListener { update(it) }
-            sessionsListener = listener
-            mgr.addOnActiveSessionsChangedListener(listener, component, handler)
-            update(mgr.getActiveSessions(component))
-            onChanged()
-        } catch (_: Exception) {
-        }
+        // NotificationListener pruned from Komorebi; active media sessions require NotificationListenerService component
     }
 
     fun stop() {
@@ -163,10 +152,8 @@ class MediaSessionSource(
             val artist = metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST)
             if (!title.isNullOrBlank()) {
                 val hash = abs("${title}_$artist".hashCode().toLong())
-                NotificationListener.getCachedBitmap(hash)?.let { return it }
                 decode(File(context.cacheDir, "art_$hash.png"))?.let { return it }
             }
-            NotificationListener.getLatestArtBitmap()?.let { return it }
             return decode(File(context.cacheDir, "temp_album_art.png"))
         }
 

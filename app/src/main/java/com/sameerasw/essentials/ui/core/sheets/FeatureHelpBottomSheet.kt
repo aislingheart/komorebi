@@ -30,7 +30,6 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.TextButton
 import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.domain.registry.FeatureResetRegistry
-import com.sameerasw.essentials.ui.features.consciousgate.HoldToContinueButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -375,42 +374,23 @@ fun FeatureHelpBottomSheet(
             }
 
             val resetPrefixes = FeatureResetRegistry.prefixesFor(feature.id)
-            if (feature.id == "Lock screen clock") {
-                HoldToContinueButton(
-                    waitTimeProgress = 1f,
-                    onContinue = {
-                        viewModel.resetLockScreenClock(context)
-                        Toast.makeText(context, R.string.feature_reset_done, Toast.LENGTH_SHORT).show()
-                    },
-                    onHoldingChange = {},
-                    modifier = Modifier.fillMaxWidth(),
-                    holdDurationMillis = 2_000L,
-                    holdLabel = stringResource(R.string.feature_reset_hold),
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                    progressColor = MaterialTheme.colorScheme.error,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                )
-            } else if (resetPrefixes != null) {
+            if (resetPrefixes != null) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    HoldToContinueButton(
-                        waitTimeProgress = 1f,
-                        onContinue = {
+                    FilledTonalButton(
+                        onClick = {
+                            HapticUtil.performMediumHaptic(view)
                             SettingsRepository(context).resetKeysWithPrefixes(resetPrefixes)
                             viewModel.check(context)
                             Toast.makeText(context, R.string.feature_reset_done, Toast.LENGTH_SHORT).show()
                         },
-                        onHoldingChange = {},
-                        modifier = Modifier.weight(1f),
-                        holdDurationMillis = 2_000L,
-                        holdLabel = stringResource(R.string.feature_reset_hold),
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        progressColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.weight(1f).height(58.dp),
                         shape = RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp, topEnd = 4.dp, bottomEnd = 4.dp),
-                    )
+                    ) {
+                        Text(stringResource(R.string.feature_reset_hold))
+                    }
                     FilledTonalIconButton(
                         onClick = {
                             HapticUtil.performUIHaptic(view)
