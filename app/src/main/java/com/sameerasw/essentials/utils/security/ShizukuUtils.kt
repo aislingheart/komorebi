@@ -150,7 +150,7 @@ object ShizukuUtils {
         if (!hasPermission() || !isBinderAlive) return false
 
         return try {
-            runCommand("pm grant com.sameerasw.essentials android.permission.WRITE_SECURE_SETTINGS")
+            runCommand("pm grant ${com.sameerasw.essentials.BuildConfig.APPLICATION_ID} android.permission.WRITE_SECURE_SETTINGS")
             true
         } catch (
             @Suppress("UNUSED_PARAMETER") e: Exception,
@@ -163,7 +163,7 @@ object ShizukuUtils {
         if (!hasPermission() || !isBinderAlive) return false
 
         return try {
-            runCommand("pm grant com.sameerasw.essentials android.permission.BATTERY_STATS")
+            runCommand("pm grant ${com.sameerasw.essentials.BuildConfig.APPLICATION_ID} android.permission.BATTERY_STATS")
             true
         } catch (
             @Suppress("UNUSED_PARAMETER") e: Exception,

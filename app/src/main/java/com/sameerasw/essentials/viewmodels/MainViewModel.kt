@@ -942,7 +942,7 @@ class MainViewModel : ViewModel() {
         context: Context,
         enabled: Boolean,
     ) {
-        val value = if (enabled) "com.sameerasw.essentials" else null
+        val value = if (enabled) context.packageName else null
         val key = "selected_search_engine"
 
         var success = false
@@ -957,7 +957,7 @@ class MainViewModel : ViewModel() {
         if (!success) {
             val command =
                 if (enabled) {
-                    "settings put secure $key com.sameerasw.essentials"
+                    "settings put secure $key ${context.packageName}"
                 } else {
                     "settings delete secure $key"
                 }

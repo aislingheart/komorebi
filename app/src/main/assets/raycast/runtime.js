@@ -1042,7 +1042,7 @@
   function updateCommandMetadata(meta) { return hostCall("ui.updateCommandMetadata", meta || {}); }
   function getApplications() { return hostCall("system.getApplications", {}).then((r) => r || []); }
   function getDefaultApplication(target) { return hostCall("system.getDefaultApplication", { target: String(target) }); }
-  function getFrontmostApplication() { return Promise.resolve({ name: "Essentials", bundleId: "com.sameerasw.essentials" }); }
+  function getFrontmostApplication() { return Promise.resolve({ name: "Komorebi", bundleId: "com.aislingheart.komorebi" }); }
   function getSelectedText() { return Promise.resolve(""); }
   function showInFinder(path) { return open(path); }
   function showInFileBrowser(path) { return open(path); }

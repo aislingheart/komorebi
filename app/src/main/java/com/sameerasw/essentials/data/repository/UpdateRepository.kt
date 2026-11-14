@@ -20,43 +20,10 @@ import java.net.URL
 
 class UpdateRepository {
     suspend fun checkForUpdates(
-        context: Context,
+        @Suppress("UNUSED_PARAMETER") context: Context,
         isPreReleaseCheckEnabled: Boolean,
         currentVersion: String,
-    ): UpdateInfo? =
-        withContext(Dispatchers.IO) {
-            if (!isPreReleaseCheckEnabled) {
-                try {
-                    val autoUpdateHelper = AutoUpdateManagerHelper(context)
-                    val updateFeatures =
-                        autoUpdateHelper.checkForUpdate("https://sameerasw.com/essentials-update.json")
-
-                    if (updateFeatures != null && updateFeatures.latestversion.isNotEmpty()) {
-                        val latestVersion = updateFeatures.latestversion
-                        val hasUpdate = isNewerVersion(currentVersion, latestVersion)
-                        return@withContext UpdateInfo(
-                            versionName = latestVersion,
-                            releaseNotes = updateFeatures.changelog,
-                            downloadUrl = updateFeatures.apk_url,
-                            releaseUrl =
-                                if (updateFeatures.changelog.startsWith(
-                                        "http",
-                                    )
-                                ) {
-                                    updateFeatures.changelog
-                                } else {
-                                    "https://github.com/sameerasw/essentials/releases"
-                                },
-                            isUpdateAvailable = hasUpdate,
-                        )
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
-
-            checkForUpdatesFromGitHub(isPreReleaseCheckEnabled, currentVersion)
-        }
+    ): UpdateInfo? = checkForUpdatesFromGitHub(isPreReleaseCheckEnabled, currentVersion)
 
     private suspend fun checkForUpdatesFromGitHub(
         isPreReleaseCheckEnabled: Boolean,
@@ -66,9 +33,9 @@ class UpdateRepository {
             try {
                 val urlString =
                     if (isPreReleaseCheckEnabled) {
-                        "https://api.github.com/repos/sameerasw/essentials/releases"
+                        "https://api.github.com/repos/aislingheart/komorebi/releases"
                     } else {
-                        "https://api.github.com/repos/sameerasw/essentials/releases/latest"
+                        "https://api.github.com/repos/aislingheart/komorebi/releases/latest"
                     }
 
                 val url = URL(urlString)

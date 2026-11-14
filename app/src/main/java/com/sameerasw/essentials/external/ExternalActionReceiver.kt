@@ -14,9 +14,11 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 
+import com.sameerasw.essentials.BuildConfig
+
 class ExternalActionReceiver : BroadcastReceiver() {
     companion object {
-        const val ACTION_EXTERNAL_CONTROL = "com.sameerasw.essentials.action.EXTERNAL_CONTROL"
+        const val ACTION_EXTERNAL_CONTROL = "${BuildConfig.APPLICATION_ID}.action.EXTERNAL_CONTROL"
         const val EXTRA_PATH = "path"
         const val EXTRA_ACTION = "action"
         const val EXTRA_VALUE = "value"

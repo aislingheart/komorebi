@@ -14,6 +14,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
+import com.sameerasw.essentials.BuildConfig
 import com.sameerasw.essentials.R
 import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.utils.ShellUtils
@@ -24,7 +25,7 @@ class ShizukuActionReceiver : BroadcastReceiver() {
         context: Context,
         intent: Intent,
     ) {
-        if (intent.action == "com.sameerasw.essentials.ACTION_RESTART_SHIZUKU") {
+        if (intent.action == "${BuildConfig.APPLICATION_ID}.ACTION_RESTART_SHIZUKU") {
             val notificationManager =
                 context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
             notificationManager?.cancel(9001)

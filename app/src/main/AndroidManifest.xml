@@ -59,12 +59,12 @@
     <uses-permission android:name="moe.shizuku.privileged.api.permission.BIND_SHIZUKU_SERVICE" />
 
     <permission
-        android:name="com.sameerasw.essentials.permission.EXTERNAL_CONTROL"
+        android:name="${applicationId}.permission.EXTERNAL_CONTROL"
         android:description="@string/perm_external_control_desc"
         android:label="@string/perm_external_control_label"
         android:protectionLevel="normal" />
 
-    <uses-permission android:name="com.sameerasw.essentials.permission.EXTERNAL_CONTROL" />
+    <uses-permission android:name="${applicationId}.permission.EXTERNAL_CONTROL" />
 
     <queries>
         <intent>
@@ -362,7 +362,7 @@
             android:name=".services.receivers.ShizukuActionReceiver"
             android:exported="false">
             <intent-filter>
-                <action android:name="com.sameerasw.essentials.ACTION_RESTART_SHIZUKU" />
+                <action android:name="${applicationId}.ACTION_RESTART_SHIZUKU" />
             </intent-filter>
         </receiver>
 
@@ -389,7 +389,7 @@
             android:name=".external.ExternalControlProvider"
             android:authorities="${applicationId}.external"
             android:exported="true"
-            android:permission="com.sameerasw.essentials.permission.EXTERNAL_CONTROL" />
+            android:permission="${applicationId}.permission.EXTERNAL_CONTROL" />
 
         <receiver
             android:name=".external.ExternalTokenActionReceiver"
@@ -398,9 +398,9 @@
         <receiver
             android:name=".external.ExternalActionReceiver"
             android:exported="true"
-            android:permission="com.sameerasw.essentials.permission.EXTERNAL_CONTROL">
+            android:permission="${applicationId}.permission.EXTERNAL_CONTROL">
             <intent-filter>
-                <action android:name="com.sameerasw.essentials.action.EXTERNAL_CONTROL" />
+                <action android:name="${applicationId}.action.EXTERNAL_CONTROL" />
             </intent-filter>
         </receiver>
 
@@ -437,6 +437,12 @@
             android:launchMode="singleTop"
             android:theme="@style/Theme.Essentials"
             android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="komorebi" android:host="oauth" />
+            </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

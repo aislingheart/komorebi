@@ -813,7 +813,7 @@ fun WhatsNewStepContent(
             Spacer(modifier = Modifier.height(32.dp))
 
             Text(
-                text = "Essentials v${com.sameerasw.essentials.BuildConfig.VERSION_NAME}",
+                text = "Komorebi v${com.sameerasw.essentials.BuildConfig.VERSION_NAME}",
                 style =
                     MaterialTheme.typography.headlineLarge.copy(
                         fontFamily = GoogleSansFlexRounded,

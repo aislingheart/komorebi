@@ -265,7 +265,7 @@ object ShellUtils {
                 context,
                 com.sameerasw.essentials.services.receivers.ShizukuActionReceiver::class.java,
             ).apply {
-                action = "com.sameerasw.essentials.ACTION_RESTART_SHIZUKU"
+                action = "${com.sameerasw.essentials.BuildConfig.APPLICATION_ID}.ACTION_RESTART_SHIZUKU"
             }
         val restartPendingIntent =
             PendingIntent.getBroadcast(

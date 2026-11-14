@@ -15,6 +15,8 @@ import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
 
+import com.sameerasw.essentials.BuildConfig
+
 class ExternalControlProvider : ContentProvider() {
     override fun onCreate(): Boolean = true
 
@@ -30,7 +32,7 @@ class ExternalControlProvider : ContentProvider() {
         return ExternalRouter.query(context, path, null)
     }
 
-    override fun getType(uri: Uri): String? = "vnd.android.cursor.item/vnd.com.sameerasw.essentials.external"
+    override fun getType(uri: Uri): String? = "vnd.android.cursor.item/vnd.${BuildConfig.APPLICATION_ID}.external"
 
     override fun insert(
         uri: Uri,
