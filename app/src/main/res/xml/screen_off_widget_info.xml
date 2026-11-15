@@ -6,7 +6,7 @@
     android:maxResizeHeight="800dp"
     android:minWidth="40dp"
     android:minHeight="40dp"
-    android:previewImage="@drawable/ic_launcher_foreground"
+    android:previewImage="@drawable/ic_launcher_foreground_komorebi"
     android:resizeMode="horizontal|vertical"
     android:targetCellWidth="1"
     android:targetCellHeight="1"

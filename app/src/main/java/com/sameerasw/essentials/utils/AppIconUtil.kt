@@ -29,23 +29,29 @@ object AppIconUtil {
             ?: android.content.Intent(context, com.sameerasw.essentials.PixelSearchActivity::class.java)
 
     fun setAppIcon(context: Context, targetIcon: AppIcon) {
+        if (targetIcon.aliasName.isBlank()) return
+
         val packageManager = context.packageManager
 
-        val targetComponent = ComponentName(context.packageName, targetIcon.aliasName)
-        packageManager.setComponentEnabledSetting(
-            targetComponent,
-            PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-            PackageManager.DONT_KILL_APP,
-        )
+        runCatching {
+            val targetComponent = ComponentName(context.packageName, targetIcon.aliasName)
+            packageManager.setComponentEnabledSetting(
+                targetComponent,
+                PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                PackageManager.DONT_KILL_APP,
+            )
+        }
 
         for (icon in AppIcon.entries) {
-            if (icon != targetIcon) {
-                val component = ComponentName(context.packageName, icon.aliasName)
-                packageManager.setComponentEnabledSetting(
-                    component,
-                    PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                    PackageManager.DONT_KILL_APP,
-                )
+            if (icon != targetIcon && icon.aliasName.isNotBlank()) {
+                runCatching {
+                    val component = ComponentName(context.packageName, icon.aliasName)
+                    packageManager.setComponentEnabledSetting(
+                        component,
+                        PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                        PackageManager.DONT_KILL_APP,
+                    )
+                }
             }
         }
     }

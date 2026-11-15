@@ -39,7 +39,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -159,12 +158,7 @@ fun AppIconPicker(
             options.forEach { iconItem ->
                 val isSelected = iconItem == selectedIcon
 
-                val circleBackground =
-                    if (iconItem == AppIcon.BLACK) {
-                        MaterialTheme.colorScheme.surfaceContainerHighest
-                    } else {
-                        Color.White
-                    }
+                val circleBackground = Color.White
 
                 var iconCenterOffset by remember { mutableStateOf(Offset.Zero) }
 
@@ -212,14 +206,7 @@ fun AppIconPicker(
                         Image(
                             painter = painterResource(id = iconItem.foregroundRes),
                             contentDescription = stringResource(iconItem.titleRes),
-                            colorFilter =
-                                if (iconItem == AppIcon.BLACK) {
-                                    ColorFilter.tint(
-                                        MaterialTheme.colorScheme.primary,
-                                    )
-                                } else {
-                                    null
-                                },
+                            colorFilter = null,
                             modifier =
                                 Modifier
                                     .fillMaxSize()

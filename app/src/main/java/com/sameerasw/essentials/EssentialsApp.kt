@@ -44,20 +44,37 @@ class EssentialsApp : Application() {
         } catch (_: Throwable) {
         }
 
-        PorterShizukuBridge.start(CoroutineScope(SupervisorJob() + Dispatchers.Default))
-        ShizukuUtils.initialize()
-        com.sameerasw.essentials.utils.LogManager
-            .init(this)
+        runCatching {
+            PorterShizukuBridge.start(CoroutineScope(SupervisorJob() + Dispatchers.Default))
+        }.onFailure {
+            android.util.Log.e("EssentialsApp", "Porter bridge failed to start", it)
+        }
 
-        com.sameerasw.essentials.services.CalendarSyncManager
-            .init(this)
-        com.sameerasw.essentials.utils.ServiceUtils
-            .startRequiredServices(this)
+        runCatching { ShizukuUtils.initialize() }
+            .onFailure { android.util.Log.e("EssentialsApp", "Shizuku init failed", it) }
 
-        com.sameerasw.essentials.appfunctions.AppFunctionAvailabilityManager
-            .updateAvailability(this)
+        runCatching {
+            com.sameerasw.essentials.utils.LogManager
+                .init(this)
+        }.onFailure { android.util.Log.e("EssentialsApp", "LogManager init failed", it) }
 
-        initSentry()
+        runCatching {
+            com.sameerasw.essentials.services.CalendarSyncManager
+                .init(this)
+        }.onFailure { android.util.Log.e("EssentialsApp", "Calendar sync init failed", it) }
+
+        runCatching {
+            com.sameerasw.essentials.utils.ServiceUtils
+                .startRequiredServices(this)
+        }.onFailure { android.util.Log.e("EssentialsApp", "Service startup failed", it) }
+
+        runCatching {
+            com.sameerasw.essentials.appfunctions.AppFunctionAvailabilityManager
+                .updateAvailability(this)
+        }.onFailure { android.util.Log.e("EssentialsApp", "App function init failed", it) }
+
+        runCatching { initSentry() }
+            .onFailure { android.util.Log.e("EssentialsApp", "Sentry init failed", it) }
     }
 
     private fun initSentry() {

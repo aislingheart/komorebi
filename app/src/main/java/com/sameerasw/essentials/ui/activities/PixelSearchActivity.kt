@@ -4,15 +4,16 @@
  *
  * Feature Module: Application Activities
  * File: PixelSearchActivity.kt
- * Description: Activity component for PixelSearchActivity.kt.
+ * Description: Invisible trampoline that opens the search surface.
  */
 
 package com.sameerasw.essentials
- 
+
 import android.app.Activity
 import android.app.SearchManager
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import com.sameerasw.essentials.ui.activities.PixelSearchResultsActivity
 
 class PixelSearchActivity : Activity() {
@@ -22,11 +23,20 @@ class PixelSearchActivity : Activity() {
             ?: intent.getStringExtra("query")
             ?: ""
 
-        val resultsIntent = Intent(this, PixelSearchResultsActivity::class.java).apply {
-            putExtra(SearchManager.QUERY, query)
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        try {
+            startActivity(
+                Intent(this, PixelSearchResultsActivity::class.java).apply {
+                    putExtra(SearchManager.QUERY, query)
+                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                },
+            )
+        } catch (t: Throwable) {
+            Log.e("PixelSearchActivity", "Failed to open search results", t)
+            runCatching {
+                startActivity(Intent(this, SettingsActivity::class.java))
+            }
         }
-        startActivity(resultsIntent)
+
         finish()
     }
 }

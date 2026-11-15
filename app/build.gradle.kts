@@ -115,8 +115,8 @@ android {
         applicationId = "com.aislingheart.komorebi"
         minSdk = 26
         targetSdk = 37
-        versionCode = 76
-        versionName = "21.3.2-komorebi"
+        versionCode = 77
+        versionName = "21.3.3-komorebi"
 
         val whatsNewCounter = 8
         buildConfigField("int", "WHATS_NEW_COUNTER", whatsNewCounter.toString())

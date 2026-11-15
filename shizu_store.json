@@ -1,11 +1,11 @@
 {
-  "app_name": "Essentials",
-  "package_name": "com.sameerasw.essentials",
-  "short_description": "Essential tools and mods for Android nerds",
+  "app_name": "Komorebi",
+  "package_name": "com.aislingheart.komorebi",
+  "short_description": "Raycast-style universal command palette and search launcher for Android",
   "icon_url": "https://github.com/sameerasw/essentials/blob/main/fastlane/metadata/android/en-US/images/icon.png?raw=true",
   "banner_url": "https://github.com/user-attachments/assets/c0849951-4cf0-4a91-9964-f7c212977af1",
-  "app_website": "https://sameerasw.com/essentials",
-  "repo_url": "https://github.com/sameerasw/essentials",
+  "app_website": "https://github.com/aislingheart/komorebi",
+  "repo_url": "https://github.com/aislingheart/komorebi",
   "store_issue_number": 630,
   "screenshots": [
     "https://github.com/sameerasw/essentials/blob/main/fastlane/metadata/android/en-US/images/phoneScreenshots/1.jpeg?raw=true",
