@@ -97,6 +97,38 @@ fun LicensesBottomSheet(onDismissRequest: () -> Unit) {
     val customSections = remember {
         listOf(
             LicenseSection(
+                title = "Essentials",
+                iconRes = R.drawable.rounded_apps_24,
+                description = "Created by Sameera Wijerathna & contributors. Komorebi is forked from Essentials and builds directly upon its Android utilities, system tweaks, and UI foundation.",
+                licenseType = "MIT License",
+                licenseColor = getLicenseColor("MIT"),
+                links = listOf(context.getString(R.string.action_view_on_github) to "https://github.com/sameerasw/essentials"),
+            ),
+            LicenseSection(
+                title = "Vicinae",
+                iconRes = R.drawable.rounded_terminal_24,
+                description = "Inspired Komorebi's command palette UX, QuickJS React reconciler & RPC bridge design, and @vicinae/api extension store ecosystem.",
+                licenseType = "GPL-3.0 License",
+                licenseColor = getLicenseColor("GPL"),
+                links = listOf(context.getString(R.string.action_view_on_github) to "https://github.com/vicinaehq/vicinae"),
+            ),
+            LicenseSection(
+                title = "Raycast Extensions",
+                iconRes = R.drawable.rounded_extension_24,
+                description = "Extension API specification, manifest conventions, and community extension catalog compatibility.",
+                licenseType = "MIT License",
+                licenseColor = getLicenseColor("MIT"),
+                links = listOf(context.getString(R.string.action_view_on_github) to "https://github.com/raycast/extensions"),
+            ),
+            LicenseSection(
+                title = "ChargeQuickTile",
+                iconRes = R.drawable.rounded_battery_charging_60_24,
+                description = "Pixel charging Quick Settings tile reference by TebbeUbben.",
+                licenseType = "MIT License",
+                licenseColor = getLicenseColor("MIT"),
+                links = listOf(context.getString(R.string.action_view_on_github) to "https://github.com/TebbeUbben/ChargeQuickTile"),
+            ),
+            LicenseSection(
                 title = "emojis.json",
                 iconRes = R.drawable.rounded_emoji_language_24,
                 description = context.getString(R.string.license_emojis_desc),

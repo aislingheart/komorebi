@@ -5,7 +5,7 @@
     <string name="shut_up_attempt_shizuku_restart">Shizuku\'yu yeniden başlatmayı deneyin</string>
     <string name="shut_up_shizuku_restart_warning_title">Shizuku Yeniden Başlatma Uyarısı</string>
     <string name="shut_up_shizuku_restart_warning_message">Kablosuz hata ayıklama etkinleştirildiğinden, Shizuku servisleri otomatik olarak başlamamış olabilir ve bu da dondurma işleminin çalışmamasına neden olabilir. Shizuku\'yu yeniden başlatmayı deneme seçeneğini de etkinleştirmeyi düşünün</string>
-    <string name="accessibility_service_description"><b>Essentials Erişilebilirlik Servisi</b>\n\nBu servis bazı gelişmiş özellikler için gereklidir:\n\n<b>Fiziksel Tuş Atama:</b>\nEkran kapalıyken bile ses tuşlarını algılayıp Fener gibi özellikleri aktif etmeyi sağlar.\n\n<b>Uygulama Başına Ayarlar:</b>\nDinamik Gece Işığı, Bildirim Aydınlatma Renkleri ve Uygulama Kilitleme gibi özelliklere spesifik profiller ayarlamak için şu anda kullanılan uygulamayı gözetler.\n\n<b>Ekran Kontrolu:</b>\nUygulamaların ekranı kapatmasına ve ekran durumunu değiştirmesine olanak sağlar (Ekrana Çift Tıklama veya bir Widget gibi)\n\n<b>Güvenlik:</b>\nEkran kapalıyken açık olan uygulamayı tespit ederek izin verilmeyen değişiklikleri engeller.\n\n<small>Yazılı olan bilgiler veya kullanıcı bilgileri toplanmaz veya aktarılmaz.</small></string>
+    <string name="accessibility_service_description"><b>Komorebi Erişilebilirlik Servisi</b>\n\nBu servis bazı gelişmiş özellikler için gereklidir:\n\n<b>Fiziksel Tuş Atama:</b>\nEkran kapalıyken bile ses tuşlarını algılayıp Fener gibi özellikleri aktif etmeyi sağlar.\n\n<b>Uygulama Başına Ayarlar:</b>\nDinamik Gece Işığı, Bildirim Aydınlatma Renkleri ve Uygulama Kilitleme gibi özelliklere spesifik profiller ayarlamak için şu anda kullanılan uygulamayı gözetler.\n\n<b>Ekran Kontrolu:</b>\nUygulamaların ekranı kapatmasına ve ekran durumunu değiştirmesine olanak sağlar (Ekrana Çift Tıklama veya bir Widget gibi)\n\n<b>Güvenlik:</b>\nEkran kapalıyken açık olan uygulamayı tespit ederek izin verilmeyen değişiklikleri engeller.\n\n<small>Yazılı olan bilgiler veya kullanıcı bilgileri toplanmaz veya aktarılmaz.</small></string>
     <string name="freeze_activity_title">Uygulama Dondurma</string>
     <string name="freeze_activity_subtitle">Nadiren kullanılan uygulamaları devre dışı bırakın</string>
     <string name="freeze_shortcut_short_label">Uygulama Dondurma</string>
@@ -64,7 +64,7 @@
     <string name="like_song_settings_desc">Bu özellik, o anda oynatılan medyayı algılamak ve benzer eylemi tetiklemek için bildirim erişimi gerektirir. Lütfen aşağıdan etkinleştirin.</string>
     <string name="like_song_toast_enabled">Tost mesajını göster</string>
     <string name="like_song_aod_overlay_title">AOD\'de kaplamayı göster</string>
-    <string name="feat_essentials_on_display_title">Essentials On Display</string>
+    <string name="feat_essentials_on_display_title">Komorebi On Display</string>
     <string name="feat_essentials_on_display_desc">AOD ile ilgili medya ve bilgilere göz atın</string>
     <string name="essentials_on_display_docked_mode_title">Yerleşik mod</string>
     <string name="essentials_on_display_docked_mode_desc">Zaman aşımı yok</string>
@@ -382,7 +382,7 @@
     <string name="cat_visuals">Görseller</string>
     <string name="cat_system">Sistem</string>
     <!-- UI Elements -->
-    <string name="search_placeholder">Search Essentials</string>
+    <string name="search_placeholder">Search Komorebi</string>
     <string name="search_no_results">\"%1$s\" için sonuç yok</string>
     <string name="search_results_title">Arama Sonuçları</string>
     <string name="requires_following_permissions">%1$s aşağıdaki izinleri gerektirir</string>
@@ -592,7 +592,7 @@
     <string name="perm_default_browser_title">Varsayılan Tarayıcı</string>
     <string name="perm_default_browser_desc">Bağlantıları verimli bir şekilde yönetmek için gereklidir</string>
     <string name="perm_accessibility_desc_remap">Donanım düğmesi olaylarını engellemek için gereklidir</string>
-    <string name="perm_accessibility_desc_essentials_on_display">Ekran kapalıyken ses seviyesi tuş olaylarını yakalayarak Essentials On Display katmanını tetiklemek için gereklidir.</string>
+    <string name="perm_accessibility_desc_essentials_on_display">Ekran kapalıyken ses seviyesi tuş olaylarını yakalayarak Komorebi On Display katmanını tetiklemek için gereklidir.</string>
     <string name="perm_accessibility_desc_night_light">Ön plan uygulamalarını izlemek için gereklidir.</string>
     <string name="perm_write_secure_title">Güvenli Ayarları Yaz</string>
     <string name="perm_write_secure_desc_common">Durum Çubuğu simgeleri ve Ekran Kilitli Güvenlik için gereklidir</string>
@@ -618,7 +618,7 @@
     <string name="tab_apps">Uygulamalar</string>
     <string name="tab_freeze_subtitle">Devre dışı bırakılan uygulamalar</string>
     <string name="tab_diy_subtitle">Kendin yap</string>
-    <string name="diy_header_caption">Automate essentials</string>
+    <string name="diy_header_caption">Automate your device</string>
     <string name="freeze_header_caption">%1$d/%2$d apps</string>
     <string name="tab_apps_subtitle">Uygulamaları bulun ve yönetin</string>
     <string name="feat_app_updates_title">Uygulama Güncellemeleri</string>
@@ -650,7 +650,7 @@
     <!-- Keyboard Setup -->
     <string name="label_keyboard_setup">Klavye Kurulumu</string>
     <string name="btn_enable_keyboard">Ayarlarda etkinleştir</string>
-    <string name="btn_select_keyboard">Essentials\'a geç</string>
+    <string name="btn_select_keyboard">Komorebi\'a geç</string>
     <string name="label_enabled">Etkin</string>
     <string name="label_disabled">Devre dışı</string>
     <string name="tile_adaptive_brightness">Uyarlanabilir Parlaklık</string>
@@ -668,11 +668,11 @@
     <string name="sentry_report_mode_title">Çökme raporu</string>
     <string name="sentry_mode_off">Kapalı</string>
     <string name="sentry_mode_auto">Otomatik</string>
-    <string name="sentry_crash_toast">Essentials çöktü, Rapor gönderildi</string>
+    <string name="sentry_crash_toast">Komorebi çöktü, Rapor gönderildi</string>
     <string name="simulate_crash">Çökmeyi simüle et</string>
-    <string name="welcome_title">Essentials\'a hoş geldiniz</string>
+    <string name="welcome_title">Komorebi\'a hoş geldiniz</string>
     <string name="welcome_subtitle">Android Meraklıları için bir Araç Kutusu</string>
-    <string name="welcome_developer_attribution">sameerasw.com tarafından</string>
+    <string name="welcome_developer_attribution">by aislingheart</string>
     <string name="action_lets_begin">Hadi Başlayalım</string>
     <string name="acknowledgement_title">Teşekkür</string>
     <string name="acknowledgement_desc">Bu uygulama, cihazınızın sistemiyle derinlemesine etkileşim kurabilen bir dizi yardımcı programdan oluşmaktadır. Bazı özelliklerin kullanımı, sistem ayarlarını veya davranışlarını beklenmedik şekillerde değiştirebilir. \n\nYalnızca kullandığınız seçili özellikler için gerekli olan izinleri vermeniz yeterlidir; bu da uygulamanın davranışları üzerinde tam kontrol sahibi olmanızı sağlar. \n\nAyrıca, uygulama kişisel verilerinizin hiçbirini takip etmez veya saklamaz, bunlara ihtiyacım yok... Güvende kalın. Daha fazla bilgi için kaynak koduna bakabilirsiniz. \n\nBu uygulama tamamen açık kaynaklıdır ve her zaman ücretsiz olarak kullanılabilir. Bilinmeyen kaynaklardan ücret ödemeyin veya yüklemeyin.</string>
@@ -692,7 +692,7 @@
     <string name="desc_auto_check_updates">Uygulama başlatıldığında güncellemeleri kontrol eder</string>
     <string name="action_all_set">Her şey Hazır</string>
     <string name="action_check_whats_new">Yeni Neler Var?</string>
-    <string name="welcome_back_title">Essentials\'a tekrar hoş geldiniz</string>
+    <string name="welcome_back_title">Komorebi\'a tekrar hoş geldiniz</string>
     <string name="action_see_whats_new">Yenilikleri gör</string>
     <string name="label_mode_default">Varsayılan</string>
     <string name="label_mode_glove">Eldiven modu</string>
@@ -717,7 +717,7 @@
     <string name="action_what_is_this">Bu nedir?</string>
     <string name="update_available_title">Güncelleme Mevcut</string>
     <string name="about_desc_your_android">Cihazınızın donanım ve yazılım özelliklerine ayrıntılı olarak göz atın. Bu bilgiler, Android cihazınız hakkında kapsamlı bir genel bakış sağlamak için GSMArena ve sistem özelliklerinden alınır.</string>
-    <string name="about_desc_essentials_on_display">Essentials On Display müzik çalarken ve oynatma değiştiğinde kilit ekranınızda Şimdi Çalıyor katmanını gösterir. \n\nCihazınız AOD katmanında gösterme özelliğini desteklemiyorsa, şarj sırasında alternatif olarak Android ayarlarınızda eklenen Ortam ekran koruyucusunu kullanabilirsiniz.</string>
+    <string name="about_desc_essentials_on_display">Komorebi On Display müzik çalarken ve oynatma değiştiğinde kilit ekranınızda Şimdi Çalıyor katmanını gösterir. \n\nCihazınız AOD katmanında gösterme özelliğini desteklemiyorsa, şarj sırasında alternatif olarak Android ayarlarınızda eklenen Ortam ekran koruyucusunu kullanabilirsiniz.</string>
     <string name="about_desc_notification_lighting">Bildirim Aydınlatması, bildirim aldığınızda güzel bir kenar aydınlatma efekti ekler.\n\nAnimasyon stilini, renklerini ve davranışını özelleştirebilirsiniz. Ekran kapalıyken (OEM\'e bağlı) veya mevcut uygulamanızın üstündeyken bile çalışır. Verilen kontrollerden uygulamaları, bildirim önceliğini veya hangi davranışı tetiklemesi gerektiğini seçin. Eğer OEM\'iniz AOD üzerindeki yer alan kaplamaları desteklemiyorsa, aşağıda bulunan Ortam ekranı seçeneğini kullanın.</string>
     <string name="about_desc_screen_off_widget">Ana ekranınıza simge veya herhangi bir karışıklık eklemeyen, şeffaf, yeniden boyutlandırılabilir bir widget\'a dokunarak ekranı kolayca kapatın.</string>
     <string name="about_desc_statusbar_icons">Durum çubuğunuzun tam kontrolünü elinize alın.
@@ -742,7 +742,7 @@ Ertelenen herhangi bir bildirime Android\'deki bildirim geçmişinizden hâlâ e
     <string name="about_desc_dynamic_night_light">Ön plandaki uygulamaya göre ekranınızın mavi ışık filtresini otomatik olarak değiştirin.</string>
     <string name="about_desc_screen_locked_security">Cihazınız kilitliyken güvenliği artırın.\n\nBazı hassas QS döşemelerine erişimi kısıtlayın, yetkisiz ağ değişikliklerini önleyin ve dokunma spam\'ını önlemek için animasyon hızını artırarak yeniden denemelerini önleyin.\n\nBu özellik sağlam değildir ve bluetooth veya uçuş modunun kullanılamaması gibi doğrudan geçişe izin veren bazı döşemeler gibi kusurlara sahip olabilir engellendi.</string>
     <string name="about_desc_app_lock">Uygulamalarınızı ikincil bir kimlik doğrulama katmanıyla koruyun.\n\nCihazınızın kilit ekranı kimlik doğrulama yöntemi, Android standartlarına göre sınıf 3 biyometrik güvenlik düzeyini karşıladığı sürece kullanılacaktır.</string>
-    <string name="about_desc_location_reached">Durağı asla kaçırmadığınızdan emin olmak için varış noktanıza yaklaştığınızda bildirim alın.\n\nGoogle Haritalar\'a gidin, hedefinizin yakınındaki bir raptiyeye uzun basın ve \"Bırakılan raptiye\" yazdığından emin olun (Aksi takdirde mesafe hesaplaması doğru olmayabilir) Ve ardından konumu Essentials uygulamasıyla paylaşın ve izlemeye başlayın.</string>
+    <string name="about_desc_location_reached">Durağı asla kaçırmadığınızdan emin olmak için varış noktanıza yaklaştığınızda bildirim alın.\n\nGoogle Haritalar\'a gidin, hedefinizin yakınındaki bir raptiyeye uzun basın ve \"Bırakılan raptiye\" yazdığından emin olun (Aksi takdirde mesafe hesaplaması doğru olmayabilir) Ve ardından konumu Komorebi uygulamasıyla paylaşın ve izlemeye başlayın.</string>
     <string name="location_reached_add_title">Hedef ekle</string>
     <string name="location_reached_edit_title">Hedefi düzenle</string>
     <string name="location_reached_name_placeholder">Ev, Ofis, vb.</string>
@@ -756,7 +756,7 @@ Ertelenen herhangi bir bildirime Android\'deki bildirim geçmişinizden hâlâ e
     <string name="location_reached_delete">Hedefi sil</string>
     <string name="location_reached_tracking_now">Şimdi takip ediliyor</string>
     <string name="location_reached_restart_btn">Yeniden başlat</string>
-    <string name="location_reached_instructional_desc">Google Haritalar\'dan koordinatları (İşaretlenmiş nokta) Essentials\'a paylaşarak hedef olarak kaydedin.\n\nGösterilen mesafe, varış noktasına olan doğrudan mesafedir, karayolları üzerinden kat edilen mesafe değildir.\n\nZaman ve mesafe hesaplamalarının her zaman doğru olmayabileceği için, bu hesaplamaları ihtiyatla değerlendirin.</string>
+    <string name="location_reached_instructional_desc">Google Haritalar\'dan koordinatları (İşaretlenmiş nokta) Komorebi\'a paylaşarak hedef olarak kaydedin.\n\nGösterilen mesafe, varış noktasına olan doğrudan mesafedir, karayolları üzerinden kat edilen mesafe değildir.\n\nZaman ve mesafe hesaplamalarının her zaman doğru olmayabileceği için, bu hesaplamaları ihtiyatla değerlendirin.</string>
     <string name="tile_location_reached">Henüz orada mıyız?</string>
     <string name="location_reached_pause">Duraklat</string>
     <string name="location_reached_resume">Devam et</string>
@@ -773,8 +773,8 @@ Ertelenen herhangi bir bildirime Android\'deki bildirim geçmişinizden hâlâ e
     <string name="about_desc_batteries">Bağlı tüm cihazlarınızın pil seviyelerini izleyin.\n\nBluetooth kulaklığınızın, saatinizin ve diğer aksesuarlarınızın pil durumunu tek bir yerden görün. Mac pil seviyenizi de görüntülemek için AirSync uygulamasına bağlanın.</string>
     <string name="about_desc_watermark">EXIF verileri ve cihaz bilgileriyle fotoğraflarınıza özel bir başlık/filigran ekleyin.
 
-Kolayca filigran eklemek için bir görüntüyü doğrudan başka bir uygulamadan Essentials\'a paylaşın.</string>
-    <string name="about_desc_calendar_sync">İş veya okul politikaları nedeniyle WearOS cihazlarına eklenmesine izin vermeyen Google hesaplarındaki kısıtlamalar ne olursa olsun, yaklaşan tüm takvim programınızı senkronize edin. \n\nPlanlamayı uygulamada, bir kutucukta veya komplikasyonda görüntülemek için WearOS Essentials yardımcı uygulamasını yüklediğinizden emin olun.</string>
+Kolayca filigran eklemek için bir görüntüyü doğrudan başka bir uygulamadan Komorebi\'a paylaşın.</string>
+    <string name="about_desc_calendar_sync">İş veya okul politikaları nedeniyle WearOS cihazlarına eklenmesine izin vermeyen Google hesaplarındaki kısıtlamalar ne olursa olsun, yaklaşan tüm takvim programınızı senkronize edin. \n\nPlanlamayı uygulamada, bir kutucukta veya komplikasyonda görüntülemek için WearOS Komorebi yardımcı uygulamasını yüklediğinizden emin olun.</string>
     <string name="about_desc_app_updates">Yüklü uygulamalarınız için güncellemeleri takip edin.\n\nMevcut güncellemeler hakkında bildirim alın, değişiklik günlüklerini görüntüleyin ve bunları tek bir dokunuşla kolayca yükleyin.</string>
     <string name="about_desc_call_vibrations">Çağrılarınıza dokunsal geri bildirim ekleyin.\n\nBir çağrı bağlandığında, bağlantısı kesildiğinde veya kabul edildiğinde titreşerek ekrana bakmadan dokunsal onay verin.</string>
     <string name="about_desc_sound_mode_tile">Ses, Titreşim ve Sessiz modları arasında hızlıca geçiş yapın.\n\nSes seviyesi düğmelerini veya ayarları kullanmadan zil sesi modunuzu değiştirmenizi sağlayan kullanışlı bir döşeme. Kutucuk geçişini döngü davranışına göre özelleştirmek için modları yeniden sıralayabilir veya gerekmiyorsa herhangi birini devre dışı bırakabilirsiniz.</string>
@@ -854,7 +854,7 @@ Bu özelliği etkinleştirmek için güvenli ayarlar yazma izni, zorla kapatma s
     <string name="diy_action_sound_mode">Ses Modu</string>
     <string name="diy_sound_mode_desc">Bu eylem, tetikleyicilere bağlı olarak Ses, Titreşim ve Sessiz modları arasında geçiş yapılmasına olanak tanır. Rahatsız Etmeyin erişimi gerektirir.</string>
     <!-- About Section -->
-    <string name="app_developer_name">Sameera Wijerathna</string>
+    <string name="app_developer_name">aislingheart</string>
     <string name="app_description">Pixel ve Android cihazlarınız için hepsi bir arada araç kutusu</string>
     <!-- Edge Lighting -->
     <string name="color_mode_system">Sistem</string>
@@ -1092,7 +1092,7 @@ Bu özelliği etkinleştirmek için güvenli ayarlar yazma izni, zorla kapatma s
     <!-- Instructions Content -->
     <string name="instruction_section_perms_title">Erişilebilirlik, Bildirim ve Yer Paylaşımı izinleri</string>
     <string name="instruction_step_perms_1">Erişilebilirlik, bildirim dinleyicisi veya yer paylaşımı izinleri gibi hassas izinler vermeye çalışırsanız bu erişim reddedildi mesajını alabilirsiniz. Bunu vermek için aşağıdaki adımları kontrol edin.</string>
-    <string name="instruction_step_perms_2">1. Essentials\'ın uygulama bilgileri sayfasına gidin.</string>
+    <string name="instruction_step_perms_2">1. Komorebi\'ın uygulama bilgileri sayfasına gidin.</string>
     <string name="instruction_step_perms_3">2. 3 noktalı menüyü açın ve  \'Kısıtlı ayarlara izin ver\' öğesini seçin. Biyometri ile kimlik doğrulaması yapmanız gerekebilir. İşiniz bittiğinde, izni tekrar vermeyi deneyin.</string>
     <string name="instruction_section_shizuku_title">Shizuku</string>
     <string name="instruction_section_shizuku_desc">Shizuku, uygulamaların sistem APi\'lerini doğrudan ADB veya kök izinleriyle kullanmasına olanak tanıyan güçlü bir araçtır. Harita min modu, Uygulama Dondurucu gibi özellikler için gereklidir. Ve WRITE_SECURE_SETTINGS gibi bazı izinlerin verilmesine yardımcı olacağız. \n\nAncak Shizuku\'nun Play Store sürümü eski olabilir ve muhtemelen son Android sürümlerinde kullanılamayacaktır, bu durumda lütfen github\'dan en son sürümü veya bunun güncel bir çatalını edinin.</string>
@@ -1126,7 +1126,7 @@ Bu özelliği etkinleştirmek için güvenli ayarlar yazma izni, zorla kapatma s
     <!-- Location Reached -->
     <string name="feat_location_reached_title">Henüz orada mıyız?</string>
     <string name="feat_location_reached_desc">Yakındaki hedef uyarıları</string>
-    <string name="location_reached_how_to">Google Haritalar\'ı açın, bir konum seçin ve onu Essentials\'la paylaşın.</string>
+    <string name="location_reached_how_to">Google Haritalar\'ı açın, bir konum seçin ve onu Komorebi\'la paylaşın.</string>
     <string name="location_reached_radius_title">Uyarı Yarıçapı: %d m</string>
     <string name="perm_location_title">Konum</string>
     <string name="perm_location_desc">Hedefinize varışınızı tespit etmek için kullanılır.</string>
@@ -1251,11 +1251,11 @@ Bu özelliği etkinleştirmek için güvenli ayarlar yazma izni, zorla kapatma s
     <string name="feat_watch_title">Kol saati</string>
     <string name="feat_watch_desc">WearOS ile entegrasyonlar</string>
     <string name="watch_no_companion_title">İzleme algılanmadı</string>
-    <string name="watch_no_companion_desc">Saatinizde Essentials Wear yardımcı uygulamasının yüklü olmadığı anlaşılıyor.</string>
+    <string name="watch_no_companion_desc">Saatinizde Komorebi Wear yardımcı uygulamasının yüklü olmadığı anlaşılıyor.</string>
     <string name="watch_install_companion_action">Tamamlayıcıyı Yükle</string>
     <string name="action_download_from_github">GitHub\'tan indir</string>
     <string name="watch_help_title">Saate yükle</string>
-    <string name="watch_help_description">Saat özelliklerini kullanmak için Wear OS saatinize Essentials yardımcı uygulamasını yüklemeniz gerekir. Play Store\'u doğrudan saatinizde açmak için aşağıdaki düğmeye tıklayın.</string>
+    <string name="watch_help_description">Saat özelliklerini kullanmak için Wear OS saatinize Komorebi yardımcı uygulamasını yüklemeniz gerekir. Play Store\'u doğrudan saatinizde açmak için aşağıdaki düğmeye tıklayın.</string>
     <string name="watch_help_open_play_store">Saatte Aç</string>
     <string name="cat_interaction">Etkileşim</string>
     <string name="cat_interface">Arayüz</string>
@@ -1388,11 +1388,11 @@ Bazı ayarların değişikliklerin yansıması için gelişmiş izinler veya bel
     <string name="msg_flashbang">Şok bombasına hazır olun!</string>
     <string name="action_abort">İptal et</string>
     <string name="action_continue">Devam et</string>
-    <string name="prank_trial_expired_title">Essentials deneme süreniz sona erdi</string>
-    <string name="prank_trial_expired_desc">Essentials\'ı ücretsiz deneme süreniz sona erdi. Düğme Yeniden Eşleme, Uygulama Dondurma ve Kendi Otomasyonlarınızı Oluşturma gibi gelişmiş özelliklere Premium ile erişebilirsiniz.</string>
+    <string name="prank_trial_expired_title">Komorebi deneme süreniz sona erdi</string>
+    <string name="prank_trial_expired_desc">Komorebi\'ı ücretsiz deneme süreniz sona erdi. Düğme Yeniden Eşleme, Uygulama Dondurma ve Kendi Otomasyonlarınızı Oluşturma gibi gelişmiş özelliklere Premium ile erişebilirsiniz.</string>
     <string name="prank_button_premium">Premium\'da neler var?</string>
     <string name="prank_reveal_title">1 Nisan şakası!</string>
-    <string name="prank_reveal_desc">Şaka yapıyorum, Essentials her zaman ücretsiz ve açık kaynaklı olacak. Keyfini çıkarın! (っ◕‿◕)っ</string>
+    <string name="prank_reveal_desc">Şaka yapıyorum, Komorebi her zaman ücretsiz ve açık kaynaklı olacak. Keyfini çıkarın! (っ◕‿◕)っ</string>
     <string name="notification_lighting_style_system">Sistem</string>
     <string name="notification_lighting_system_mode_title">Dalgalanma Animasyonu</string>
     <string name="notification_lighting_system_mode_charging_ripple">Alt</string>
@@ -1579,7 +1579,7 @@ Ve ayarın etkili olması için birden fazla kez uygulanması gerekebilir.</stri
     <string name="watch_call_sync_title">Çağrılar</string>
     <string name="watch_call_sync_desc">Aramalarınızı saatinizden senkronize edin ve kontrol edin</string>
     <string name="watch_notif_sync_title">Bildirimler</string>
-    <string name="watch_notif_sync_desc">Essentials başlatıcısına</string>
+    <string name="watch_notif_sync_desc">Komorebi başlatıcısına</string>
     <string name="watch_notif_sync_choose_apps">Uygulamaları seçin</string>
     <string name="watch_notif_sync_choose_apps_desc">Yalnızca seçili uygulamalar saate senkronize edilecektir</string>
     <string name="label_battery_section_health">Sağlık</string>
@@ -1794,7 +1794,7 @@ Gizlendiğinde, bildirimler ekranınızın üzerinde belirmek yerine bildirim pa
     <string name="feat_face_unlock_brightness_desc">Düşük ışıkta parlaklığı artırın</string>
     <string name="feat_lockscreen_shortcuts_title">Kilit ekranı kısayolları</string>
     <string name="feat_lockscreen_shortcuts_desc">Kendi eylemlerinizi kilit ekranından çalıştırın</string>
-    <string name="about_desc_lockscreen_shortcuts">Kilit ekranının alt köşelerine Essentials kısayol düğmeleri ekler. İlgili işlemi gerçekleştirmek için bir kısayola dokunup basılı tutun. Yalnızca sistemin kendi kilit ekranı kısayolları kapalıyken kullanılabilir.</string>
+    <string name="about_desc_lockscreen_shortcuts">Kilit ekranının alt köşelerine Komorebi kısayol düğmeleri ekler. İlgili işlemi gerçekleştirmek için bir kısayola dokunup basılı tutun. Yalnızca sistemin kendi kilit ekranı kısayolları kapalıyken kullanılabilir.</string>
     <string name="feat_activity_launcher_desc">Herhangi bir uygulama ekranını açın veya sabitleyin</string>
     <string name="about_desc_activity_launcher">Herhangi bir uygulamadaki ekranlara (etkinliklere) göz atın, bunları doğrudan açın ve ana ekranınıza sabitleyin. Uygulamanın gizli tuttuğu ekranlar Yalnızca Root olarak işaretlenmiştir ve açılmaları için root yetkisi gerekir.</string>
     <string name="label_motion_blur_amount">Miktar</string>
@@ -1880,7 +1880,7 @@ Düğme yeniden eşleme bir ses seviyesi tuşu için uzun basma eylemi varsa, o 
 
 Pil, ağ, medya durumu ve daha fazlasını kompakt, minimalist bir arayüzde, ideal olarak kameranızın etrafında, gösterilecek çeşitli öğeler ve etkileşim için hareketlerle gösteren iPhone Duo tarzı bir durum göstergesi.
 
-Katlanabilir cihazlar için, güvenilir değilse \'Kamerayı otomatik algıla\' seçeneğini kapatın ve Duo\'yu iç ve dış kamera konumlarınızla manuel olarak hizalayın; ardından Essentials düzeninizi hatırlayacaktır.</string>
+Katlanabilir cihazlar için, güvenilir değilse \'Kamerayı otomatik algıla\' seçeneğini kapatın ve Duo\'yu iç ve dış kamera konumlarınızla manuel olarak hizalayın; ardından Komorebi düzeninizi hatırlayacaktır.</string>
     <string name="label_shake_for_help">Yardım için salla</string>
     <string name="about_desc_island">Android cihazınız için, kamera yuvasının etrafında dinamik bir ada.
 
@@ -1909,18 +1909,18 @@ Telefonunuz cebinizdeyken otomatik olarak kapatın, uzun süreli kullanımda aş
 Parlaklık kontrolü, bazı cihazlarda bulunmayan donanım desteği gerektirir.</string>
     <string name="about_desc_face_illumination">Karanlıkta yüz tanıma özelliğinin sizi tanımasına yardımcı olur.
 
-Ekran düşük ışıkta uyandığında, Essentials ön kameranın yüzünüzü görebilmesi için ekranı yumuşak, renkli bir ışıkla aydınlatır. Ne zaman devreye gireceğine karar veren ortam ışığı eşiğini ayarlayabilir, ışık tonunu seçebilir ve uyandığında otomatik olarak mı yoksa yalnızca siz tetiklediğinizde mi aydınlanacağını belirleyebilirsiniz.
+Ekran düşük ışıkta uyandığında, Komorebi ön kameranın yüzünüzü görebilmesi için ekranı yumuşak, renkli bir ışıkla aydınlatır. Ne zaman devreye gireceğine karar veren ortam ışığı eşiğini ayarlayabilir, ışık tonunu seçebilir ve uyandığında otomatik olarak mı yoksa yalnızca siz tetiklediğinizde mi aydınlanacağını belirleyebilirsiniz.
 
 Ayrıca sizin için kilidi açmayı da tetikleyebilir. Erişilebilirlik izni gereklidir.</string>
     <string name="about_desc_link_actions">Tek bir uygulamaya bağlı kalmak yerine, bağlantıların nasıl açılacağını seçin.
 
-Bir bağlantıyı açtığınızda, Essentials, onu işlemek için birden fazla uygulama arasından seçim yapmanıza olanak tanır; bu uygulamalar arasında bağlantıyı bir baloncuk içinde açma, kopyalama, paylaşma veya kısaltıp QR kodu oluşturma seçenekleri bulunur.</string>
+Bir bağlantıyı açtığınızda, Komorebi, onu işlemek için birden fazla uygulama arasından seçim yapmanıza olanak tanır; bu uygulamalar arasında bağlantıyı bir baloncuk içinde açma, kopyalama, paylaşma veya kısaltıp QR kodu oluşturma seçenekleri bulunur.</string>
     <string name="about_desc_daily_wallpaper">Duvar kağıdınızı günlük olarak seçilen bir duvar kağıdıyla güncel tutun veya canlı bir duvar kağıdı ayarlayın.
 
 Duvar kağıdınızı seçin, yarınki duvar kağıdını uygulanmadan önce inceleyin ve sıraya alın ve canlı duvar kağıdınızı tek bir yerden yönetin.</string>
     <string name="about_desc_watch">Telefonunuz ve Wear OS saatiniz arasında entegrasyonlar.
 
-Bildirimleri ve aramaları senkronize etmek, telefonunuzu saatten kilitlemek, saat kadranını ve komplikasyonları özelleştirmek, ses modunu ve konum durumunu senkronize etmek, eSIM yüklemek ve kablosuz hata ayıklamayı uzaktan etkinleştirmek için Essentials yardımcı uygulamasını saatinize yükleyin.</string>
+Bildirimleri ve aramaları senkronize etmek, telefonunuzu saatten kilitlemek, saat kadranını ve komplikasyonları özelleştirmek, ses modunu ve konum durumunu senkronize etmek, eSIM yüklemek ve kablosuz hata ayıklamayı uzaktan etkinleştirmek için Komorebi yardımcı uygulamasını saatinize yükleyin.</string>
     <string name="about_desc_network_download_rate_limit">Limit the system-wide download speed.\n\nUseful to stop large downloads and updates from using all of your bandwidth. Requires advanced permissions such as Shizuku or root.</string>
     <string name="about_desc_mobile_data_always_on">Keeps mobile data active even while connected to Wi-Fi.\n\nThis lets your phone switch to mobile data instantly when the Wi-Fi connection gets weak or drops, at the cost of some extra battery use.</string>
     <string name="about_desc_wireless_display_certification">Shows the hidden wireless display certification options in Android\'s developer settings.\n\nThese options expose extra Wi-Fi display (Miracast) settings for testing and troubleshooting casting.</string>
@@ -1943,7 +1943,7 @@ Telefonunuzu bir yerde unuttuysanız ve hemen güvence altına almak istiyorsan�
     <string name="about_desc_watch_controls">Saatinizde gösterilen kontrolleri özelleştirin.
 
 Hangi işlemlerin kullanılabilir olacağını seçerek, saatin yalnızca ihtiyacınız olanları göstermesini sağlayın.</string>
-    <string name="about_desc_watchface">Wear OS saatinizdeki Essentials saat kadranını özelleştirin.
+    <string name="about_desc_watchface">Wear OS saatinizdeki Komorebi saat kadranını özelleştirin.
 
 Görünümünü ve ayarlarını telefonunuzdan değiştirin.</string>
     <string name="about_desc_complications">Saat kadranınızda gösterilen komplikasyon widget\'larını özelleştirin.
@@ -2005,7 +2005,7 @@ Bazı seçenekler Shizuku veya erişilebilirlik izni gerektirir ve sonuçlar cih
     <string name="pixel_search_results_files_desc">Belgeleri, ses dosyalarını ve indirilen dosyaları arayın</string>
     <string name="pixel_search_results_contacts_desc">Hızlı arama ve mesaj işlemleriyle kişileri bulun</string>
     <string name="perm_contacts_title">Kişiler</string>
-    <string name="pixel_search_results_settings_title">Essentials ayarları</string>
+    <string name="pixel_search_results_settings_title">Komorebi ayarları</string>
     <string name="pixel_search_results_settings_desc">Özellikleri ve ayarların doğrudan derin bağlantılarını arayın</string>
     <string name="pixel_search_results_shortcuts_title">Kısayollar</string>
     <string name="pixel_search_results_shortcuts_desc">Hızlı işlemleri ve launcher kısayollarını arayın</string>

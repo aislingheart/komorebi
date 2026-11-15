@@ -88,8 +88,6 @@ import com.sameerasw.essentials.ui.theme.Shapes
 import com.sameerasw.essentials.utils.HapticUtil
 import com.sameerasw.essentials.utils.LogManager
 import com.sameerasw.essentials.viewmodels.MainViewModel
-import io.sentry.Sentry
-import io.sentry.protocol.Feedback
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.io.File
@@ -188,7 +186,7 @@ fun BugReportBottomSheet(
             }
         val uri =
             Uri
-                .parse("https://github.com/sameerasw/essentials/issues/new")
+                .parse("https://github.com/aislingheart/komorebi/issues/new")
                 .buildUpon()
                 .apply { params.forEach { (key, value) -> appendQueryParameter(key, value) } }
                 .build()
@@ -700,42 +698,26 @@ fun BugReportBottomSheet(
                 Button(
                     onClick = {
                         HapticUtil.performUIHaptic(view)
-                        val feedbackText = buildString {
-                            append(BugReportIssueFormatter.describe(feedbackMessage, sourceFeature))
-                            append("\n\n")
-                            issueFields.asIssueFieldValues().forEach { (name, value) ->
-                                append("$name: $value\n")
-                            }
-                            if (issueFields.device.isNotBlank()) append("Device: ${issueFields.device.trim()}\n")
-                            if (selectedCrashReport != null) {
-                                append("\n\n--- Attached Crash Log (${selectedCrashReport?.name}) ---\n")
-                                try {
-                                    append(selectedCrashReport?.readText()?.trim())
-                                } catch (e: Exception) {
-                                    append("Failed to read crash log: ${e.message}")
-                                }
-                            }
-                        }
-                        val feedback = Feedback(feedbackText)
-                        if (contactEmail.isNotBlank()) {
-                            feedback.contactEmail = contactEmail
-                        }
-                        Sentry.captureFeedback(feedback)
-                        Toast
-                            .makeText(context, R.string.msg_feedback_sent, Toast.LENGTH_SHORT)
-                            .show()
-                        onDismissRequest()
+                        reportOnGitHub()
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = feedbackMessage.isNotBlank(),
+                    enabled = !isCreatingIssue && feedbackMessage.isNotBlank(),
                 ) {
-                    Icon(
-                        painter = painterResource(R.drawable.rounded_send_24),
-                        contentDescription = null,
-                        modifier = Modifier.size(24.dp),
-                    )
+                    if (isCreatingIssue) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                        )
+                    } else {
+                        Icon(
+                            painter = painterResource(R.drawable.brand_github),
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
                     Spacer(modifier = Modifier.width(8.dp))
-                    TranslatableText(R.string.action_send_feedback)
+                    TranslatableText(R.string.action_report_github)
                 }
 
                 TranslatableText(
@@ -752,106 +734,13 @@ fun BugReportBottomSheet(
                     Button(
                         onClick = {
                             HapticUtil.performUIHaptic(view)
-                            reportOnGitHub()
-                        },
-                        enabled = !isCreatingIssue,
-                        modifier =
-                            Modifier
-                                .weight(1f)
-                                .height(48.dp),
-                        shape = ButtonGroupDefaults.connectedLeadingButtonShapes().shape,
-                        colors =
-                            ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceBright,
-                                contentColor = MaterialTheme.colorScheme.onSurface,
-                            ),
-                    ) {
-                        if (isCreatingIssue) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp,
-                            )
-                        } else {
-                            Icon(
-                                painter = painterResource(R.drawable.brand_github),
-                                contentDescription = stringResource(R.string.action_report_github),
-                                modifier = Modifier.size(22.dp),
-                            )
-                        }
-                    }
-
-                    Button(
-                        onClick = {
-                            HapticUtil.performUIHaptic(view)
-                            val contactLine =
-                                if (contactEmail.isNotBlank()) "Contact Email: $contactEmail\n" else ""
-                            val body = buildString {
-                                if (contactLine.isNotBlank()) {
-                                    append(contactLine)
-                                }
-                                if (feedbackMessage.isNotBlank()) {
-                                    append("Feedback:\n${BugReportIssueFormatter.describe(feedbackMessage, sourceFeature)}\n\n")
-                                }
-                                append("Device Info:\n$deviceInfoString\n\n")
-                                if (selectedCrashReport != null) {
-                                    append("Crash Log (${selectedCrashReport?.name}):\n")
-                                    try {
-                                        append(selectedCrashReport?.readText()?.trim())
-                                    } catch (e: Exception) {
-                                        append("Failed to read crash log: ${e.message}")
-                                    }
-                                    append("\n\n")
-                                }
-                            }
-                            val intent =
-                                Intent(Intent.ACTION_SENDTO).apply {
-                                    data = Uri.parse("mailto:")
-                                    putExtra(Intent.EXTRA_EMAIL, arrayOf("mail@sameerasw.com"))
-                                    putExtra(
-                                        Intent.EXTRA_SUBJECT,
-                                        context.getString(R.string.bug_report_email_subject),
-                                    )
-                                    putExtra(Intent.EXTRA_TEXT, body)
-                                }
-                            try {
-                                context.startActivity(intent)
-                            } catch (e: Exception) {
-                                Toast
-                                    .makeText(
-                                        context,
-                                        context.getString(R.string.error_no_email_app),
-                                        Toast.LENGTH_SHORT,
-                                    ).show()
-                            }
-                        },
-                        modifier =
-                            Modifier
-                                .weight(1f)
-                                .height(48.dp),
-                        shape = ButtonGroupDefaults.connectedMiddleButtonShapes().shape,
-                        colors =
-                            ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceBright,
-                                contentColor = MaterialTheme.colorScheme.onSurface,
-                            ),
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.rounded_mail_24),
-                            contentDescription = stringResource(R.string.action_report_email),
-                            modifier = Modifier.size(22.dp),
-                        )
-                    }
-
-                    Button(
-                        onClick = {
-                            HapticUtil.performUIHaptic(view)
                             try {
                                 val timeStamp =
                                     SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
                                 val shareDir =
                                     File(context.cacheDir, "reports").apply { mkdirs() }
                                 val shareFile =
-                                    File(shareDir, "essentials_report_$timeStamp.txt")
+                                    File(shareDir, "komorebi_report_$timeStamp.txt")
                                 shareFile.writeText(buildFullReportText())
 
                                 val uri =
@@ -866,7 +755,7 @@ fun BugReportBottomSheet(
                                         putExtra(Intent.EXTRA_STREAM, uri)
                                         putExtra(
                                             Intent.EXTRA_SUBJECT,
-                                            "Essentials Bug Report - $timeStamp",
+                                            "Komorebi Bug Report - $timeStamp",
                                         )
                                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                     }
@@ -884,7 +773,7 @@ fun BugReportBottomSheet(
                             Modifier
                                 .weight(1f)
                                 .height(48.dp),
-                        shape = ButtonGroupDefaults.connectedMiddleButtonShapes().shape,
+                        shape = ButtonGroupDefaults.connectedLeadingButtonShapes().shape,
                         colors =
                             ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceBright,
@@ -903,7 +792,7 @@ fun BugReportBottomSheet(
                             HapticUtil.performUIHaptic(view)
                             val timeStamp =
                                 SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-                            saveReportLauncher.launch("essentials_report_$timeStamp.txt")
+                            saveReportLauncher.launch("komorebi_report_$timeStamp.txt")
                         },
                         modifier =
                             Modifier

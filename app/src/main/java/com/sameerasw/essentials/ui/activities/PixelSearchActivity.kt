@@ -29,6 +29,30 @@ class PixelSearchActivity : Activity() {
     }
 
     private fun launchSearch(incoming: Intent?) {
+        if (incoming?.getBooleanExtra(
+                com.sameerasw.essentials.utils.UpdateNotificationHelper.EXTRA_SHOW_UPDATE_SHEET,
+                false,
+            ) == true
+        ) {
+            runCatching {
+                startActivity(
+                    Intent(this, SettingsActivity::class.java).apply {
+                        putExtra(
+                            com.sameerasw.essentials.utils.UpdateNotificationHelper.EXTRA_SHOW_UPDATE_SHEET,
+                            true,
+                        )
+                        addFlags(
+                            Intent.FLAG_ACTIVITY_NEW_TASK or
+                                Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                                Intent.FLAG_ACTIVITY_SINGLE_TOP,
+                        )
+                    },
+                )
+            }
+            finish()
+            return
+        }
+
         val query = incoming?.getStringExtra(SearchManager.QUERY)
             ?: incoming?.getStringExtra("query")
             ?: ""

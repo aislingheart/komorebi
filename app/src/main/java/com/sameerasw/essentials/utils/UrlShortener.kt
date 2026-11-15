@@ -333,7 +333,7 @@ object UrlShortener {
                 requestMethod = "POST"
                 setRequestProperty("Content-Type", "application/json; charset=UTF-8")
                 setRequestProperty("Accept", "application/json")
-                setRequestProperty("X-Client-App", "Essentials")
+                setRequestProperty("X-Client-App", "Komorebi")
                 setRequestProperty("Connection", "close")
                 connectTimeout = 2000
                 readTimeout = 2000

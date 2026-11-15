@@ -21,6 +21,7 @@ import android.provider.Settings
 import android.view.WindowInsetsAnimationControlListener
 import android.view.WindowInsetsAnimationController
 import android.view.WindowManager
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
@@ -39,8 +40,11 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -62,20 +66,33 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Extension
+import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.Storefront
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
 import androidx.compose.material3.carousel.rememberCarouselState
 import com.sameerasw.essentials.domain.model.PixelSearchTab
@@ -84,14 +101,18 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
@@ -127,6 +148,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
@@ -149,6 +171,23 @@ import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.domain.model.PixelSearchResultItem
 import com.sameerasw.essentials.domain.registry.FeatureRegistry
 import com.sameerasw.essentials.domain.registry.SearchRegistry
+import com.sameerasw.essentials.raycast.InstalledRaycastExtension
+import com.sameerasw.essentials.raycast.RaycastActionPanelSpec
+import com.sameerasw.essentials.raycast.RaycastActionPanelSheet
+import com.sameerasw.essentials.raycast.RaycastAlertRequest
+import com.sameerasw.essentials.raycast.RaycastCommandManifest
+import com.sameerasw.essentials.raycast.RaycastDropdownSpec
+import com.sameerasw.essentials.raycast.RaycastExtensionRepository
+import com.sameerasw.essentials.raycast.RaycastIconView
+import com.sameerasw.essentials.raycast.RaycastOAuthManager
+import com.sameerasw.essentials.raycast.RaycastRuntimeEngine
+import com.sameerasw.essentials.raycast.RaycastScreenBody
+import com.sameerasw.essentials.raycast.RaycastStoreClient
+import com.sameerasw.essentials.raycast.RaycastViewScreen
+import com.sameerasw.essentials.raycast.StoreExtensionListing
+import com.sameerasw.essentials.raycast.executeRaycastAction
+import com.sameerasw.essentials.raycast.rememberRaycastFormState
+import com.sameerasw.essentials.raycast.rememberRaycastPrimaryPanel
 import com.sameerasw.essentials.search.AppFunctionItem
 import com.sameerasw.essentials.search.DiscoveredShortcut
 import com.sameerasw.essentials.search.EntityRouteItem
@@ -236,9 +275,20 @@ class PixelSearchResultsActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        RaycastOAuthManager.handleRedirectUri(intent.data)
         intentNonce += 1
         incomingIntentQuery = extractQuery(intent) to intentNonce
     }
+}
+
+private sealed interface InlineOverlayMode {
+    data object Search : InlineOverlayMode
+    data class ExtensionsHub(val initialTab: Int = 0) : InlineOverlayMode
+    data class ExtensionRunner(
+        val extension: InstalledRaycastExtension,
+        val command: RaycastCommandManifest,
+        val returnToHub: Boolean = false,
+    ) : InlineOverlayMode
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
@@ -435,14 +485,58 @@ fun PixelSearchResultsScreen(
     var scopedPhotos by remember { mutableStateOf<List<PixelSearchResultItem.FileItem>>(emptyList()) }
     var discoveredProviders by remember { mutableStateOf<List<SearchProvider>>(emptyList()) }
     var activeScope by remember { mutableStateOf<SearchProvider?>(null) }
+    var overlayMode by remember { mutableStateOf<InlineOverlayMode>(InlineOverlayMode.Search) }
+    var hubTab by remember { mutableIntStateOf(0) }
+    var hubQuery by remember { mutableStateOf("") }
+    var storeSource by remember { mutableStateOf("raycast") }
+    var installedExtensions by remember {
+        mutableStateOf<List<InstalledRaycastExtension>>(
+            RaycastExtensionRepository.listInstalledExtensions(context),
+        )
+    }
+    var storeListings by remember { mutableStateOf<List<StoreExtensionListing>>(emptyList()) }
+    var storeLoading by remember { mutableStateOf(false) }
+    var storeError by remember { mutableStateOf<String?>(null) }
+    var installingId by remember { mutableStateOf<String?>(null) }
     var isSearching by remember { mutableStateOf(false) }
     var searchJob by remember { mutableStateOf<Job?>(null) }
 
+    fun refreshInstalledExtensions() {
+        installedExtensions = RaycastExtensionRepository.listInstalledExtensions(context)
+    }
+
+    fun loadStore() {
+        scope.launch {
+            storeLoading = true
+            storeError = null
+            val res = if (storeSource == "raycast") {
+                RaycastStoreClient.fetchRaycastListings(query = hubQuery)
+            } else {
+                RaycastStoreClient.fetchVicinaeListings(query = hubQuery)
+            }
+            res.onSuccess { storeListings = it }
+                .onFailure { storeError = it.message ?: "Failed to load store" }
+            storeLoading = false
+        }
+    }
+
+    LaunchedEffect(overlayMode, hubTab, storeSource) {
+        if (overlayMode is InlineOverlayMode.ExtensionsHub) {
+            refreshInstalledExtensions()
+            if (hubTab == 1) {
+                loadStore()
+            }
+        }
+    }
+
     LaunchedEffect(incomingIntentQuery) {
         incomingIntentQuery?.let { (newQuery, _) ->
-            activeScope = null
-            selectedTab = PixelSearchTab.ALL
-            query = newQuery
+            if (newQuery.isNotEmpty()) {
+                overlayMode = InlineOverlayMode.Search
+                activeScope = null
+                selectedTab = PixelSearchTab.ALL
+                query = newQuery
+            }
         }
     }
 
@@ -468,23 +562,59 @@ fun PixelSearchResultsScreen(
         discoveredProviders = SearchProviderDiscovery.discoverProviders(context)
     }
 
-    BackHandler(enabled = activeScope != null) {
+    BackHandler(enabled = overlayMode is InlineOverlayMode.ExtensionsHub || (overlayMode is InlineOverlayMode.Search && activeScope != null)) {
+        when (overlayMode) {
+            is InlineOverlayMode.ExtensionsHub -> {
+                overlayMode = InlineOverlayMode.Search
+                hubQuery = ""
+            }
+            is InlineOverlayMode.Search -> {
+                activeScope = null
+                query = ""
+            }
+            is InlineOverlayMode.ExtensionRunner -> Unit
+        }
+    }
+
+    fun openExtensionsHub(initialTab: Int) {
+        HapticUtil.performVirtualKeyHaptic(view)
+        dragOffsetY = 0f
+        hubTab = initialTab
+        hubQuery = ""
         activeScope = null
-        query = ""
+        overlayMode = InlineOverlayMode.ExtensionsHub(initialTab = initialTab)
+    }
+
+    fun openInlineExtension(
+        ext: InstalledRaycastExtension,
+        cmd: RaycastCommandManifest,
+        returnToHub: Boolean = false,
+    ) {
+        HapticUtil.performVirtualKeyHaptic(view)
+        dragOffsetY = 0f
+        overlayMode = InlineOverlayMode.ExtensionRunner(
+            extension = ext,
+            command = cmd,
+            returnToHub = returnToHub,
+        )
     }
 
     fun enterScope(provider: SearchProvider) {
         HapticUtil.performVirtualKeyHaptic(view)
+        if (provider.kind == SearchProviderKind.EXTENSION) {
+            openExtensionsHub(initialTab = if (provider.id == "provider:store") 1 else 0)
+            return
+        }
         activeScope = provider
         query = ""
-        focusRequester.requestFocus()
+        runCatching { focusRequester.requestFocus() }
     }
 
     fun exitScope() {
         HapticUtil.performVirtualKeyHaptic(view)
         activeScope = null
         query = ""
-        focusRequester.requestFocus()
+        runCatching { focusRequester.requestFocus() }
     }
 
     fun performSearch(q: String, currentScope: SearchProvider?) {
@@ -614,14 +744,9 @@ fun PixelSearchResultsScreen(
                         val cmds = SearchProviderDiscovery.matchInternalCommands(
                             context = context,
                             query = trimmed.ifEmpty { "settings" },
-                            onOpenExtensions = {
-                                context.startActivity(ExtensionsActivity.createIntent(context, openStore = false))
-                                onFinish()
-                            },
-                            onOpenStore = {
-                                context.startActivity(ExtensionsActivity.createIntent(context, openStore = true))
-                                onFinish()
-                            },
+                            onOpenExtensions = { openExtensionsHub(initialTab = 0) },
+                            onOpenStore = { openExtensionsHub(initialTab = 1) },
+                            onRunExtension = { ext, cmd -> openInlineExtension(ext, cmd, returnToHub = false) },
                         )
                         withContext(Dispatchers.Main) {
                             appResults = emptyList()
@@ -705,14 +830,9 @@ fun PixelSearchResultsScreen(
             val matchedCommands = SearchProviderDiscovery.matchInternalCommands(
                 context = context,
                 query = trimmed,
-                onOpenExtensions = {
-                    context.startActivity(ExtensionsActivity.createIntent(context, openStore = false))
-                    onFinish()
-                },
-                onOpenStore = {
-                    context.startActivity(ExtensionsActivity.createIntent(context, openStore = true))
-                    onFinish()
-                },
+                onOpenExtensions = { openExtensionsHub(initialTab = 0) },
+                onOpenStore = { openExtensionsHub(initialTab = 1) },
+                onRunExtension = { ext, cmd -> openInlineExtension(ext, cmd, returnToHub = false) },
             )
             withContext(Dispatchers.Main) {
                 internalCommands = matchedCommands
@@ -900,8 +1020,9 @@ fun PixelSearchResultsScreen(
                 SearchProviderKind.SETTINGS -> {
                     when {
                         internalCommands.isNotEmpty() -> {
-                            internalCommands.first().onExecute(context)
-                            onFinish()
+                            val cmd = internalCommands.first()
+                            cmd.onExecute(context)
+                            if (cmd.closesSearchUi) onFinish()
                         }
                         systemSettingResults.isNotEmpty() -> {
                             context.startActivity(systemSettingResults.first().intent)
@@ -937,8 +1058,9 @@ fun PixelSearchResultsScreen(
 
         when {
             hasCommands -> {
-                internalCommands.first().onExecute(context)
-                onFinish()
+                val cmd = internalCommands.first()
+                cmd.onExecute(context)
+                if (cmd.closesSearchUi) onFinish()
             }
             hasRoutes -> {
                 runCatching { context.startActivity(entityRoutes.first().navigationIntent) }
@@ -1007,6 +1129,77 @@ fun PixelSearchResultsScreen(
                 .fillMaxSize()
                 .offset { IntOffset(0, dragOffsetY.roundToInt()) },
         ) {
+            when (val mode = overlayMode) {
+                is InlineOverlayMode.ExtensionsHub -> {
+                    InlineExtensionsHubOverlay(
+                        statusBarHeight = statusBarHeight,
+                        navBarHeight = navBarHeight,
+                        topBlurHeightPx = topBlurHeightPx,
+                        bottomBlurHeightPx = bottomBlurHeightPx,
+                        overscrollNestedScrollConnection = overscrollNestedScrollConnection,
+                        hubTab = hubTab,
+                        onTabChange = { hubTab = it },
+                        hubQuery = hubQuery,
+                        onQueryChange = { hubQuery = it },
+                        storeSource = storeSource,
+                        onStoreSourceChange = { storeSource = it },
+                        installedExtensions = installedExtensions,
+                        storeListings = storeListings,
+                        storeLoading = storeLoading,
+                        storeError = storeError,
+                        installingId = installingId,
+                        onSearchStore = { loadStore() },
+                        onInstallStoreItem = { listing ->
+                            scope.launch {
+                                installingId = listing.id
+                                RaycastStoreClient.installExtension(context, listing)
+                                    .onSuccess { ext ->
+                                        Toast.makeText(context, "Installed ${ext.displayTitle}", Toast.LENGTH_SHORT).show()
+                                        refreshInstalledExtensions()
+                                        hubTab = 0
+                                    }
+                                    .onFailure { err ->
+                                        Toast.makeText(context, err.message ?: "Install failed", Toast.LENGTH_LONG).show()
+                                    }
+                                installingId = null
+                            }
+                        },
+                        onUninstallExtension = { ext ->
+                            RaycastExtensionRepository.uninstallExtension(context, ext.id)
+                            refreshInstalledExtensions()
+                        },
+                        onRunCommand = { ext, cmd -> openInlineExtension(ext, cmd, returnToHub = true) },
+                        onBack = {
+                            HapticUtil.performVirtualKeyHaptic(view)
+                            overlayMode = InlineOverlayMode.Search
+                            hubQuery = ""
+                        },
+                    )
+                }
+
+                is InlineOverlayMode.ExtensionRunner -> {
+                    InlineExtensionRunnerOverlay(
+                        extension = mode.extension,
+                        command = mode.command,
+                        statusBarHeight = statusBarHeight,
+                        navBarHeight = navBarHeight,
+                        topBlurHeightPx = topBlurHeightPx,
+                        bottomBlurHeightPx = bottomBlurHeightPx,
+                        overscrollNestedScrollConnection = overscrollNestedScrollConnection,
+                        onBack = {
+                            if (mode.returnToHub) {
+                                overlayMode = InlineOverlayMode.ExtensionsHub(initialTab = hubTab)
+                            } else {
+                                overlayMode = InlineOverlayMode.Search
+                            }
+                        },
+                        onCloseToSearch = {
+                            overlayMode = InlineOverlayMode.Search
+                        },
+                    )
+                }
+
+                is InlineOverlayMode.Search -> {
             // Pinned top category filter tabs
             val tabs = remember(isAppsEnabled, isContactsEnabled, isMediaEnabled, isFilesEnabled, isSettingsEnabled, isWebEnabled) {
                 PixelSearchTab.entries.filter { tab ->
@@ -1370,7 +1563,7 @@ fun PixelSearchResultsScreen(
                                     onClick = {
                                         HapticUtil.performVirtualKeyHaptic(view)
                                         cmd.onExecute(context)
-                                        onFinish()
+                                        if (cmd.closesSearchUi) onFinish()
                                     },
                                     containerColor = if (isTopmost) highlightColor else normalCardColor,
                                     iconRes = cmd.iconRes,
@@ -2266,6 +2459,8 @@ fun PixelSearchResultsScreen(
                 }
             }
         }
+            } // end InlineOverlayMode.Search
+        } // end when(overlayMode)
 
         selectedFileForAction?.let { fileItem ->
             PixelSearchFileActionSheet(
@@ -2279,6 +2474,1073 @@ fun PixelSearchResultsScreen(
         }
     }
 }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
+@Composable
+private fun BoxScope.InlineExtensionsHubOverlay(
+    statusBarHeight: Dp,
+    navBarHeight: Dp,
+    topBlurHeightPx: Float,
+    bottomBlurHeightPx: Float,
+    overscrollNestedScrollConnection: NestedScrollConnection,
+    hubTab: Int,
+    onTabChange: (Int) -> Unit,
+    hubQuery: String,
+    onQueryChange: (String) -> Unit,
+    storeSource: String,
+    onStoreSourceChange: (String) -> Unit,
+    installedExtensions: List<InstalledRaycastExtension>,
+    storeListings: List<StoreExtensionListing>,
+    storeLoading: Boolean,
+    storeError: String?,
+    installingId: String?,
+    onSearchStore: () -> Unit,
+    onInstallStoreItem: (StoreExtensionListing) -> Unit,
+    onUninstallExtension: (InstalledRaycastExtension) -> Unit,
+    onRunCommand: (InstalledRaycastExtension, RaycastCommandManifest) -> Unit,
+    onBack: () -> Unit,
+) {
+    val view = LocalView.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val filteredInstalled = remember(installedExtensions, hubQuery) {
+        val q = hubQuery.trim().lowercase()
+        if (q.isEmpty()) installedExtensions
+        else installedExtensions.filter { ext ->
+            ext.displayTitle.lowercase().contains(q) ||
+                ext.authorName.lowercase().contains(q) ||
+                (ext.manifest.description?.lowercase()?.contains(q) == true) ||
+                ext.manifest.commands.any { cmd ->
+                    cmd.title.lowercase().contains(q) || cmd.name.lowercase().contains(q)
+                }
+        }
+    }
+
+    // Top pinned controls adapting from the category carousel into Extensions / Store tabs
+    Column(
+        modifier = Modifier
+            .align(Alignment.TopCenter)
+            .fillMaxWidth()
+            .zIndex(20f)
+            .padding(top = statusBarHeight)
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            shadowElevation = 4.dp,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+            ) {
+                IconButton(
+                    onClick = {
+                        HapticUtil.performVirtualKeyHaptic(view)
+                        onBack()
+                    },
+                    modifier = Modifier.size(36.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = "Back to search",
+                    )
+                }
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    val isInstalledSelected = hubTab == 0
+                    Surface(
+                        shape = CircleShape,
+                        color = if (isInstalledSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                        contentColor = if (isInstalledSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(CircleShape)
+                            .clickable {
+                                HapticUtil.performVirtualKeyHaptic(view)
+                                onTabChange(0)
+                            },
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Extension,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "Installed (${installedExtensions.size})",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = if (isInstalledSelected) FontWeight.Bold else FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+
+                    val isStoreSelected = hubTab == 1
+                    Surface(
+                        shape = CircleShape,
+                        color = if (isStoreSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                        contentColor = if (isStoreSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(CircleShape)
+                            .clickable {
+                                HapticUtil.performVirtualKeyHaptic(view)
+                                onTabChange(1)
+                            },
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Storefront,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "Store",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = if (isStoreSelected) FontWeight.Bold else FontWeight.Medium,
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if (hubTab == 1) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                FilterChip(
+                    selected = storeSource == "raycast",
+                    onClick = { onStoreSourceChange("raycast") },
+                    label = { Text("Raycast Store") },
+                )
+                FilterChip(
+                    selected = storeSource == "vicinae",
+                    onClick = { onStoreSourceChange("vicinae") },
+                    label = { Text("Vicinae Store") },
+                )
+            }
+        }
+    }
+
+    // Middle scrollable content with the same progressive blur
+    val topContentPadding = statusBarHeight + if (hubTab == 1) 114.dp else 66.dp
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .imePadding()
+            .progressiveBlur(
+                blurRadius = 40f,
+                height = topBlurHeightPx,
+                direction = BlurDirection.TOP,
+            )
+            .progressiveBlur(
+                blurRadius = 40f,
+                height = bottomBlurHeightPx,
+                direction = BlurDirection.BOTTOM,
+            ),
+    ) {
+        if (hubTab == 0) {
+            if (filteredInstalled.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = topContentPadding, bottom = 128.dp, start = 24.dp, end = 24.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text(
+                            text = if (installedExtensions.isEmpty()) "No extensions installed" else "No matching extensions",
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        FilledTonalButton(onClick = { onTabChange(1) }) {
+                            Text("Browse Extension Store")
+                        }
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .nestedScroll(overscrollNestedScrollConnection),
+                    contentPadding = PaddingValues(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = topContentPadding,
+                        bottom = 128.dp,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    items(filteredInstalled, key = { it.id }) { ext ->
+                        InstalledExtensionCard(
+                            extension = ext,
+                            onRunCommand = { cmdName ->
+                                val cmd = ext.manifest.commands.firstOrNull { it.name == cmdName }
+                                    ?: return@InstalledExtensionCard
+                                onRunCommand(ext, cmd)
+                            },
+                            onUninstall = { onUninstallExtension(ext) },
+                        )
+                    }
+                }
+            }
+        } else {
+            when {
+                storeLoading -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = topContentPadding, bottom = 128.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+                storeError != null -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = topContentPadding, bottom = 128.dp, start = 24.dp, end = 24.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Text(
+                                text = storeError,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                            FilledTonalButton(onClick = onSearchStore) {
+                                Text("Retry")
+                            }
+                        }
+                    }
+                }
+                storeListings.isEmpty() -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = topContentPadding, bottom = 128.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "No extensions found",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .nestedScroll(overscrollNestedScrollConnection),
+                        contentPadding = PaddingValues(
+                            start = 16.dp,
+                            end = 16.dp,
+                            top = topContentPadding,
+                            bottom = 128.dp,
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        items(storeListings, key = { it.id }) { item ->
+                            StoreListingCard(
+                                listing = item,
+                                isInstalling = installingId == item.id,
+                                onInstall = { onInstallStoreItem(item) },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Bottom floating search bar morphed for filtering Extensions / Store
+    Box(
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .fillMaxWidth()
+            .zIndex(20f)
+            .imePadding()
+            .padding(horizontal = 16.dp)
+            .padding(bottom = navBarHeight.coerceAtLeast(16.dp)),
+    ) {
+        Card(
+            shape = RoundedCornerShape(28.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .animateContentSize(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier
+                        .padding(end = 10.dp)
+                        .clip(CircleShape)
+                        .clickable { onBack() },
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.padding(start = 10.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                    ) {
+                        Icon(
+                            imageVector = if (hubTab == 1) Icons.Rounded.Storefront else Icons.Rounded.Extension,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Text(
+                            text = if (hubTab == 1) "Store" else "Extensions",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                        )
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Back to search",
+                            modifier = Modifier.size(14.dp),
+                        )
+                    }
+                }
+
+                val bodyLargeStyle = MaterialTheme.typography.bodyLarge
+                val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+                val hintColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.58f)
+
+                Box(
+                    contentAlignment = Alignment.CenterStart,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 6.dp, vertical = 6.dp),
+                ) {
+                    if (hubQuery.isEmpty()) {
+                        Text(
+                            text = if (hubTab == 1) "Search $storeSource extensions..." else "Filter installed extensions...",
+                            style = bodyLargeStyle,
+                            color = hintColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    BasicTextField(
+                        value = hubQuery,
+                        onValueChange = onQueryChange,
+                        singleLine = true,
+                        textStyle = bodyLargeStyle.copy(color = onSurfaceColor),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(
+                            onSearch = {
+                                keyboardController?.hide()
+                                if (hubTab == 1) {
+                                    onSearchStore()
+                                } else {
+                                    val first = filteredInstalled.firstOrNull()
+                                    val cmd = first?.manifest?.commands?.firstOrNull()
+                                    if (first != null && cmd != null) {
+                                        onRunCommand(first, cmd)
+                                    }
+                                }
+                            },
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+
+                if (hubTab == 1) {
+                    FilledTonalButton(
+                        onClick = {
+                            keyboardController?.hide()
+                            onSearchStore()
+                        },
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier.height(34.dp),
+                    ) {
+                        Text("Go", style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+
+                if (hubQuery.isNotEmpty()) {
+                    IconButton(
+                        onClick = {
+                            HapticUtil.performVirtualKeyHaptic(view)
+                            onQueryChange("")
+                        },
+                        modifier = Modifier.size(36.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Clear",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BoxScope.InlineExtensionRunnerOverlay(
+    extension: InstalledRaycastExtension,
+    command: RaycastCommandManifest,
+    statusBarHeight: Dp,
+    navBarHeight: Dp,
+    topBlurHeightPx: Float,
+    bottomBlurHeightPx: Float,
+    overscrollNestedScrollConnection: NestedScrollConnection,
+    onBack: () -> Unit,
+    onCloseToSearch: () -> Unit,
+) {
+    val context = LocalContext.current
+    val isDark = isSystemInDarkTheme()
+    val runtime = remember(extension.id, command.name) {
+        RaycastRuntimeEngine(context.applicationContext, extension, command)
+    }
+    LaunchedEffect(runtime) {
+        runtime.start(isDarkTheme = isDark)
+    }
+    DisposableEffect(runtime) {
+        onDispose { runtime.close() }
+    }
+
+    val viewStack by runtime.viewStack.collectAsState()
+    val errorState by runtime.errorState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    var pendingAlert by remember { mutableStateOf<RaycastAlertRequest?>(null) }
+    var showPreferences by remember { mutableStateOf(false) }
+
+    LaunchedEffect(runtime) {
+        runtime.toastEvents.collect { evt ->
+            if (!evt.hidden) {
+                val text = listOf(evt.title, evt.message).filter { it.isNotBlank() }.joinToString(" — ")
+                if (text.isNotBlank()) snackbarHostState.showSnackbar(text)
+            }
+        }
+    }
+    LaunchedEffect(runtime) {
+        runtime.hudEvents.collect { title ->
+            if (title.isNotBlank()) Toast.makeText(context, title, Toast.LENGTH_SHORT).show()
+        }
+    }
+    LaunchedEffect(runtime) {
+        runtime.alertRequests.collect { req -> pendingAlert = req }
+    }
+    LaunchedEffect(runtime) {
+        runtime.closeRequests.collect { onBack() }
+    }
+    LaunchedEffect(runtime) {
+        runtime.openPreferencesRequests.collect { showPreferences = true }
+    }
+
+    val handleBack: () -> Unit = {
+        if (viewStack.size > 1) {
+            runtime.notifyViewPopped()
+        } else {
+            onBack()
+        }
+    }
+    BackHandler(onBack = handleBack)
+
+    val activeScreen = viewStack.lastOrNull()
+    if (activeScreen != null && errorState == null) {
+        InlineActiveExtensionRunner(
+            screen = activeScreen,
+            extension = extension,
+            command = command,
+            statusBarHeight = statusBarHeight,
+            navBarHeight = navBarHeight,
+            topBlurHeightPx = topBlurHeightPx,
+            bottomBlurHeightPx = bottomBlurHeightPx,
+            overscrollNestedScrollConnection = overscrollNestedScrollConnection,
+            onBack = handleBack,
+            onCloseToSearch = onCloseToSearch,
+            onOpenPreferences = { showPreferences = true },
+            onInvokeCallback = { id, args -> runtime.invokeCallback(id, *args) },
+        )
+    } else {
+        // Loading or error state rendered within the exact same floating overlay frame
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            shadowElevation = 4.dp,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .zIndex(20f)
+                .padding(top = statusBarHeight)
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            ) {
+                IconButton(onClick = handleBack, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                }
+                Column(modifier = Modifier.weight(1f).padding(horizontal = 6.dp)) {
+                    Text(
+                        text = command.title.ifBlank { command.name },
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = extension.displayTitle,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                IconButton(onClick = onCloseToSearch, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Rounded.Close, contentDescription = "Close")
+                }
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .imePadding()
+                .padding(top = statusBarHeight + 70.dp, bottom = 128.dp, start = 24.dp, end = 24.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (errorState != null) {
+                Card(
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text(
+                            text = "Extension Error",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        Text(
+                            text = errorState ?: "",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        FilledTonalButton(onClick = handleBack) {
+                            Text("Back")
+                        }
+                    }
+                }
+            } else {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    CircularProgressIndicator()
+                    Text(
+                        text = "Starting ${command.title.ifBlank { command.name }}…",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .zIndex(20f)
+                .imePadding()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = navBarHeight.coerceAtLeast(16.dp)),
+        ) {
+            Card(
+                shape = RoundedCornerShape(28.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                ) {
+                    Text(
+                        text = if (errorState != null) "Extension stopped" else "Loading ${command.title.ifBlank { command.name }}…",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    TextButton(onClick = onCloseToSearch) {
+                        Text("Close")
+                    }
+                }
+            }
+        }
+    }
+
+    SnackbarHost(
+        hostState = snackbarHostState,
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .imePadding()
+            .padding(horizontal = 16.dp)
+            .padding(bottom = navBarHeight.coerceAtLeast(16.dp) + 84.dp)
+            .zIndex(30f),
+    )
+
+    pendingAlert?.let { alert ->
+        AlertDialog(
+            onDismissRequest = {
+                alert.deferred.complete(false)
+                pendingAlert = null
+            },
+            title = { Text(alert.title) },
+            text = if (alert.message.isNotBlank()) {
+                { Text(alert.message) }
+            } else null,
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        alert.deferred.complete(true)
+                        pendingAlert = null
+                    },
+                ) {
+                    Text(
+                        text = alert.primaryTitle,
+                        color = if (alert.primaryStyle == "Destructive") {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        alert.deferred.complete(false)
+                        pendingAlert = null
+                    },
+                ) {
+                    Text(alert.dismissTitle)
+                }
+            },
+        )
+    }
+
+    if (showPreferences) {
+        ExtensionPreferencesBottomSheet(
+            extension = extension,
+            command = command,
+            onDismissRequest = { showPreferences = false },
+        )
+    }
+}
+
+@Composable
+private fun BoxScope.InlineActiveExtensionRunner(
+    screen: RaycastViewScreen,
+    extension: InstalledRaycastExtension,
+    command: RaycastCommandManifest,
+    statusBarHeight: Dp,
+    navBarHeight: Dp,
+    topBlurHeightPx: Float,
+    bottomBlurHeightPx: Float,
+    overscrollNestedScrollConnection: NestedScrollConnection,
+    onBack: () -> Unit,
+    onCloseToSearch: () -> Unit,
+    onOpenPreferences: () -> Unit,
+    onInvokeCallback: (String, Array<Any?>) -> Unit,
+) {
+    val view = LocalView.current
+    var selectedItemId by remember(screen) { mutableStateOf<String?>(null) }
+    var activeActionPanel by remember { mutableStateOf<RaycastActionPanelSpec?>(null) }
+    val formState = rememberRaycastFormState(screen)
+    val primaryPanel = rememberRaycastPrimaryPanel(screen, selectedItemId)
+
+    val hasSearchField = screen is RaycastViewScreen.ListScreen || screen is RaycastViewScreen.GridScreen
+    val initialSearchText = when (screen) {
+        is RaycastViewScreen.ListScreen -> screen.searchText ?: ""
+        is RaycastViewScreen.GridScreen -> screen.searchText ?: ""
+        else -> ""
+    }
+    var runnerQuery by remember(extension.id, command.name, screen::class, screen.navigationTitle) {
+        mutableStateOf(initialSearchText)
+    }
+    val dropdown: RaycastDropdownSpec? = when (screen) {
+        is RaycastViewScreen.ListScreen -> screen.dropdown
+        is RaycastViewScreen.GridScreen -> screen.dropdown
+        else -> null
+    }
+    val hasDropdown = dropdown != null && dropdown.options.isNotEmpty()
+    val hasPreferences = !extension.manifest.preferences.isNullOrEmpty() || !command.preferences.isNullOrEmpty()
+
+    // Pinned top header adapting to the running extension screen
+    Column(
+        modifier = Modifier
+            .align(Alignment.TopCenter)
+            .fillMaxWidth()
+            .zIndex(20f)
+            .padding(top = statusBarHeight)
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            shadowElevation = 4.dp,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+            ) {
+                IconButton(
+                    onClick = {
+                        HapticUtil.performVirtualKeyHaptic(view)
+                        onBack()
+                    },
+                    modifier = Modifier.size(36.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = "Back",
+                    )
+                }
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 6.dp),
+                ) {
+                    Text(
+                        text = screen.navigationTitle?.takeIf { it.isNotBlank() }
+                            ?: command.title.ifBlank { command.name },
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = extension.displayTitle,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (hasPreferences) {
+                    IconButton(
+                        onClick = onOpenPreferences,
+                        modifier = Modifier.size(36.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Tune,
+                            contentDescription = "Extension Preferences",
+                        )
+                    }
+                }
+                IconButton(
+                    onClick = {
+                        HapticUtil.performVirtualKeyHaptic(view)
+                        onCloseToSearch()
+                    },
+                    modifier = Modifier.size(36.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Close,
+                        contentDescription = "Close to search",
+                    )
+                }
+            }
+        }
+        if (screen.isLoading) {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .clip(CircleShape),
+            )
+        }
+    }
+
+    // Middle extension content rendered under progressive blur
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .imePadding()
+            .progressiveBlur(
+                blurRadius = 40f,
+                height = topBlurHeightPx,
+                direction = BlurDirection.TOP,
+            )
+            .progressiveBlur(
+                blurRadius = 40f,
+                height = bottomBlurHeightPx,
+                direction = BlurDirection.BOTTOM,
+            )
+            .nestedScroll(overscrollNestedScrollConnection),
+    ) {
+        RaycastScreenBody(
+            screen = screen,
+            extension = extension,
+            selectedItemId = selectedItemId,
+            formState = formState,
+            onSelectItem = { selectedItemId = it },
+            onOpenActionPanel = { activeActionPanel = it },
+            onInvokeCallback = onInvokeCallback,
+            externalSearchQuery = if (hasSearchField) runnerQuery else null,
+            hideSearchBar = true,
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                end = 16.dp,
+                top = statusBarHeight + 70.dp,
+                bottom = if (hasDropdown) 186.dp else 136.dp,
+            ),
+        )
+    }
+
+    // Bottom floating card morphs into extension search/dropdown or Form/Detail action bar
+    Box(
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .fillMaxWidth()
+            .zIndex(20f)
+            .imePadding()
+            .padding(horizontal = 16.dp)
+            .padding(bottom = navBarHeight.coerceAtLeast(16.dp)),
+    ) {
+        Card(
+            shape = RoundedCornerShape(28.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .animateContentSize(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)),
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                if (hasDropdown && dropdown != null) {
+                    var selectedDropdown by remember(dropdown.value, dropdown.defaultValue) {
+                        mutableStateOf(
+                            dropdown.value ?: dropdown.defaultValue ?: dropdown.options.first().value,
+                        )
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(start = 12.dp, end = 12.dp, top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        dropdown.options.forEach { opt ->
+                            FilterChip(
+                                selected = selectedDropdown == opt.value,
+                                onClick = {
+                                    selectedDropdown = opt.value
+                                    dropdown.onChangeId?.let { cbId ->
+                                        onInvokeCallback(cbId, arrayOf(opt.value))
+                                    }
+                                },
+                                label = { Text(opt.title, maxLines = 1) },
+                            )
+                        }
+                    }
+                }
+
+                val primary = primaryPanel?.primaryAction
+                if (hasSearchField) {
+                    val searchChangeId = when (screen) {
+                        is RaycastViewScreen.ListScreen -> screen.onSearchTextChangeId
+                        is RaycastViewScreen.GridScreen -> screen.onSearchTextChangeId
+                        else -> null
+                    }
+                    val placeholder = when (screen) {
+                        is RaycastViewScreen.ListScreen -> screen.searchBarPlaceholder ?: "Search ${command.title.ifBlank { command.name }}..."
+                        is RaycastViewScreen.GridScreen -> screen.searchBarPlaceholder ?: "Search ${command.title.ifBlank { command.name }}..."
+                        else -> "Search..."
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                    ) {
+                        val bodyLargeStyle = MaterialTheme.typography.bodyLarge
+                        val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+                        val hintColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.58f)
+                        Box(
+                            contentAlignment = Alignment.CenterStart,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 6.dp, vertical = 6.dp),
+                        ) {
+                            if (runnerQuery.isEmpty()) {
+                                Text(
+                                    text = placeholder,
+                                    style = bodyLargeStyle,
+                                    color = hintColor,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            BasicTextField(
+                                value = runnerQuery,
+                                onValueChange = { next ->
+                                    runnerQuery = next
+                                    searchChangeId?.let { cbId -> onInvokeCallback(cbId, arrayOf(next)) }
+                                },
+                                singleLine = true,
+                                textStyle = bodyLargeStyle.copy(color = onSurfaceColor),
+                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+
+                        if (runnerQuery.isNotEmpty()) {
+                            IconButton(
+                                onClick = {
+                                    runnerQuery = ""
+                                    searchChangeId?.let { cbId -> onInvokeCallback(cbId, arrayOf("")) }
+                                },
+                                modifier = Modifier.size(36.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = "Clear",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+
+                        if (primary != null) {
+                            FilledTonalButton(
+                                onClick = { executeRaycastAction(primary, formState, onInvokeCallback) },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier
+                                    .padding(start = 4.dp)
+                                    .height(36.dp),
+                            ) {
+                                Text(
+                                    text = primary.title,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+
+                        primaryPanel?.let { panel ->
+                            IconButton(
+                                onClick = { activeActionPanel = panel },
+                                modifier = Modifier.size(36.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.MoreHoriz,
+                                    contentDescription = "Actions",
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                    ) {
+                        if (primary != null) {
+                            Button(
+                                onClick = { executeRaycastAction(primary, formState, onInvokeCallback) },
+                                shape = RoundedCornerShape(18.dp),
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                RaycastIconView(
+                                    spec = primary.icon,
+                                    extension = extension,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(primary.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        } else {
+                            Spacer(Modifier.weight(1f))
+                        }
+
+                        primaryPanel?.let { panel ->
+                            FilledTonalButton(
+                                onClick = { activeActionPanel = panel },
+                                shape = RoundedCornerShape(18.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.MoreHoriz,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text("Actions")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    activeActionPanel?.let { panel ->
+        RaycastActionPanelSheet(
+            panel = panel,
+            extension = extension,
+            onDismissRequest = { activeActionPanel = null },
+            onExecuteAction = { action ->
+                activeActionPanel = null
+                executeRaycastAction(action, formState, onInvokeCallback)
+            },
+        )
+    }
 }
 
 private fun launchFile(context: Context, item: PixelSearchResultItem.FileItem) {

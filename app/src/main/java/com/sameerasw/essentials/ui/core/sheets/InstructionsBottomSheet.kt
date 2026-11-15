@@ -9,9 +9,7 @@
 
 package com.sameerasw.essentials.ui.core.sheets
 
-import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
@@ -94,7 +92,7 @@ fun InstructionsBottomSheet(onDismissRequest: () -> Unit) {
                 ) {
                     Button(
                         onClick = {
-                            val websiteUrl = "https://github.com/sameerasw/essentials"
+                            val websiteUrl = "https://github.com/aislingheart/komorebi"
                             val intent = Intent(Intent.ACTION_VIEW, websiteUrl.toUri())
                             context.startActivity(intent)
                         },
@@ -111,53 +109,19 @@ fun InstructionsBottomSheet(onDismissRequest: () -> Unit) {
 
                     OutlinedButton(
                         onClick = {
-                            val mailUri = "mailto:mail@sameerasw.com".toUri()
-                            val emailIntent =
-                                Intent(Intent.ACTION_SENDTO, mailUri).apply {
-                                    putExtra(Intent.EXTRA_SUBJECT, "Hello from Essentials")
-                                }
-                            try {
-                                context.startActivity(
-                                    Intent.createChooser(
-                                        emailIntent,
-                                        context.getString(R.string.send_email_chooser_title),
-                                    ),
-                                )
-                            } catch (e: ActivityNotFoundException) {
-                                Toast
-                                    .makeText(
-                                        context,
-                                        context.getString(R.string.error_no_email_app),
-                                        Toast.LENGTH_SHORT,
-                                    ).show()
-                            }
-                        },
-                        modifier = Modifier.padding(horizontal = 4.dp),
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.rounded_mail_24),
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        TranslatableText(R.string.email_label)
-                    }
-
-                    OutlinedButton(
-                        onClick = {
-                            val websiteUrl = "https://t.me/tidwib"
+                            val websiteUrl = "https://github.com/aislingheart/komorebi/issues"
                             val intent = Intent(Intent.ACTION_VIEW, websiteUrl.toUri())
                             context.startActivity(intent)
                         },
                         modifier = Modifier.padding(horizontal = 4.dp),
                     ) {
                         Icon(
-                            painter = painterResource(id = R.drawable.brand_telegram),
+                            painter = painterResource(id = R.drawable.rounded_bug_report_24),
                             contentDescription = null,
                             modifier = Modifier.size(18.dp),
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        TranslatableText(R.string.support_group_label)
+                        TranslatableText(R.string.action_report_github)
                     }
                 }
             }

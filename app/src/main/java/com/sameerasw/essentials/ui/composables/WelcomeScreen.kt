@@ -91,7 +91,6 @@ import com.sameerasw.essentials.ui.components.text.SimpleMarkdown
 import com.sameerasw.essentials.ui.core.cards.IconToggleItem
 import com.sameerasw.essentials.ui.core.pickers.PrivilegedModePicker
 import com.sameerasw.essentials.ui.core.containers.RoundedCardContainer
-import com.sameerasw.essentials.ui.core.pickers.CrashReportingPicker
 import com.sameerasw.essentials.ui.core.pickers.LanguagePicker
 import com.sameerasw.essentials.ui.core.sheets.UpdateBottomSheet
 import com.sameerasw.essentials.ui.theme.GoogleSansFlexRounded
@@ -384,7 +383,7 @@ fun WelcomeStepContent(
                         .clip(RoundedCornerShape(100.dp))
                         .background(MaterialTheme.colorScheme.primaryContainer)
                         .clickable {
-                            val websiteUrl = "https://sameerasw.com"
+                            val websiteUrl = "https://github.com/aislingheart/komorebi"
                             val intent = Intent(Intent.ACTION_VIEW, websiteUrl.toUri())
                             context.startActivity(intent)
                         }.padding(8.dp),
@@ -392,9 +391,9 @@ fun WelcomeStepContent(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.avatar),
-                    contentDescription = stringResource(R.string.content_desc_developer_avatar),
-                    contentScale = ContentScale.Crop,
+                    painter = painterResource(id = R.drawable.ic_launcher_foreground_komorebi),
+                    contentDescription = stringResource(R.string.content_desc_essentials_icon),
+                    contentScale = ContentScale.Fit,
                     modifier =
                         Modifier
                             .size(32.dp)
@@ -523,15 +522,6 @@ fun AcknowledgementStepContent(
 
                 Spacer(modifier = Modifier.height(16.dp))
             }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        RoundedCardContainer {
-            CrashReportingPicker(
-                selectedMode = sentryMode,
-                onModeSelected = onSentryModeSelected,
-            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -866,7 +856,7 @@ fun WhatsNewStepContent(
 
                             val webUrl =
                                 updateInfo?.releaseUrl
-                                    ?: "https://github.com/sameerasw/essentials/releases"
+                                    ?: "https://github.com/aislingheart/komorebi/releases"
                             TextButton(
                                 onClick = {
                                     HapticUtil.performVirtualKeyHaptic(view)

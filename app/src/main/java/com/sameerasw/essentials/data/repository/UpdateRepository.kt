@@ -12,13 +12,21 @@ package com.sameerasw.essentials.data.repository
 import android.content.Context
 import com.google.gson.Gson
 import com.sameerasw.essentials.domain.model.UpdateInfo
-import com.sameerasw.essentials.utils.AutoUpdateManagerHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
 
 class UpdateRepository {
+    companion object {
+        const val REPO_OWNER = "aislingheart"
+        const val REPO_NAME = "komorebi"
+        private const val RELEASES_URL = "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/releases"
+        private const val LATEST_RELEASE_URL = "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/releases/latest"
+        private const val CONNECT_TIMEOUT_MS = 10_000
+        private const val READ_TIMEOUT_MS = 10_000
+    }
+
     suspend fun checkForUpdates(
         @Suppress("UNUSED_PARAMETER") context: Context,
         isPreReleaseCheckEnabled: Boolean,
@@ -30,69 +38,123 @@ class UpdateRepository {
         currentVersion: String,
     ): UpdateInfo? =
         withContext(Dispatchers.IO) {
+            var connection: HttpURLConnection? = null
             try {
-                val urlString =
-                    if (isPreReleaseCheckEnabled) {
-                        "https://api.github.com/repos/aislingheart/komorebi/releases"
-                    } else {
-                        "https://api.github.com/repos/aislingheart/komorebi/releases/latest"
+                val urlString = if (isPreReleaseCheckEnabled) RELEASES_URL else LATEST_RELEASE_URL
+                val url = URL(urlString)
+                connection =
+                    (url.openConnection() as HttpURLConnection).apply {
+                        requestMethod = "GET"
+                        connectTimeout = CONNECT_TIMEOUT_MS
+                        readTimeout = READ_TIMEOUT_MS
+                        setRequestProperty("Accept", "application/vnd.github+json")
+                        setRequestProperty("User-Agent", "Komorebi-Updater")
                     }
 
-                val url = URL(urlString)
-                val connection = url.openConnection() as HttpURLConnection
-
-                if (connection.responseCode != 200) {
+                if (connection.responseCode != HttpURLConnection.HTTP_OK) {
                     return@withContext null
                 }
 
-                val releaseData = connection.inputStream.bufferedReader().readText()
-
-                val release: Map<String, Any>? =
-                    if (isPreReleaseCheckEnabled) {
-                        val releases =
-                            Gson()
-                                .fromJson(releaseData, Array<Any>::class.java)
-                                .filterIsInstance<Map<String, Any>>()
-
-                        releases.maxByOrNull { rel ->
-                            val tagName = (rel["tag_name"] as? String)?.removePrefix("v") ?: "0.0.0"
-                            SemanticVersion.parse(tagName)
-                        }
-                    } else {
-                        Gson().fromJson(releaseData, Map::class.java) as? Map<String, Any>
-                    }
-
-                if (release == null) return@withContext null
-
-                val latestVersion = (release["tag_name"] as? String)?.removePrefix("v") ?: "0.0"
-                val body = release["body"] as? String ?: ""
-                val releaseUrl = release["html_url"] as? String ?: ""
-                val assets = (release["assets"] as? List<*>)?.filterIsInstance<Map<String, Any>>()
-                val downloadUrl =
-                    assets
-                        ?.firstOrNull { it["name"].toString() == "app-release.apk" }
-                        ?.get("browser_download_url") as? String
-                        ?: assets
-                            ?.firstOrNull { it["name"].toString().endsWith(".apk") }
-                            ?.get("browser_download_url") as? String
-                        ?: ""
-
-                val hasUpdate = isNewerVersion(currentVersion, latestVersion)
-
-                UpdateInfo(
-                    versionName = latestVersion,
-                    releaseNotes = body,
-                    downloadUrl = downloadUrl,
-                    releaseUrl = releaseUrl,
-                    isUpdateAvailable = hasUpdate,
+                val releaseData = connection.inputStream.bufferedReader().use { it.readText() }
+                parseUpdateInfoFromJson(
+                    releaseData = releaseData,
+                    isPreReleaseCheckEnabled = isPreReleaseCheckEnabled,
+                    currentVersion = currentVersion,
                 )
             } catch (e: Exception) {
                 e.printStackTrace()
                 null
+            } finally {
+                connection?.disconnect()
             }
         }
 
-    private fun isNewerVersion(
+    internal fun parseUpdateInfoFromJson(
+        releaseData: String,
+        isPreReleaseCheckEnabled: Boolean,
+        currentVersion: String,
+    ): UpdateInfo? {
+        val gson = Gson()
+        val release: Map<String, Any>? =
+            if (isPreReleaseCheckEnabled) {
+                val releases =
+                    gson
+                        .fromJson(releaseData, Array<Any>::class.java)
+                        ?.filterIsInstance<Map<String, Any>>()
+                        .orEmpty()
+                        .filter { (it["draft"] as? Boolean) != true }
+
+                releases.maxByOrNull { rel ->
+                    val tagName = normalizeVersionTag(rel["tag_name"] as? String ?: "0.0.0")
+                    SemanticVersion.parse(tagName)
+                }
+            } else {
+                @Suppress("UNCHECKED_CAST")
+                (gson.fromJson(releaseData, Map::class.java) as? Map<String, Any>)
+                    ?.takeIf { (it["draft"] as? Boolean) != true && (it["prerelease"] as? Boolean) != true }
+            }
+
+        if (release == null) return null
+
+        val rawTag = release["tag_name"] as? String ?: "0.0"
+        val latestVersion = normalizeVersionTag(rawTag)
+        val body = release["body"] as? String ?: ""
+        val releaseUrl = release["html_url"] as? String ?: ""
+        val assets = (release["assets"] as? List<*>)?.filterIsInstance<Map<String, Any>>()
+        val downloadUrl = selectApkDownloadUrl(assets)
+        val hasUpdate = isNewerVersion(currentVersion, latestVersion)
+
+        return UpdateInfo(
+            versionName = latestVersion,
+            releaseNotes = body,
+            downloadUrl = downloadUrl,
+            releaseUrl = releaseUrl,
+            isUpdateAvailable = hasUpdate,
+        )
+    }
+
+    internal fun selectApkDownloadUrl(assets: List<Map<String, Any>>?): String {
+        if (assets.isNullOrEmpty()) return ""
+        val apkAssets =
+            assets.filter { asset ->
+                val name = asset["name"]?.toString()?.lowercase().orEmpty()
+                val url = asset["browser_download_url"] as? String
+                name.endsWith(".apk") && !url.isNullOrBlank()
+            }
+        if (apkAssets.isEmpty()) return ""
+
+        val selected =
+            apkAssets.firstOrNull { it["name"]?.toString()?.equals("app-release.apk", ignoreCase = true) == true }
+                ?: apkAssets.firstOrNull { asset ->
+                    val name = asset["name"]?.toString()?.lowercase().orEmpty()
+                    !name.contains("unsigned") && !name.contains("debug") &&
+                        (name.contains("komorebi") || name.contains("release"))
+                }
+                ?: apkAssets.firstOrNull { asset ->
+                    val name = asset["name"]?.toString()?.lowercase().orEmpty()
+                    !name.contains("unsigned") && !name.contains("debug")
+                }
+                ?: apkAssets.firstOrNull { asset ->
+                    val name = asset["name"]?.toString()?.lowercase().orEmpty()
+                    !name.contains("unsigned")
+                }
+                ?: apkAssets.first()
+
+        return selected["browser_download_url"] as? String ?: ""
+    }
+
+    internal fun normalizeVersionTag(rawTag: String): String {
+        var normalized = rawTag.trim()
+        if (normalized.startsWith("komorebi-", ignoreCase = true)) {
+            normalized = normalized.substring("komorebi-".length)
+        }
+        if (normalized.startsWith("v", ignoreCase = true)) {
+            normalized = normalized.substring(1)
+        }
+        return normalized.ifEmpty { "0.0" }
+    }
+
+    internal fun isNewerVersion(
         current: String,
         latest: String,
     ): Boolean =
@@ -104,7 +166,7 @@ class UpdateRepository {
             latest != current
         }
 
-    private data class SemanticVersion(
+    internal data class SemanticVersion(
         val major: Int,
         val minor: Int,
         val patch: Int,
@@ -119,28 +181,56 @@ class UpdateRepository {
             if (preRelease == null && other.preRelease != null) return 1
             if (preRelease != null && other.preRelease == null) return -1
 
-            // Compare pre-release strings naturally if both exist
-            // (e.g. beta.1 < beta.2) - String comparison matches lexical order
             if (preRelease != null && other.preRelease != null) {
-                return preRelease.compareTo(other.preRelease)
+                return comparePreRelease(preRelease, other.preRelease)
             }
 
             return 0
         }
 
+        private fun comparePreRelease(
+            a: String,
+            b: String,
+        ): Int {
+            val aParts = a.split('.', '-')
+            val bParts = b.split('.', '-')
+            val maxLen = maxOf(aParts.size, bParts.size)
+            for (i in 0 until maxLen) {
+                val left = aParts.getOrNull(i) ?: return -1
+                val right = bParts.getOrNull(i) ?: return 1
+                val leftInt = left.toIntOrNull()
+                val rightInt = right.toIntOrNull()
+                val cmp =
+                    when {
+                        leftInt != null && rightInt != null -> leftInt.compareTo(rightInt)
+                        leftInt != null -> -1
+                        rightInt != null -> 1
+                        else -> left.compareTo(right, ignoreCase = true)
+                    }
+                if (cmp != 0) return cmp
+            }
+            return 0
+        }
+
         companion object {
             /**
-             * Executes the parse operation.
-             *
-             * @param versionInfo [String] Target version info.
-             * @return The resulting SemanticVersion data.
+             * Parses version tags like "21.3.4-komorebi", "v21.3.5-komorebi-beta.1", or "v21.3-beta.2".
+             * The "-komorebi" distribution flavor suffix is stripped so stable Komorebi builds are
+             * not treated as pre-releases.
              */
             fun parse(versionInfo: String): SemanticVersion {
-                try {
-                    // Remove "v" prefix if present
-                    val version = versionInfo.removePrefix("v")
+                return try {
+                    var version = versionInfo.trim()
+                    if (version.startsWith("komorebi-", ignoreCase = true)) {
+                        version = version.substring("komorebi-".length)
+                    }
+                    if (version.startsWith("v", ignoreCase = true)) {
+                        version = version.substring(1)
+                    }
+                    // Strip SemVer build metadata (+...)
+                    version = version.substringBefore('+')
 
-                    // Split into main parts and pre-release parts (e.g. "8.1-beta.1")
+                    // Split into main parts and qualifier parts (e.g. "21.3.4-komorebi" or "21.3.5-komorebi-beta.1")
                     val parts = version.split("-", limit = 2)
                     val baseParts = parts[0].split(".")
 
@@ -148,11 +238,28 @@ class UpdateRepository {
                     val minor = baseParts.getOrNull(1)?.toIntOrNull() ?: 0
                     val patch = baseParts.getOrNull(2)?.toIntOrNull() ?: 0
 
-                    val preRelease = if (parts.size > 1) parts[1] else null
+                    val preRelease =
+                        if (parts.size > 1) {
+                            parts[1]
+                                .split("-")
+                                .flatMap { token ->
+                                    if (token.startsWith("komorebi.", ignoreCase = true)) {
+                                        listOf(token.substring("komorebi.".length))
+                                    } else if (token.endsWith(".komorebi", ignoreCase = true)) {
+                                        listOf(token.substring(0, token.length - ".komorebi".length))
+                                    } else {
+                                        listOf(token)
+                                    }
+                                }.filter { it.isNotBlank() && !it.equals("komorebi", ignoreCase = true) }
+                                .joinToString("-")
+                                .takeIf { it.isNotBlank() }
+                        } else {
+                            null
+                        }
 
-                    return SemanticVersion(major, minor, patch, preRelease)
-                } catch (e: Exception) {
-                    return SemanticVersion(0, 0, 0)
+                    SemanticVersion(major, minor, patch, preRelease)
+                } catch (_: Exception) {
+                    SemanticVersion(0, 0, 0)
                 }
             }
         }

@@ -14,17 +14,17 @@ class RaycastManifestTest {
         try {
             RaycastExtensionRepository.ensureStarterExtensionsInDir(root)
 
-            val marker = File(root, ".starters_v1")
+            val marker = File(root, ".starters_v2")
             assertTrue(marker.isFile && marker.length() > 0L)
 
             listOf(
-                "essentials-quick-notes/package.json",
-                "essentials-quick-notes/browse-notes.js",
-                "essentials-quick-notes/create-note.js",
-                "essentials-color-studio/package.json",
-                "essentials-color-studio/palette.js",
-                "essentials-dev-toolkit/package.json",
-                "essentials-dev-toolkit/toolkit.js",
+                "komorebi-quick-notes/package.json",
+                "komorebi-quick-notes/browse-notes.js",
+                "komorebi-quick-notes/create-note.js",
+                "komorebi-color-studio/package.json",
+                "komorebi-color-studio/palette.js",
+                "komorebi-dev-toolkit/package.json",
+                "komorebi-dev-toolkit/toolkit.js",
             ).forEach { rel ->
                 val f = File(root, rel)
                 assertTrue("Expected non-empty $rel", f.isFile && f.length() > 0L)
@@ -38,19 +38,19 @@ class RaycastManifestTest {
     fun `zero-byte marker and truncated starter files are healed`() {
         val root = createTempDirectory("komorebi_raycast_heal").toFile()
         try {
-            File(root, ".starters_v1").writeText("")
-            val notesDir = File(root, "essentials-quick-notes").apply { mkdirs() }
+            File(root, ".starters_v2").writeText("")
+            val notesDir = File(root, "komorebi-quick-notes").apply { mkdirs() }
             File(notesDir, "package.json").writeText("")
             File(notesDir, "browse-notes.js").writeText("")
 
             RaycastExtensionRepository.ensureStarterExtensionsInDir(root)
 
-            assertTrue(File(root, ".starters_v1").length() > 0L)
+            assertTrue(File(root, ".starters_v2").length() > 0L)
             assertTrue(File(notesDir, "package.json").length() > 0L)
             assertTrue(File(notesDir, "browse-notes.js").length() > 0L)
             assertTrue(File(notesDir, "create-note.js").length() > 0L)
-            assertTrue(File(root, "essentials-color-studio/package.json").length() > 0L)
-            assertTrue(File(root, "essentials-dev-toolkit/package.json").length() > 0L)
+            assertTrue(File(root, "komorebi-color-studio/package.json").length() > 0L)
+            assertTrue(File(root, "komorebi-dev-toolkit/package.json").length() > 0L)
         } finally {
             root.deleteRecursively()
         }
@@ -61,13 +61,13 @@ class RaycastManifestTest {
         val root = createTempDirectory("komorebi_raycast_uninstall").toFile()
         try {
             RaycastExtensionRepository.ensureStarterExtensionsInDir(root)
-            val colorDir = File(root, "essentials-color-studio")
+            val colorDir = File(root, "komorebi-color-studio")
             assertTrue(colorDir.deleteRecursively())
 
             RaycastExtensionRepository.ensureStarterExtensionsInDir(root)
 
             assertFalse(colorDir.exists())
-            assertTrue(File(root, "essentials-quick-notes/package.json").length() > 0L)
+            assertTrue(File(root, "komorebi-quick-notes/package.json").length() > 0L)
         } finally {
             root.deleteRecursively()
         }

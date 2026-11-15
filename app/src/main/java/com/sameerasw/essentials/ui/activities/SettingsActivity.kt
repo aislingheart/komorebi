@@ -102,7 +102,7 @@ import com.sameerasw.essentials.domain.registry.PermissionRegistry
 import com.sameerasw.essentials.translation.TranslationManager
 import com.sameerasw.essentials.translation.ui.TranslationSessionSheet
 import com.sameerasw.essentials.ui.components.EssentialsFloatingToolbar
-import com.sameerasw.essentials.ui.components.MadebySameeraswCard
+import com.sameerasw.essentials.ui.components.CreditsCard
 import com.sameerasw.essentials.ui.components.dialogs.AboutSection
 import com.sameerasw.essentials.ui.components.menus.SegmentedDropdownMenuItem
 import com.sameerasw.essentials.ui.components.sliders.ConfigSliderItem
@@ -112,7 +112,6 @@ import com.sameerasw.essentials.ui.core.pickers.PrivilegedModePicker
 import com.sameerasw.essentials.ui.core.cards.PermissionCard
 import com.sameerasw.essentials.ui.core.containers.RoundedCardContainer
 import com.sameerasw.essentials.ui.core.pickers.AppIconPicker
-import com.sameerasw.essentials.ui.core.pickers.CrashReportingPicker
 import com.sameerasw.essentials.ui.core.pickers.LanguagePicker
 import com.sameerasw.essentials.ui.core.sheets.GitHubAuthSheet
 import com.sameerasw.essentials.ui.core.sheets.ImportConfigConfirmationSheet
@@ -149,10 +148,13 @@ import java.util.Date
 import java.util.Locale
 
 class SettingsActivity : AppCompatActivity() {
+    private var openUpdateSheetNonce by mutableStateOf(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val expandPermissionsInitial = intent.getBooleanExtra("expand_permissions", false)
+        consumeShowUpdateSheetExtra(intent)
         setContent {
             val viewModel: MainViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
             val context = LocalContext.current
@@ -169,9 +171,27 @@ class SettingsActivity : AppCompatActivity() {
                         viewModel = viewModel,
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
                         expandPermissionsInitial = expandPermissionsInitial,
+                        openUpdateSheetNonce = openUpdateSheetNonce,
                     )
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        consumeShowUpdateSheetExtra(intent)
+    }
+
+    private fun consumeShowUpdateSheetExtra(incoming: Intent?) {
+        if (incoming?.getBooleanExtra(
+                com.sameerasw.essentials.utils.UpdateNotificationHelper.EXTRA_SHOW_UPDATE_SHEET,
+                false,
+            ) == true
+        ) {
+            incoming.removeExtra(com.sameerasw.essentials.utils.UpdateNotificationHelper.EXTRA_SHOW_UPDATE_SHEET)
+            openUpdateSheetNonce += 1
         }
     }
 }
@@ -183,6 +203,7 @@ fun SettingsContent(
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
     expandPermissionsInitial: Boolean = false,
+    openUpdateSheetNonce: Int = 0,
     onAppIconSelectedWithPosition: ((com.sameerasw.essentials.domain.model.AppIcon, Offset) -> Unit)? = null,
     onAvatarLongClickWithPosition: ((Offset) -> Unit)? = null,
     onRippleToggleEnabledWithPosition: ((Offset) -> Unit)? = null,
@@ -211,6 +232,19 @@ fun SettingsContent(
     var showUpdateSheet by remember { mutableStateOf(false) }
     val updateInfo by viewModel.updateInfo
     val isUpdateAvailable by viewModel.isUpdateAvailable
+
+    LaunchedEffect(Unit) {
+        viewModel.checkForUpdates(context, manual = false)
+    }
+
+    LaunchedEffect(openUpdateSheetNonce) {
+        if (openUpdateSheetNonce > 0) {
+            showUpdateSheet = true
+            if (viewModel.updateInfo.value == null && !viewModel.isCheckingUpdate.value) {
+                viewModel.checkForUpdates(context, manual = true)
+            }
+        }
+    }
     val isAutoUpdateEnabled by viewModel.isAutoUpdateEnabled
 
     val isUpdateNotificationEnabled by viewModel.isUpdateNotificationEnabled
@@ -263,8 +297,8 @@ fun SettingsContent(
             val userToken = settingsRepo.getGitHubToken()
             val prs =
                 gitHubRepo.getOpenTranslationPRs(
-                    owner = "sameerasw",
-                    repo = "essentials",
+                    owner = "aislingheart",
+                    repo = "komorebi",
                     author = user.login,
                     token = userToken,
                 )
@@ -1041,11 +1075,6 @@ fun SettingsContent(
         )
 
         RoundedCardContainer {
-            CrashReportingPicker(
-                selectedMode = sentryMode,
-                onModeSelected = { viewModel.setSentryReportMode(it, context) },
-            )
-
             IconToggleItem(
                 iconRes = R.drawable.rounded_release_alert_24,
                 title = stringResource(R.string.setting_enable_unsupported_features_title),
@@ -1298,7 +1327,7 @@ fun SettingsContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        MadebySameeraswCard()
+        CreditsCard()
 
         Spacer(modifier = Modifier.height(4.dp))
 

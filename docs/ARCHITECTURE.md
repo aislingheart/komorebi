@@ -1,12 +1,12 @@
 # Architecture & Data Flow Overview
 
-This document details the architectural layout, decoupled ViewModels layer, data flow pipelines, and persistent storage mechanics of the **Essentials** Android application.
+This document details the architectural layout, decoupled ViewModels layer, data flow pipelines, and persistent storage mechanics of the **Komorebi** Android application.
 
 ---
 
 ## Architectural Pattern
 
-The Essentials application follows the **MVVM (Model-View-ViewModel)** pattern combined with a **Feature-Based Modular Architecture**.
+The Komorebi application follows the **MVVM (Model-View-ViewModel)** pattern combined with a **Feature-Based Modular Architecture**.
 
 ```mermaid
 graph TD

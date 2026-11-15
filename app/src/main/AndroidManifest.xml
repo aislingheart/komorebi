@@ -111,7 +111,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Essentials"
+        android:theme="@style/Theme.Komorebi"
         tools:targetApi="36">
 
         <meta-data
@@ -158,14 +158,14 @@
             android:exported="true"
             android:label="@string/essential_search_label"
             android:launchMode="singleTask"
-            android:theme="@style/Theme.Essentials.WallpaperTranslucent"
+            android:theme="@style/Theme.Komorebi.WallpaperTranslucent"
             android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
 
         <activity
             android:name=".ui.activities.PixelSearchbarSettingsActivity"
             android:exported="false"
             android:label="@string/pixel_searchbar_settings_title"
-            android:theme="@style/Theme.Essentials" />
+            android:theme="@style/Theme.Komorebi" />
 
         <activity
             android:name=".ui.activities.PixelSearchbarTapActivity"
@@ -180,14 +180,15 @@
             android:name=".FeatureSettingsActivity"
             android:exported="false"
             android:label="@string/label_feature_settings"
-            android:theme="@style/Theme.Essentials" />
+            android:theme="@style/Theme.Komorebi" />
 
         <activity
             android:name=".SettingsActivity"
             android:exported="true"
             android:label="@string/app_name"
+            android:launchMode="singleTop"
             android:parentActivityName=".ui.activities.PixelSearchResultsActivity"
-            android:theme="@style/Theme.Essentials">
+            android:theme="@style/Theme.Komorebi">
             <intent-filter>
                 <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" />
             </intent-filter>
@@ -198,7 +199,7 @@
             android:excludeFromRecents="true"
             android:exported="true"
             android:label="@string/label_open_link"
-            android:theme="@style/Theme.Essentials.Translucent">
+            android:theme="@style/Theme.Komorebi.Translucent">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -219,7 +220,7 @@
             android:exported="true"
             android:label="@string/frozen_app_shortcut_label"
             android:noHistory="true"
-            android:theme="@style/Theme.Essentials.Translucent" />
+            android:theme="@style/Theme.Komorebi.Translucent" />
 
         <activity
             android:name=".ui.activities.ActionShortcutActivity"
@@ -245,13 +246,13 @@
             android:excludeFromRecents="true"
             android:exported="false"
             android:noHistory="true"
-            android:theme="@style/Theme.Essentials.Translucent" />
+            android:theme="@style/Theme.Komorebi.Translucent" />
 
         <activity
             android:name=".ui.activities.DebuggingSettingsActivity"
             android:exported="false"
             android:noHistory="true"
-            android:theme="@style/Theme.Essentials.Translucent" />
+            android:theme="@style/Theme.Komorebi.Translucent" />
 
         <service
             android:name=".services.AccessibilityShortcutService1"
@@ -375,6 +376,14 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".services.receivers.DownloadUpdateReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.sameerasw.essentials.ACTION_DOWNLOAD_UPDATE" />
+            </intent-filter>
+        </receiver>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -437,26 +446,20 @@
             android:name=".ui.activities.ExtensionsActivity"
             android:exported="false"
             android:label="Extensions &amp; Store"
-            android:theme="@style/Theme.Essentials" />
+            android:theme="@style/Theme.Komorebi" />
 
         <activity
             android:name=".ui.activities.ExtensionRunnerActivity"
             android:exported="true"
             android:label="Extension"
             android:launchMode="singleTop"
-            android:theme="@style/Theme.Essentials"
+            android:theme="@style/Theme.Komorebi"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="komorebi" android:host="oauth" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="essentials" android:host="oauth" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />

@@ -5,7 +5,7 @@
     <string name="shut_up_attempt_shizuku_restart">Attempt Shizuku restart</string>
     <string name="shut_up_shizuku_restart_warning_title">Shizuku Restart Warning</string>
     <string name="shut_up_shizuku_restart_warning_message">Since wireless debugging was toggled, Shizuku services might not have started automatically causing freezing to not function. Consider turning on attempt shizuku restart as well</string>
-    <string name="accessibility_service_description"><b>Essentials 无障碍服务</b>\n\n此服务被应用于以下增强型功能:\n\n<b>• 物理按键映射:</b>\n在屏幕熄灭状态下检测音量键状态以触发如手电筒等功能.\n\n<b>• 独立应用设置:</b>\n检测当前活动的应用以应用动态夜间光效, 通知闪光和应用锁等功能\n\n<b>• 屏幕控制:</b>\n允许应用通过双击或点击小部件以锁定屏幕或检测屏幕状态变化.\n\n<b>• 安全:</b>\n通过在设备锁定时检测窗口内容来避免未经授权的更改.\n\n<small>输入内容和敏感用户数据不会被收集和上传.</small></string>
+    <string name="accessibility_service_description"><b>Komorebi 无障碍服务</b>\n\n此服务被应用于以下增强型功能:\n\n<b>• 物理按键映射:</b>\n在屏幕熄灭状态下检测音量键状态以触发如手电筒等功能.\n\n<b>• 独立应用设置:</b>\n检测当前活动的应用以应用动态夜间光效, 通知闪光和应用锁等功能\n\n<b>• 屏幕控制:</b>\n允许应用通过双击或点击小部件以锁定屏幕或检测屏幕状态变化.\n\n<b>• 安全:</b>\n通过在设备锁定时检测窗口内容来避免未经授权的更改.\n\n<small>输入内容和敏感用户数据不会被收集和上传.</small></string>
     <string name="freeze_activity_title">应用冻结</string>
     <string name="freeze_activity_subtitle">禁用不常用的应用</string>
     <string name="freeze_shortcut_short_label">已冻结的应用</string>
@@ -64,7 +64,7 @@
     <string name="like_song_settings_desc">本功能需要通知权限以检测当前正在播放的媒体和点按喜欢按钮。请在下方启用。</string>
     <string name="like_song_toast_enabled">显示Toast消息</string>
     <string name="like_song_aod_overlay_title">在屏幕常亮AOD上显示叠加层</string>
-    <string name="feat_essentials_on_display_title">Essentials On Display</string>
+    <string name="feat_essentials_on_display_title">Komorebi On Display</string>
     <string name="feat_essentials_on_display_desc">在 AOD 上快速查看媒体和信息</string>
     <string name="essentials_on_display_docked_mode_title">停靠模式</string>
     <string name="essentials_on_display_docked_mode_desc">在 AOD 界面播放音乐时，保持浮层持续显示。</string>
@@ -228,7 +228,7 @@
     <string name="tile_app_freezing">应用冻结</string>
     <string name="tile_flashlight_pulse">脉冲手电筒</string>
     <string name="tile_stay_awake">保持唤醒</string>
-    <string name="input_method_label">Essentials 键盘</string>
+    <string name="input_method_label">Komorebi 键盘</string>
     <string name="subtype_en_us">英语（美国）</string>
     <string name="tile_active">启用</string>
     <string name="tile_inactive">停用</string>
@@ -380,7 +380,7 @@
     <string name="cat_visuals">视觉效果</string>
     <string name="cat_system">系统</string>
     <!-- UI Elements -->
-    <string name="search_placeholder">Search Essentials</string>
+    <string name="search_placeholder">Search Komorebi</string>
     <string name="search_no_results">没有找到 \"%1$s\" 的结果</string>
     <string name="search_results_title">搜索结果</string>
     <string name="requires_following_permissions">%1$s 需要以下权限</string>
@@ -589,7 +589,7 @@
     <string name="perm_default_browser_title">默认浏览器</string>
     <string name="perm_default_browser_desc">需要高效处理链接</string>
     <string name="perm_accessibility_desc_remap">需要拦截硬件按钮事件</string>
-    <string name="perm_accessibility_desc_essentials_on_display">Required to intercept volume key events while the screen is off to trigger the Essentials On Display overlay.</string>
+    <string name="perm_accessibility_desc_essentials_on_display">Required to intercept volume key events while the screen is off to trigger the Komorebi On Display overlay.</string>
     <string name="perm_accessibility_desc_night_light">需要监控前台应用。</string>
     <string name="perm_write_secure_title">写入安全设置</string>
     <string name="perm_write_secure_desc_common">状态栏图标和锁屏安全所需</string>
@@ -615,7 +615,7 @@
     <string name="tab_apps">应用</string>
     <string name="tab_freeze_subtitle">已禁用的应用</string>
     <string name="tab_diy_subtitle">自己动手</string>
-    <string name="diy_header_caption">Automate essentials</string>
+    <string name="diy_header_caption">Automate your device</string>
     <string name="freeze_header_caption">%1$d/%2$d apps</string>
     <string name="tab_apps_subtitle">查找和管理应用</string>
     <string name="feat_app_updates_title">应用更新</string>
@@ -647,7 +647,7 @@
     <!-- Keyboard Setup -->
     <string name="label_keyboard_setup">键盘设置</string>
     <string name="btn_enable_keyboard">在设置中启用</string>
-    <string name="btn_select_keyboard">切换到Essentials</string>
+    <string name="btn_select_keyboard">切换到Komorebi</string>
     <string name="label_enabled">已启用</string>
     <string name="label_disabled">已禁用</string>
     <string name="tile_adaptive_brightness">自适应亮度</string>
@@ -665,11 +665,11 @@
     <string name="sentry_report_mode_title">崩溃报告</string>
     <string name="sentry_mode_off">关闭</string>
     <string name="sentry_mode_auto">自动</string>
-    <string name="sentry_crash_toast">Essentials崩溃，已发送报告</string>
+    <string name="sentry_crash_toast">Komorebi崩溃，已发送报告</string>
     <string name="simulate_crash">模拟崩溃</string>
-    <string name="welcome_title">欢迎使用Essentials</string>
+    <string name="welcome_title">欢迎使用Komorebi</string>
     <string name="welcome_subtitle">面向Android极客的工具箱</string>
-    <string name="welcome_developer_attribution">by sameerasw.com</string>
+    <string name="welcome_developer_attribution">by aislingheart</string>
     <string name="action_lets_begin">开始吧</string>
     <string name="acknowledgement_title">致谢</string>
     <string name="acknowledgement_desc">本应用是一系列能够深度交互设备系统的工具集合。使用某些功能可能会以意想不到的方式修改系统设置或行为。\n\n您只需要为您使用的选定功能授予必要的权限，从而完全控制应用的行为。\n\n此外，本应用不会跟踪或存储您的任何个人数据，我不需要它们…请保护好自己。您可以参考源代码获取更多信息。\n\n本应用完全开源，并且现在和将来都永远免费使用。请勿付费或从未知来源安装。</string>
@@ -689,7 +689,7 @@
     <string name="desc_auto_check_updates">应用启动时检查更新</string>
     <string name="action_all_set">全部就绪</string>
     <string name="action_check_whats_new">查看新功能？</string>
-    <string name="welcome_back_title">Welcome back to Essentials</string>
+    <string name="welcome_back_title">Welcome back to Komorebi</string>
     <string name="action_see_whats_new">See what\'s new</string>
     <string name="label_mode_default">Default</string>
     <string name="label_mode_glove">手套模式</string>
@@ -713,7 +713,7 @@
     <string name="action_what_is_this">这是什么？</string>
     <string name="update_available_title">有可用更新</string>
     <string name="about_desc_your_android">快速查看您设备的硬件和软件详细规格。这些信息从GSMArena和系统属性获取，以提供您Android设备的全面概述。</string>
-    <string name="about_desc_essentials_on_display">当音乐播放和播放切换时，“Essentials On Display”会在锁定屏幕上显示“正在播放”叠加层。\n\n如果您的设备不支持在 AOD 上显示叠加层，您可以在充电时选择使用 Android 设置中添加的“氛围”屏幕保护程序作为替代方案。</string>
+    <string name="about_desc_essentials_on_display">当音乐播放和播放切换时，“Komorebi On Display”会在锁定屏幕上显示“正在播放”叠加层。\n\n如果您的设备不支持在 AOD 上显示叠加层，您可以在充电时选择使用 Android 设置中添加的“氛围”屏幕保护程序作为替代方案。</string>
     <string name="about_desc_notification_lighting">通知光效在您收到通知时添加漂亮的边缘光效。\n\n您可以自定义动画样式、颜色和行为。它甚至在屏幕关闭时（取决于OEM）或在当前应用之上工作。从给定的控件中选择应用、通知优先级或触发行为。如果您的OEM不支持在AOD上显示叠加层，请使用下方找到的环境显示选项。</string>
     <string name="about_desc_screen_off_widget">通过点击一个透明的、可调整大小的小组件轻松关闭屏幕，该小组件不会在主屏幕上添加图标或任何杂乱。</string>
     <string name="about_desc_statusbar_icons">完全控制您的状态栏图标。\n\n隐藏特定图标如WiFi、蓝牙或蜂窝数据，保持状态栏整洁。您还可以使用一些智能控制自定义时钟格式和电池指示器。这些是可用的AOSP控件列表，因此您的设备操作系统可能不会尊重所有控件。</string>
@@ -726,7 +726,7 @@
     <string name="about_desc_dynamic_night_light">根据前台应用自动切换屏幕蓝光滤除模式。</string>
     <string name="about_desc_screen_locked_security">增强设备锁定时的安全性。\n\n限制访问某些敏感的快速设置磁贴，防止未经授权的网络修改，并通过增加动画速度防止触摸重试来阻止再次尝试。\n\n此功能并不健壮，可能存在缺陷，例如某些允许直接切换的磁贴（如蓝牙或飞行模式）无法被阻止。</string>
     <string name="about_desc_app_lock">使用第二层认证保护您的应用。\n\n只要您的设备锁屏认证方法符合Android标准的3级生物识别安全级别，就会被使用。</string>
-    <string name="about_desc_location_reached">当您接近目的地时收到通知，确保您不会错过站点。\n\n前往Google Maps，长按目的地附近的图钉，确保显示“已落下的图钉”（否则距离计算可能不准确），然后将位置分享给Essentials应用并开始跟踪。</string>
+    <string name="about_desc_location_reached">当您接近目的地时收到通知，确保您不会错过站点。\n\n前往Google Maps，长按目的地附近的图钉，确保显示“已落下的图钉”（否则距离计算可能不准确），然后将位置分享给Komorebi应用并开始跟踪。</string>
     <string name="location_reached_add_title">添加目的地</string>
     <string name="location_reached_edit_title">编辑目的地</string>
     <string name="location_reached_name_placeholder">家、办公室等</string>
@@ -740,7 +740,7 @@
     <string name="location_reached_delete">删除目的地</string>
     <string name="location_reached_tracking_now">正在跟踪</string>
     <string name="location_reached_restart_btn">重新开始</string>
-    <string name="location_reached_instructional_desc">从Google Maps分享坐标（已落下的图钉）到Essentials以保存为目的地。\n\n显示的距离是到目的地的直线距离，而非道路距离。\n\n请对时间和距离的所有计算持保留态度，因为它们并不总是准确的。</string>
+    <string name="location_reached_instructional_desc">从Google Maps分享坐标（已落下的图钉）到Komorebi以保存为目的地。\n\n显示的距离是到目的地的直线距离，而非道路距离。\n\n请对时间和距离的所有计算持保留态度，因为它们并不总是准确的。</string>
     <string name="tile_location_reached">我们到了吗？</string>
     <string name="location_reached_pause">Pause</string>
     <string name="location_reached_resume">Resume</string>
@@ -755,8 +755,8 @@
     <string name="about_desc_freeze">冻结应用以阻止它们在后台运行。\n\n当您不使用应用时，通过完全冻结它们来防止电池耗尽和数据使用。当您启动它们时，它们会立即解冻。冻结时，应用不会显示在应用抽屉中，也不会在Play Store中显示应用更新。</string>
     <string name="about_desc_system_keyboard">没人要求的自定义输入法。\n\n这只是一个实验。可能不支持多种语言，因为实现起来非常复杂且耗时。</string>
     <string name="about_desc_batteries">监控所有已连接设备的电池电量。\n\n在一个地方查看蓝牙耳机、手表和其他配件的电池状态。连接AirSync应用以同时显示您的Mac电池电量。</string>
-    <string name="about_desc_watermark">使用EXIF数据和设备信息向照片添加自定义标题/水印。\n\n直接从其他应用分享图片到Essentials，轻松添加水印。</string>
-    <string name="about_desc_calendar_sync">同步您即将到来的所有日历日程，无论因工作或学校政策而无法添加到wearOS设备的Google帐户限制如何。\n\n请确保安装wearOS Essentials配套应用，以便在应用以及磁贴或复杂功能中显示日程。</string>
+    <string name="about_desc_watermark">使用EXIF数据和设备信息向照片添加自定义标题/水印。\n\n直接从其他应用分享图片到Komorebi，轻松添加水印。</string>
+    <string name="about_desc_calendar_sync">同步您即将到来的所有日历日程，无论因工作或学校政策而无法添加到wearOS设备的Google帐户限制如何。\n\n请确保安装wearOS Komorebi配套应用，以便在应用以及磁贴或复杂功能中显示日程。</string>
     <string name="about_desc_app_updates">跟踪已安装应用的更新。\n\n收到可用更新通知，查看更新日志，并轻松点击安装。</string>
     <string name="about_desc_call_vibrations">为通话添加触觉反馈。\n\n当通话接通、挂断或接听时振动，无需查看屏幕即可获得触觉确认。</string>
     <string name="about_desc_sound_mode_tile">快速在声音、振动和静音模式之间切换。\n\n一个方便的磁贴，无需使用音量键或设置即可更改铃声模式。您可以重新排序模式或禁用不需要的模式，以自定义磁贴的循环行为。</string>
@@ -832,7 +832,7 @@
     <string name="diy_action_sound_mode">声音模式</string>
     <string name="diy_sound_mode_desc">此操作允许根据触发器在声音、振动和静音模式之间切换。需要勿扰权限。</string>
     <!-- About Section -->
-    <string name="app_developer_name">Sameera Wijerathna</string>
+    <string name="app_developer_name">aislingheart</string>
     <string name="app_description">适用于Pixel和Android设备的一体化工具箱</string>
     <!-- Edge Lighting -->
     <string name="color_mode_system">系统</string>
@@ -1070,7 +1070,7 @@
     <!-- Instructions Content -->
     <string name="instruction_section_perms_title">无障碍、通知和悬浮窗权限</string>
     <string name="instruction_step_perms_1">如果您尝试授予敏感权限（如无障碍、通知监听器或悬浮窗权限），可能会收到此访问被拒绝的消息。要授予它，请查看以下步骤。</string>
-    <string name="instruction_step_perms_2">1. 前往Essentials的应用信息页面。</string>
+    <string name="instruction_step_perms_2">1. 前往Komorebi的应用信息页面。</string>
     <string name="instruction_step_perms_3">2. 打开三点菜单并选择“允许受限设置”。您可能需要通过生物识别认证。完成后，再次尝试授予权限。</string>
     <string name="instruction_section_shizuku_title">Shizuku</string>
     <string name="instruction_section_shizuku_desc">Shizuku是一个强大的工具，允许应用通过ADB或root权限直接使用系统API。地图最小模式、应用冻结等功能需要它。它还将协助授予某些权限，例如WRITE_SECURE_SETTINGS。\n\n但Play Store版本的Shizuku可能已过时，在较新的Android版本上可能无法使用，因此在这种情况下，请从github或最新的分支获取最新版本。</string>
@@ -1098,12 +1098,12 @@
     <string name="action_report_github">在GitHub上打开问题</string>
     <string name="action_report_email">邮件报告</string>
     <string name="action_copy_clipboard">复制到剪贴板</string>
-    <string name="bug_report_email_subject">Essentials Bug报告</string>
+    <string name="bug_report_email_subject">Komorebi Bug报告</string>
     <string name="bug_report_send_via">通过以下方式发送</string>
     <!-- Location Reached -->
     <string name="feat_location_reached_title">我们到了吗？</string>
     <string name="feat_location_reached_desc">为您的目的地做好准备。</string>
-    <string name="location_reached_how_to">打开您的地图应用，选择一个位置，然后分享到Essentials。</string>
+    <string name="location_reached_how_to">打开您的地图应用，选择一个位置，然后分享到Komorebi。</string>
     <string name="location_reached_radius_title">半径：%d 米</string>
     <string name="perm_location_title">位置</string>
     <string name="perm_location_desc">用于检测到达目的地。</string>
@@ -1228,11 +1228,11 @@
     <string name="feat_watch_title">手表</string>
     <string name="feat_watch_desc">与WearOS的集成</string>
     <string name="watch_no_companion_title">未检测到手表</string>
-    <string name="watch_no_companion_desc">看起来您的手表上未安装Essentials Wear配套应用。</string>
+    <string name="watch_no_companion_desc">看起来您的手表上未安装Komorebi Wear配套应用。</string>
     <string name="watch_install_companion_action">安装配套应用</string>
     <string name="action_download_from_github">Download from GitHub</string>
     <string name="watch_help_title">Install on Watch</string>
-    <string name="watch_help_description">To use Watch features, you need to install the Essentials companion app on your Wear OS watch. Click the button below to open the Play Store directly on your watch.</string>
+    <string name="watch_help_description">To use Watch features, you need to install the Komorebi companion app on your Wear OS watch. Click the button below to open the Play Store directly on your watch.</string>
     <string name="watch_help_open_play_store">Open on Watch</string>
     <string name="cat_interaction">交互</string>
     <string name="cat_interface">界面</string>
@@ -1359,11 +1359,11 @@
     <string name="msg_flashbang">准备好被闪光弹闪瞎吧！</string>
     <string name="action_abort">中止</string>
     <string name="action_continue">继续</string>
-    <string name="prank_trial_expired_title">Your Essentials trial has expired</string>
-    <string name="prank_trial_expired_desc">Your free trial period of Essentials has ended. Access to advanced features like Button Remap, App Freezing, and DIY Automations with Premium.</string>
+    <string name="prank_trial_expired_title">Your Komorebi trial has expired</string>
+    <string name="prank_trial_expired_desc">Your free trial period of Komorebi has ended. Access to advanced features like Button Remap, App Freezing, and DIY Automations with Premium.</string>
     <string name="prank_button_premium">What\'s in Premium?</string>
     <string name="prank_reveal_title">April Fools!</string>
-    <string name="prank_reveal_desc">Just kidding, Essentials is and will always be free and open source. Enjoy! (っ◕‿◕)っ</string>
+    <string name="prank_reveal_desc">Just kidding, Komorebi is and will always be free and open source. Enjoy! (っ◕‿◕)っ</string>
     <string name="notification_lighting_style_system">System</string>
     <string name="notification_lighting_system_mode_title">Ripple Animation</string>
     <string name="notification_lighting_system_mode_charging_ripple">Bottom</string>
@@ -1517,7 +1517,7 @@
     <string name="feat_sync_sound_mode_title">同步声音模式</string>
     <string name="feat_notification_snoozing_desc">重新安排通知</string>
     <string name="feat_pixel_searchbar_title">Pixel 搜索栏</string>
-    <string name="feat_pixel_searchbar_desc">将 Essentials 设置为 Pixel 启动器主屏幕搜索栏的默认搜索提供程序。</string>
+    <string name="feat_pixel_searchbar_desc">将 Komorebi 设置为 Pixel 启动器主屏幕搜索栏的默认搜索提供程序。</string>
     <string name="feat_watch_controls_title">自定义</string>
     <string name="feat_watch_controls_desc">自定义 WearOS 应用控件</string>
     <string name="feat_sync_sound_mode_desc">自动与手表同步</string>
@@ -1563,7 +1563,7 @@
     <string name="smart_pixels_disable_on_cast_desc">投影或螢幕錄影時自動將像素網格疊加層暫停</string>
     <string name="feat_allow_overlays_in_settings_title">在設定中允許畫面疊加顯示</string>
     <string name="perm_storage_title">完整文件访问权限</string>
-    <string name="perm_storage_desc">读取您的当前壁纸对于合规权限来说是不可访问的，Essentials需要而外的储存权限</string>
+    <string name="perm_storage_desc">读取您的当前壁纸对于合规权限来说是不可访问的，Komorebi需要而外的储存权限</string>
     <string name="perm_bubbles_title">悬浮球</string>
     <string name="perm_bubbles_desc">允许网页预览通过悬浮在其他应用上的悬浮会话打开</string>
     <string name="perm_bubbles_instructions">在应用通知设置中设置气泡在所有会话中均可出现，或通过Shizuku/Root授权</string>
@@ -1753,15 +1753,15 @@
     <string name="conscious_gate_select_apps_desc">选择哪些应用在打开时显示专注闸门</string>
     <string name="lockscreen_shortcuts_enable_title">启用锁屏界面快捷方式</string>
     <string name="batteries_notification_title">电量通知</string>
-    <string name="about_desc_duo">This doesn\'t fold\n\nAn iPhone Duo style status indicator to show your battery, network, media status and more in a compact, minimal UI ideally around your camera with various items to show and gestures to interact with.\n\nFor foldable devices, Ensure to turn off \'Auto-detect camera\' option if it\'s not reliable and manually align Duo with your inside and outside camera positions and then Essentials will remember your layout.</string>
+    <string name="about_desc_duo">This doesn\'t fold\n\nAn iPhone Duo style status indicator to show your battery, network, media status and more in a compact, minimal UI ideally around your camera with various items to show and gestures to interact with.\n\nFor foldable devices, Ensure to turn off \'Auto-detect camera\' option if it\'s not reliable and manually align Duo with your inside and outside camera positions and then Komorebi will remember your layout.</string>
     <string name="label_shake_for_help">Shake for help</string>
     <string name="about_desc_island">A dynamic island for your Android, around your camera cutout.\n\nIt brings live info together in one compact, expandable space: notifications with quick replies, media with album art and controls, calls, timers and stopwatches, alarms, calendar events, navigation, progress updates, hotspot and network status, connected devices, flashlight, sound mode, caffeinate, travel info and time and battery.\n\nThird party apps can pair with the island to show their own live content, and you choose which ones are allowed.\n\nInteract with simple gestures like tapping, swiping up and sliding along the island for volume, brightness and more, and assign your own tap actions.\n\nCustomize almost everything, including camera position and size with auto detect, width, placement, visuals like glow, outlines and pulse shadows, expanded size and roundness, display durations, what shows and when, hiding system heads up and status bar icons, and privacy options for locked screens.\n\nIt can also be combined with Duo for a single unified camera area.</string>
     <string name="about_desc_pocket_mode">Prevents accidental touches while your phone is in your pocket or bag.\n\nWhen the proximity sensor is covered, Pocket mode shows a blocking screen so stray touches do nothing. Press any volume key to dismiss it. You can also use the light sensor along with proximity for better accuracy, add a trigger delay, and choose to only trigger while the device is locked.\n\nExclude apps where it should not trigger. It does not work while streaming or gaming by default.\n\nAccessibility permission is required. On some devices with missing sensors, enabling it may break deep sleep and cause higher battery drain.</string>
     <string name="about_desc_flashlight">Get more control over your flashlight.\n\nAdjust the brightness, fade it in and out smoothly, and use the volume keys to change the intensity. Show the brightness as a live update in the status bar.\n\nTurn it off automatically when your phone is in a pocket, lower the brightness during long use to prevent overheating, or always turn it off, even while the display is on.\n\nBrightness control needs hardware support that some devices lack.</string>
-    <string name="about_desc_face_illumination">Helps face unlock recognize you in the dark.\n\nWhen the screen wakes up in low light, Essentials lights up the screen with a soft tinted glow so the front camera can see your face. You can set the ambient light threshold that decides when it kicks in, pick the light tint, and choose whether it illuminates automatically on wake-up or only when you trigger it.\n\nIt can also trigger the unlock for you. Accessibility permission is required.</string>
-    <string name="about_desc_link_actions">Choose how links open instead of being stuck with one app.\n\nWhen you open a link, Essentials lets you pick between multiple apps to handle it, with the option to open it in a bubble, copy it, share it or shorten it and create a QR code.</string>
+    <string name="about_desc_face_illumination">Helps face unlock recognize you in the dark.\n\nWhen the screen wakes up in low light, Komorebi lights up the screen with a soft tinted glow so the front camera can see your face. You can set the ambient light threshold that decides when it kicks in, pick the light tint, and choose whether it illuminates automatically on wake-up or only when you trigger it.\n\nIt can also trigger the unlock for you. Accessibility permission is required.</string>
+    <string name="about_desc_link_actions">Choose how links open instead of being stuck with one app.\n\nWhen you open a link, Komorebi lets you pick between multiple apps to handle it, with the option to open it in a bubble, copy it, share it or shorten it and create a QR code.</string>
     <string name="about_desc_daily_wallpaper">Keep your wallpaper fresh with a daily curated wallpaper, or set a live wallpaper.\n\nPick your wallpaper, review and queue the next wallpaper before it is applied, and manage your live wallpaper from one place.</string>
-    <string name="about_desc_watch">Integrations between your phone and your Wear OS watch.\n\nInstall the Essentials companion on your watch to sync notifications and calls, lock your phone from the watch, customize the watchface and complications, sync sound mode and location status, install an eSIM and turn on wireless debugging remotely.</string>
+    <string name="about_desc_watch">Integrations between your phone and your Wear OS watch.\n\nInstall the Komorebi companion on your watch to sync notifications and calls, lock your phone from the watch, customize the watchface and complications, sync sound mode and location status, install an eSIM and turn on wireless debugging remotely.</string>
     <string name="about_desc_network_download_rate_limit">Limit the system-wide download speed.\n\nUseful to stop large downloads and updates from using all of your bandwidth. Requires advanced permissions such as Shizuku or root.</string>
     <string name="about_desc_mobile_data_always_on">Keeps mobile data active even while connected to Wi-Fi.\n\nThis lets your phone switch to mobile data instantly when the Wi-Fi connection gets weak or drops, at the cost of some extra battery use.</string>
     <string name="about_desc_wireless_display_certification">Shows the hidden wireless display certification options in Android\'s developer settings.\n\nThese options expose extra Wi-Fi display (Miracast) settings for testing and troubleshooting casting.</string>
@@ -1772,7 +1772,7 @@
     <string name="about_desc_sync_location_reached">Sends your Are we there yet status to your watch.\n\nThe status is shown in the device tile so you can see how close you are to your destination right from your wrist.</string>
     <string name="about_desc_lock_from_watch">Lock your phone remotely from your watch.\n\nHandy if you left your phone somewhere and want to secure it right away.</string>
     <string name="about_desc_watch_controls">Customize the controls shown on your watch.\n\nChoose which actions are available so the watch shows only what you need.</string>
-    <string name="about_desc_watchface">Customize the Essentials watchface on your Wear OS watch.\n\nChange its look and settings from your phone.</string>
+    <string name="about_desc_watchface">Customize the Komorebi watchface on your Wear OS watch.\n\nChange its look and settings from your phone.</string>
     <string name="about_desc_complications">Customize the complication widgets shown on your watchface.\n\nChoose which info appears and where, such as flashlight status or other glance items.</string>
     <string name="about_desc_notification_sync">Sync notifications between your phone and your watch.\n\nThis is only used for the launcher and is not a full notification mirror.</string>
     <string name="about_desc_call_sync">Sync call status between your phone and your watch.\n\nThis is only used for the launcher and is not a full call handler.</string>

@@ -10,6 +10,7 @@
 package com.sameerasw.essentials.ui.core.sheets
 
 import android.content.Intent
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -279,6 +280,7 @@ fun UpdateBottomSheet(
                                 onClick = {
                                     HapticUtil.performUIHaptic(view)
                                     isDownloading = true
+                                    downloadProgress = 0
                                     val helper = AutoUpdateManagerHelper(context)
                                     coroutineScope.launch {
                                         val cleanVersion =
@@ -288,12 +290,22 @@ fun UpdateBottomSheet(
                                             )
                                         helper.downloadAndInstallApk(
                                             apkUrl = updateInfo.downloadUrl,
-                                            apkName = "Essentials_$cleanVersion",
+                                            apkName = "Komorebi_$cleanVersion",
                                             onProgressUpdate = { progress ->
                                                 downloadProgress = progress
                                                 if (progress >= 100) {
                                                     isDownloading = false
                                                 }
+                                            },
+                                            onError = {
+                                                isDownloading = false
+                                                downloadProgress = 0
+                                                Toast
+                                                    .makeText(
+                                                        context,
+                                                        context.getString(R.string.update_download_failed),
+                                                        Toast.LENGTH_SHORT,
+                                                    ).show()
                                             },
                                         )
                                     }

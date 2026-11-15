@@ -26,4 +26,4 @@ Closes #
 - [ ] `./gradlew assembleDebug` and `./gradlew testDebugUnitTest` pass.
 - [ ] I tested the changes on a device or emulator (including Shizuku or Root if applicable).
 - [ ] I understand every line of this change and can explain it in review, including any AI-assisted code.
-- [ ] The code follows the [Development Guide](https://github.com/sameerasw/essentials/blob/develop/docs/DEVELOPMENT_GUIDE.md).
+- [ ] The code follows the [Development Guide](https://github.com/aislingheart/komorebi/blob/main/docs/DEVELOPMENT_GUIDE.md).

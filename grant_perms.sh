@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Configuration
-RELEASE_PKG="com.sameerasw.essentials"
-DEBUG_PKG="com.sameerasw.essentials.debug"
+RELEASE_PKG="com.aislingheart.komorebi"
+DEBUG_PKG="com.aislingheart.komorebi.debug"
 
 # Function to grant permissions to a specific package
 grant_permissions() {

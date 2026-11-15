@@ -9,11 +9,7 @@
 
 package com.sameerasw.essentials.ui.components.dialogs
 
-import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.util.Log
-import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -21,10 +17,6 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -32,7 +24,6 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -48,7 +39,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -60,7 +50,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -82,7 +71,7 @@ import com.sameerasw.essentials.utils.HapticUtil
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3ExpressiveApi::class)
 fun AboutSection(
     modifier: Modifier = Modifier,
-    appName: String = "Essentials",
+    appName: String = "Komorebi",
     developerName: String = stringResource(R.string.app_developer_name),
     description: String = stringResource(R.string.app_description),
     onAvatarLongClick: () -> Unit = {},
@@ -159,12 +148,12 @@ fun AboutSection(
                 contentAlignment = Alignment.Center,
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.avatar),
-                    contentDescription = stringResource(R.string.content_desc_developer_avatar),
-                    contentScale = ContentScale.Crop,
+                    painter = painterResource(id = R.drawable.ic_launcher_foreground_komorebi),
+                    contentDescription = stringResource(R.string.content_desc_essentials_icon),
+                    contentScale = ContentScale.Fit,
                     modifier =
                         Modifier
-                            .size(180.dp)
+                            .size(160.dp)
                             .graphicsLayer { rotationZ = -rotationDegrees },
                 )
             }
@@ -175,8 +164,6 @@ fun AboutSection(
                 style = MaterialTheme.typography.titleMedium,
                 textAlign = TextAlign.Center,
             )
-
-            var isOtherAppsExpanded by remember { mutableStateOf(false) }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -190,7 +177,7 @@ fun AboutSection(
                     Button(
                         onClick = {
                             HapticUtil.performUIHaptic(view)
-                            val websiteUrl = "https://sameerasw.com"
+                            val websiteUrl = "https://github.com/aislingheart/komorebi"
                             val intent = Intent(Intent.ACTION_VIEW, websiteUrl.toUri())
                             context.startActivity(intent)
                         },
@@ -204,8 +191,8 @@ fun AboutSection(
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
                     ) {
                         Icon(
-                            painter = painterResource(id = R.drawable.rounded_globe_24),
-                            contentDescription = stringResource(R.string.action_website),
+                            painter = painterResource(id = R.drawable.brand_github),
+                            contentDescription = stringResource(R.string.action_view_on_github),
                             modifier = Modifier.size(24.dp),
                         )
                     }
@@ -213,31 +200,16 @@ fun AboutSection(
                     Button(
                         onClick = {
                             HapticUtil.performUIHaptic(view)
-                            val mailUri = "mailto:mail@sameerasw.com".toUri()
-                            val emailIntent =
-                                Intent(Intent.ACTION_SENDTO, mailUri).apply {
-                                    putExtra(Intent.EXTRA_SUBJECT, "Hello from Essentials")
-                                }
-                            try {
-                                context.startActivity(
-                                    Intent.createChooser(
-                                        emailIntent,
-                                        context.getString(R.string.send_email_chooser_title),
-                                    ),
-                                )
-                            } catch (e: ActivityNotFoundException) {
-                                Log.w("AboutSection", "No email app available", e)
-                                Toast
-                                    .makeText(context, R.string.error_no_email_app, Toast.LENGTH_SHORT)
-                                    .show()
-                            }
+                            val websiteUrl = "https://github.com/aislingheart/komorebi/releases"
+                            val intent = Intent(Intent.ACTION_VIEW, websiteUrl.toUri())
+                            context.startActivity(intent)
                         },
                         shape = RoundedCornerShape(6.dp),
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
                     ) {
                         Icon(
-                            painter = painterResource(id = R.drawable.rounded_mail_24),
-                            contentDescription = stringResource(R.string.action_contact),
+                            painter = painterResource(id = R.drawable.rounded_download_24),
+                            contentDescription = stringResource(R.string.action_source_code),
                             modifier = Modifier.size(24.dp),
                         )
                     }
@@ -245,7 +217,7 @@ fun AboutSection(
                     Button(
                         onClick = {
                             HapticUtil.performUIHaptic(view)
-                            val websiteUrl = "https://t.me/tidwib"
+                            val websiteUrl = "https://github.com/aislingheart/komorebi/issues"
                             val intent = Intent(Intent.ACTION_VIEW, websiteUrl.toUri())
                             context.startActivity(intent)
                         },
@@ -259,194 +231,17 @@ fun AboutSection(
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
                     ) {
                         Icon(
-                            painter = painterResource(id = R.drawable.brand_telegram),
-                            contentDescription = stringResource(R.string.action_telegram),
+                            painter = painterResource(id = R.drawable.rounded_bug_report_24),
+                            contentDescription = stringResource(R.string.action_report_github),
                             modifier = Modifier.size(24.dp),
                         )
                     }
                 }
             }
 
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                OutlinedButton(
-                    onClick = {
-                        HapticUtil.performUIHaptic(view)
-                        val websiteUrl = "https://buymeacoffee.com/sameerasw"
-                        val intent = Intent(Intent.ACTION_VIEW, websiteUrl.toUri())
-                        context.startActivity(intent)
-                    },
-                    modifier = Modifier.padding(horizontal = 4.dp),
-                ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.rounded_heart_smile_24),
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    TranslatableText(R.string.action_support)
-                }
-
-                OutlinedButton(
-                    onClick = {
-                        HapticUtil.performUIHaptic(view)
-                        isOtherAppsExpanded = !isOtherAppsExpanded
-                    },
-                    modifier = Modifier.padding(horizontal = 4.dp),
-                ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.rounded_apps_24),
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    TranslatableText(R.string.label_other_apps)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        painter =
-                            painterResource(
-                                id =
-                                    if (isOtherAppsExpanded) {
-                                        R.drawable.rounded_keyboard_arrow_up_24
-                                    } else {
-                                        R.drawable.rounded_keyboard_arrow_down_24
-                                    },
-                            ),
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-            }
-
-            AnimatedVisibility(
-                visible = isOtherAppsExpanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut(),
-            ) {
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                    maxItemsInEachRow = 3,
-                ) {
-                    OutlinedButton(
-                        onClick = {
-                            HapticUtil.performUIHaptic(view)
-                            val websiteUrl = "https://github.com/sameerasw/Overcast"
-                            val intent = Intent(Intent.ACTION_VIEW, websiteUrl.toUri())
-                            context.startActivity(intent)
-                        },
-                        modifier = Modifier.padding(horizontal = 4.dp),
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.overcast_logo),
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = Color.Unspecified,
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        TranslatableText(R.string.app_overcast)
-                    }
-
-                    OutlinedButton(
-                        onClick = {
-                            HapticUtil.performUIHaptic(view)
-                            val websiteUrl =
-                                "https://play.google.com/store/apps/details?id=com.sameerasw.airsync&hl=en"
-                            val intent = Intent(Intent.ACTION_VIEW, websiteUrl.toUri())
-                            context.startActivity(intent)
-                        },
-                        modifier = Modifier.padding(horizontal = 4.dp),
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.rounded_devices_24),
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        TranslatableText(R.string.app_airsync)
-                    }
-
-                    OutlinedButton(
-                        onClick = {
-                            HapticUtil.performUIHaptic(view)
-                            val websiteUrl = "https://sameerasw.com/zen"
-                            val intent = Intent(Intent.ACTION_VIEW, websiteUrl.toUri())
-                            context.startActivity(intent)
-                        },
-                        modifier = Modifier.padding(horizontal = 4.dp),
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.rounded_web_24),
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        TranslatableText(R.string.app_zenzero)
-                    }
-
-                    OutlinedButton(
-                        onClick = {
-                            HapticUtil.performUIHaptic(view)
-                            val websiteUrl = "https://github.com/sameerasw/canvas"
-                            val intent = Intent(Intent.ACTION_VIEW, websiteUrl.toUri())
-                            context.startActivity(intent)
-                        },
-                        modifier = Modifier.padding(horizontal = 4.dp),
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.rounded_draw_24),
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        TranslatableText(R.string.app_canvas)
-                    }
-
-                    OutlinedButton(
-                        onClick = {
-                            HapticUtil.performUIHaptic(view)
-                            val websiteUrl = "https://github.com/sameerasw/tasks"
-                            val intent = Intent(Intent.ACTION_VIEW, websiteUrl.toUri())
-                            context.startActivity(intent)
-                        },
-                        modifier = Modifier.padding(horizontal = 4.dp),
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.rounded_task_alt_24),
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        TranslatableText(R.string.app_tasks)
-                    }
-
-                    OutlinedButton(
-                        onClick = {
-                            HapticUtil.performUIHaptic(view)
-                            val websiteUrl = "https://github.com/sameerasw/Browser"
-                            val intent = Intent(Intent.ACTION_VIEW, websiteUrl.toUri())
-                            context.startActivity(intent)
-                        },
-                        modifier = Modifier.padding(horizontal = 4.dp),
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.outline_highlight_mouse_cursor_24),
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        TranslatableText(R.string.app_zero)
-                    }
-                }
-            }
-
             Spacer(modifier = Modifier.height(2.dp))
 
-            RepoDetailsRow()
+            RepoDetailsRow(repoUrl = "https://github.com/aislingheart/komorebi")
 
             Spacer(modifier = Modifier.height(2.dp))
 

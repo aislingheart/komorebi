@@ -37,6 +37,8 @@ import com.sameerasw.essentials.R
 import com.sameerasw.essentials.appfunctions.AppFunctionAvailabilityManager
 import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.domain.model.PixelSearchResultItem
+import com.sameerasw.essentials.raycast.InstalledRaycastExtension
+import com.sameerasw.essentials.raycast.RaycastCommandManifest
 import com.sameerasw.essentials.raycast.RaycastExtensionRepository
 import com.sameerasw.essentials.search.semantic.PhotoIndexWorker
 import com.sameerasw.essentials.search.semantic.PhotoSemanticEngine
@@ -137,6 +139,24 @@ object SearchProviderDiscovery {
                 aliases = listOf("web", "google", "browser", "search"),
                 iconRes = R.drawable.rounded_language_24,
                 priority = 70,
+            ),
+            SearchProvider(
+                id = "provider:extensions",
+                title = "Extensions",
+                subtitle = "Installed Raycast & Vicinae extensions",
+                kind = SearchProviderKind.EXTENSION,
+                aliases = listOf("extensions", "plugins", "addons", "raycast", "vicinae"),
+                iconRes = R.drawable.rounded_extension_24,
+                priority = 78,
+            ),
+            SearchProvider(
+                id = "provider:store",
+                title = "Extension Store",
+                subtitle = "Browse & install Raycast & Vicinae extensions",
+                kind = SearchProviderKind.EXTENSION,
+                aliases = listOf("store", "extension store", "marketplace"),
+                iconRes = R.drawable.rounded_storefront_24,
+                priority = 74,
             ),
         )
 
@@ -262,6 +282,7 @@ object SearchProviderDiscovery {
         query: String,
         onOpenExtensions: (() -> Unit)? = null,
         onOpenStore: (() -> Unit)? = null,
+        onRunExtension: ((InstalledRaycastExtension, RaycastCommandManifest) -> Unit)? = null,
     ): List<InternalCommandItem> {
         val q = query.trim().lowercase(Locale.getDefault())
         if (q.length < 2) return emptyList()
@@ -271,7 +292,7 @@ object SearchProviderDiscovery {
                 id = "cmd:settings",
                 title = "App Settings & Configuration",
                 description = "Open Komorebi configuration, themes, permissions, and backup",
-                keywords = listOf("settings", "config", "configure", "preferences", "komorebi", "essentials"),
+                keywords = listOf("settings", "config", "configure", "preferences", "komorebi"),
                 iconRes = R.drawable.rounded_settings_24,
                 onExecute = { ctx ->
                     ctx.startActivity(
@@ -316,6 +337,7 @@ object SearchProviderDiscovery {
                 description = "Manage installed Raycast & Vicinae extensions",
                 keywords = listOf("extensions", "plugins", "raycast", "vicinae", "addons"),
                 iconRes = R.drawable.rounded_extension_24,
+                closesSearchUi = onOpenExtensions == null,
                 onExecute = { ctx ->
                     if (onOpenExtensions != null) {
                         onOpenExtensions()
@@ -334,6 +356,7 @@ object SearchProviderDiscovery {
                 description = "Browse and install Raycast & Vicinae extensions",
                 keywords = listOf("store", "marketplace", "install", "raycast store", "extensions"),
                 iconRes = R.drawable.rounded_storefront_24,
+                closesSearchUi = onOpenStore == null,
                 onExecute = { ctx ->
                     if (onOpenStore != null) {
                         onOpenStore()
@@ -363,12 +386,17 @@ object SearchProviderDiscovery {
                             cmd.name.lowercase(Locale.getDefault()),
                         ) + cmd.keywords.orEmpty().map { it.lowercase(Locale.getDefault()) },
                         iconRes = R.drawable.rounded_extension_24,
+                        closesSearchUi = onRunExtension == null,
                         onExecute = { ctx ->
-                            ctx.startActivity(
-                                ExtensionRunnerActivity.createIntent(ctx, ext.id, cmd.name).apply {
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                },
-                            )
+                            if (onRunExtension != null) {
+                                onRunExtension(ext, cmd)
+                            } else {
+                                ctx.startActivity(
+                                    ExtensionRunnerActivity.createIntent(ctx, ext.id, cmd.name).apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    },
+                                )
+                            }
                         },
                     )
                 }

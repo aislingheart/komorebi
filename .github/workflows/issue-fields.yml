@@ -11,7 +11,7 @@ jobs:
   set-fields:
     if: >-
       contains(github.event.issue.labels.*.name, 'bug') ||
-      contains(github.event.issue.body, '<!-- essentials-app-bug-report -->')
+      contains(github.event.issue.body, '<!-- komorebi-app-bug-report -->')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v7
@@ -29,7 +29,7 @@ jobs:
 
             // Issues filed from the app via the API lose labels/type when the reporter
             // can't triage, so restore what the bug report form would have set.
-            if (body.includes('<!-- essentials-app-bug-report -->')) {
+            if (body.includes('<!-- komorebi-app-bug-report -->')) {
               if (!issue.labels.some((l) => l.name === 'bug')) {
                 await github.rest.issues.addLabels({ ...context.repo, issue_number: issue.number, labels: ['bug'] });
               }
@@ -41,7 +41,7 @@ jobs:
                 });
               }
               if (!issue.assignees?.length) {
-                await github.rest.issues.addAssignees({ ...context.repo, issue_number: issue.number, assignees: ['sameerasw'] });
+                await github.rest.issues.addAssignees({ ...context.repo, issue_number: issue.number, assignees: ['aislingheart'] });
               }
             }
             const answers = {};

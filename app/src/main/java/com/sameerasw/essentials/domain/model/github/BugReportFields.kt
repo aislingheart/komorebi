@@ -173,7 +173,7 @@ object BugReportAutoFill {
 
 object BugReportIssueFormatter {
     // issue-fields.yml looks for this marker so issues created through the API get the bug label, type and fields
-    const val APP_REPORT_MARKER = "<!-- essentials-app-bug-report -->"
+    const val APP_REPORT_MARKER = "<!-- komorebi-app-bug-report -->"
     private const val NO_RESPONSE = "_No response_"
     private const val TITLE_PREFIX = "[Bug]: "
     private const val MAX_TITLE_LENGTH = 80

@@ -1,6 +1,6 @@
 # Development Guide
 
-Architecture conventions, state management patterns, UI component reuse and service decoupling practices for Essentials. For how to propose and submit changes, see [CONTRIBUTING.md](../CONTRIBUTING.md).
+Architecture conventions, state management patterns, UI component reuse and service decoupling practices for Komorebi. For how to propose and submit changes, see [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ---
 
@@ -10,7 +10,7 @@ Architecture conventions, state management patterns, UI component reuse and serv
 2. **JDK**: Use JDK 17 or higher.
 3. **Clone Repository**:
    ```bash
-   git clone https://github.com/sameerasw/essentials.git
+   git clone https://github.com/aislingheart/komorebi.git
    ```
 4. **Target Branch**: Ensure all branches and pull requests are based on and targeted to merge back into **`develop`**.
 5. **Shizuku / Root**: Many privileged features require [Shizuku](https://shizuku.rikka.app/) or Root for testing on your device or emulator.

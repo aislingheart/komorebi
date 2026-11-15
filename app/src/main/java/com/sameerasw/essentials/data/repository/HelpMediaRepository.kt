@@ -97,7 +97,7 @@ class HelpMediaRepository(private val context: Context) {
         private const val KEY_MEDIA_MAPPING_CACHE = "media_mapping_cache"
         private const val KEY_MEDIA_MAPPING_LAST_FETCH = "media_mapping_last_fetch"
         private const val CACHE_EXPIRATION_MS = 1000 * 60 * 60 // 1 hour
-        private const val MAPPING_URL = "https://sameerasw.com/essentials/help/media-mapping.json"
+        private const val MAPPING_URL = "https://raw.githubusercontent.com/aislingheart/komorebi/main/help/media-mapping.json"
 
         @Volatile
         private var instance: HelpMediaRepository? = null

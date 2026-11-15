@@ -318,9 +318,12 @@ class MainViewModel : ViewModel() {
         isLocalNetworkGranted.value = PermissionUtils.hasLocalNetworkPermission(context)
         isShizukuAvailable.value = ShizukuUtils.isShizukuAvailable()
         isShizukuPermissionGranted.value = ShizukuUtils.hasPermission()
-        if (cachedIsUpdateAvailable) {
-            isUpdateAvailable.value = true
+        if (cachedUpdateInfo != null) {
+            isUpdateAvailable.value = cachedIsUpdateAvailable
             updateInfo.value = cachedUpdateInfo
+        }
+        if (settingsRepository.getBoolean(SettingsRepository.KEY_AUTO_UPDATE_ENABLED, true)) {
+            com.sameerasw.essentials.utils.ServiceUtils.schedulePeriodicAppUpdateCheck(context)
         }
         isAutoAccessibilityEnabled.value =
             settingsRepository.getBoolean(SettingsRepository.KEY_AUTO_ACCESSIBILITY_ENABLED)
@@ -628,6 +631,11 @@ class MainViewModel : ViewModel() {
     ) {
         isAutoUpdateEnabled.value = enabled
         settingsRepository.putBoolean(SettingsRepository.KEY_AUTO_UPDATE_ENABLED, enabled)
+        if (enabled) {
+            com.sameerasw.essentials.utils.ServiceUtils.schedulePeriodicAppUpdateCheck(context)
+        } else {
+            com.sameerasw.essentials.utils.ServiceUtils.cancelPeriodicAppUpdateCheck(context)
+        }
     }
     fun setUpdateNotificationEnabled(
         enabled: Boolean,
@@ -645,6 +653,11 @@ class MainViewModel : ViewModel() {
         // Enabling pre-releases automatically enables Developer Mode; disabling turns it off
         isDeveloperModeEnabled.value = enabled
         settingsRepository.putBooleanSync(SettingsRepository.KEY_DEVELOPER_MODE_ENABLED, enabled)
+        // Clear cached update state so the next check immediately queries the selected channel
+        cachedIsUpdateAvailable = false
+        cachedUpdateInfo = null
+        lastUpdateCheckTime = 0L
+        settingsRepository.putLong(SettingsRepository.KEY_LAST_UPDATE_CHECK_TIME, 0L)
     }
     fun setDeveloperModeEnabled(
         enabled: Boolean,
@@ -775,10 +788,8 @@ class MainViewModel : ViewModel() {
                 if (updateInfoResult != null) {
                     updateInfo.value = updateInfoResult
                     isUpdateAvailable.value = updateInfoResult.isUpdateAvailable
-                    if (updateInfoResult.isUpdateAvailable) {
-                        cachedIsUpdateAvailable = true
-                        cachedUpdateInfo = updateInfoResult
-                    }
+                    cachedIsUpdateAvailable = updateInfoResult.isUpdateAvailable
+                    cachedUpdateInfo = updateInfoResult
 
                     if (updateInfoResult.isUpdateAvailable && updateInfoResult.downloadUrl.isNotEmpty()) {
                         if (isUpdateNotificationEnabled.value) {

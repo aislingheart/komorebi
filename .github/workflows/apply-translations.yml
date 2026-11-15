@@ -175,10 +175,10 @@ jobs:
             else
               NEW_PR_URL=$(gh pr create \
                 --title "Community translations by @${CONTRIBUTOR}" \
-                --body "Translations contributed by **@${CONTRIBUTOR}** directly via the Essentials in-app translation mode." \
+                --body "Translations contributed by **@${CONTRIBUTOR}** directly via the Komorebi in-app translation mode." \
                 --label "translations" \
-                --assignee "sameerasw" \
-                --reviewer "sameerasw" \
+                --assignee "aislingheart" \
+                --reviewer "aislingheart" \
                 --base develop \
                 --head "$BRANCH_NAME")
               echo "pr_url=$NEW_PR_URL" >> $GITHUB_OUTPUT

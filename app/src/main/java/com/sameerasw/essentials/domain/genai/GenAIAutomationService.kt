@@ -91,7 +91,7 @@ object GenAIAutomationService {
 
                 val systemInstructionText =
                     """
-                    You are an automation assistant for the Essentials Android app.
+                    You are an automation assistant for the Komorebi Android app.
                     Map the user's description into a single JSON object matching the following structure:
                     {
                       "type": "TRIGGER" or "STATE" or "APP",

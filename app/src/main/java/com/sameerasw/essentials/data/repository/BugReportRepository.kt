@@ -20,8 +20,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 class BugReportRepository(
-    private val owner: String = "sameerasw",
-    private val repo: String = "essentials",
+    private val owner: String = "aislingheart",
+    private val repo: String = "komorebi",
 ) {
     private val gson = Gson()
 

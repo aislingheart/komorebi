@@ -50,7 +50,7 @@ import com.sameerasw.essentials.utils.HapticUtil
 @Composable
 fun RepoDetailsRow(
     modifier: Modifier = Modifier,
-    repoUrl: String = "https://github.com/sameerasw/essentials",
+    repoUrl: String = "https://github.com/aislingheart/komorebi",
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -58,10 +58,10 @@ fun RepoDetailsRow(
 
     LaunchedEffect(Unit) {
         val repo = ProjectDetailsRepository.getInstance(context)
-        projectDetails = repo.getProjectDetails("essentials")
+        projectDetails = repo.getProjectDetails("komorebi")
     }
 
-    val repoName = projectDetails?.repo ?: "sameerasw/essentials"
+    val repoName = projectDetails?.repo ?: "aislingheart/komorebi"
 
     Surface(
         modifier =

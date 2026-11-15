@@ -1,6 +1,6 @@
 # Project Directory & Package Structure
 
-This document outlines the package layout and file organization of the Essentials Android app following the **Feature-Modular Architecture** refactor.
+This document outlines the package layout and file organization of the Komorebi Android app following the **Feature-Modular Architecture** refactor.
 
 ---
 
@@ -9,7 +9,7 @@ This document outlines the package layout and file organization of the Essential
 ```
 app/src/main/java/com/sameerasw/essentials/
 ├── MainActivity.kt                  # Root Activity launching main Jetpack Compose UI
-├── EssentialsApp.kt                 # Application subclass handling Sentry & global initialization
+├── EssentialsApp.kt                 # Application subclass handling global app initialization
 ├── data/                            # Data access, repositories, preferences, and data sources
 │   ├── model/                       # Data models & DTOs
 │   └── repository/                  # Repositories (SettingsRepository, GitHubRepository, etc.)

@@ -5,7 +5,7 @@
     <string name="shut_up_attempt_shizuku_restart">Attempt Shizuku restart</string>
     <string name="shut_up_shizuku_restart_warning_title">Shizuku Restart Warning</string>
     <string name="shut_up_shizuku_restart_warning_message">Since wireless debugging was toggled, Shizuku services might not have started automatically causing freezing to not function. Consider turning on attempt shizuku restart as well</string>
-    <string name="accessibility_service_description"><b>Essentials Accessibility Service</b>\n\nThis service is required for the following advanced features:\n\n<b>• Physical Button Remapping:</b>\nDetects volume button presses even when the screen is off to trigger actions like the Flashlight.\n\n<b>• Per-App Settings:</b>\nMonitors the currently active app to apply specific profiles for Dynamic Night Light, Notification Lighting Colors, and App Lock.\n\n<b>• Screen Control:</b>\nAllows the app to lock the screen (e.g. via Double Tap or Widgets) and detect screen state changes.\n\n<b>• Security:</b>\nPrevents unauthorized changes by detecting window content when the device is locked.\n\n<small>No input text or sensitive user data is collected or transmitted.</small></string>
+    <string name="accessibility_service_description"><b>Komorebi Accessibility Service</b>\n\nThis service is required for the following advanced features:\n\n<b>• Physical Button Remapping:</b>\nDetects volume button presses even when the screen is off to trigger actions like the Flashlight.\n\n<b>• Per-App Settings:</b>\nMonitors the currently active app to apply specific profiles for Dynamic Night Light, Notification Lighting Colors, and App Lock.\n\n<b>• Screen Control:</b>\nAllows the app to lock the screen (e.g. via Double Tap or Widgets) and detect screen state changes.\n\n<b>• Security:</b>\nPrevents unauthorized changes by detecting window content when the device is locked.\n\n<small>No input text or sensitive user data is collected or transmitted.</small></string>
     <string name="freeze_activity_title">Đóng băng ứng dụng</string>
     <string name="freeze_activity_subtitle">Tắt các ứng dụng ít sử dụng</string>
     <string name="freeze_shortcut_short_label">Đóng băng ứng dụng</string>
@@ -64,7 +64,7 @@
     <string name="like_song_settings_desc">Tính năng này yêu cầu quyền truy cập thông báo để phát hiện phương tiện hiện đang phát và kích hoạt hành động tương tự. Vui lòng kích hoạt nó bên dưới.</string>
     <string name="like_song_toast_enabled">Hiển thị tin nhắn bánh mì nướng</string>
     <string name="like_song_aod_overlay_title">Hiển thị lớp phủ trên AOD</string>
-    <string name="feat_essentials_on_display_title">Essentials On Display</string>
+    <string name="feat_essentials_on_display_title">Komorebi On Display</string>
     <string name="feat_essentials_on_display_desc">Xem qua các phương tiện truyền thông và thông tin về AOD</string>
     <string name="essentials_on_display_docked_mode_title">Chế độ đế</string>
     <string name="essentials_on_display_docked_mode_desc">Giữ cho lớp phủ luôn hiển thị trong khi nhạc đang phát trên chế độ AOD</string>
@@ -382,7 +382,7 @@
     <string name="cat_visuals">Hình ảnh</string>
     <string name="cat_system">Hệ thống</string>
     <!-- UI Elements -->
-    <string name="search_placeholder">Search Essentials</string>
+    <string name="search_placeholder">Search Komorebi</string>
     <string name="search_no_results">Không có kết quả cho \"%1$s\"</string>
     <string name="search_results_title">Kết quả tìm kiếm</string>
     <string name="requires_following_permissions">%1$s yêu cầu các quyền sau</string>
@@ -592,7 +592,7 @@
     <string name="perm_default_browser_title">Trình duyệt mặc định</string>
     <string name="perm_default_browser_desc">Cần thiết để xử lý các liên kết hiệu quả</string>
     <string name="perm_accessibility_desc_remap">Cần thiết để chặn các sự kiện nút phần cứng</string>
-    <string name="perm_accessibility_desc_essentials_on_display">Required to intercept volume key events while the screen is off to trigger the Essentials On Display overlay.</string>
+    <string name="perm_accessibility_desc_essentials_on_display">Required to intercept volume key events while the screen is off to trigger the Komorebi On Display overlay.</string>
     <string name="perm_accessibility_desc_night_light">Cần thiết để giám sát các ứng dụng nền trước.</string>
     <string name="perm_write_secure_title">Viết cài đặt bảo mật</string>
     <string name="perm_write_secure_desc_common">Cần thiết cho các biểu tượng Thanh trạng thái và Bảo mật khóa màn hình</string>
@@ -618,7 +618,7 @@
     <string name="tab_apps">Ứng dụng</string>
     <string name="tab_freeze_subtitle">Ứng dụng bị vô hiệu hóa</string>
     <string name="tab_diy_subtitle">Tự làm</string>
-    <string name="diy_header_caption">Automate essentials</string>
+    <string name="diy_header_caption">Automate your device</string>
     <string name="freeze_header_caption">%1$d/%2$d apps</string>
     <string name="tab_apps_subtitle">Tìm và quản lý ứng dụng</string>
     <string name="feat_app_updates_title">Cập nhật ứng dụng</string>
@@ -668,11 +668,11 @@
     <string name="sentry_report_mode_title">Báo cáo lỗi</string>
     <string name="sentry_mode_off">Tắt</string>
     <string name="sentry_mode_auto">Tự động</string>
-    <string name="sentry_crash_toast">Essentials crashed, Report sent</string>
+    <string name="sentry_crash_toast">Komorebi crashed, Report sent</string>
     <string name="simulate_crash">Simulate crash</string>
-    <string name="welcome_title">Welcome to Essentials</string>
+    <string name="welcome_title">Welcome to Komorebi</string>
     <string name="welcome_subtitle">A Toolbox for Android Nerds</string>
-    <string name="welcome_developer_attribution">by sameerasw.com</string>
+    <string name="welcome_developer_attribution">by aislingheart</string>
     <string name="action_lets_begin">Let\'s Begin</string>
     <string name="acknowledgement_title">Acknowledgement</string>
     <string name="acknowledgement_desc">This app is a collection of utilities that can interact deeply with your device system. Using some features might modify system settings or behavior in unexpected ways. \n\nYou only need to grant necessary permissions which are required for selected features you are using giving you full control over the app\'s behavior. \n\nFurther more, the app does not track or store any of your personal data, I don\'t need them... Keep to yourself safe. You can refer to the source code for more information. \n\nThis app is fully open source and is and always will be free to use. Do not pay or install from unknown sources.</string>
@@ -692,7 +692,7 @@
     <string name="desc_auto_check_updates">Kiểm tra bản cập nhật khi khởi chạy ứng dụng</string>
     <string name="action_all_set">All Set</string>
     <string name="action_check_whats_new">Xem có gì mới?</string>
-    <string name="welcome_back_title">Welcome back to Essentials</string>
+    <string name="welcome_back_title">Welcome back to Komorebi</string>
     <string name="action_see_whats_new">See what\'s new</string>
     <string name="label_mode_default">Default</string>
     <string name="label_mode_glove">Chế độ găng tay</string>
@@ -717,7 +717,7 @@
     <string name="action_what_is_this">Đây là cái gì?</string>
     <string name="update_available_title">Cập nhật có sẵn</string>
     <string name="about_desc_your_android">Glance at your device\'s hardware and software specifications in detail. This information is fetched from GSMArena and system properties to provide a comprehensive overview of your Android device.</string>
-    <string name="about_desc_essentials_on_display">Tính năng \"Essentials On Display\" hiển thị lớp phủ thông tin bài hát đang phát trên màn hình khóa mỗi khi nhạc đang chạy hoặc có thay đổi về trạng thái phát nhạc.
+    <string name="about_desc_essentials_on_display">Tính năng \"Komorebi On Display\" hiển thị lớp phủ thông tin bài hát đang phát trên màn hình khóa mỗi khi nhạc đang chạy hoặc có thay đổi về trạng thái phát nhạc.
 
 Nếu thiết bị của bạn không hỗ trợ hiển thị lớp phủ đè lên màn hình AOD (Always On Display), bạn có thể chọn sử dụng trình bảo vệ màn hình \"Ambience\" (có trong phần cài đặt Android) làm giải pháp thay thế khi đang sạc pin.</string>
     <string name="about_desc_notification_lighting">Ánh sáng thông báo thêm hiệu ứng ánh sáng cạnh đẹp mắt khi bạn nhận được thông báo.\n\nBạn có thể tùy chỉnh kiểu hoạt ảnh, màu sắc và hành vi. Nó hoạt động ngay cả khi màn hình tắt (phụ thuộc OEM) hoặc ở trên ứng dụng hiện tại của bạn. Chọn ứng dụng, mức độ ưu tiên của thông báo hoặc hành vi nào sẽ được kích hoạt từ các điều khiển nhất định. Nếu OEM của bạn không hỗ trợ lớp phủ trên AOD, hãy kiện tùy chọn Hiển thị xung quanh được tìm thấy bên dưới.</string>
@@ -740,7 +740,7 @@ Trên các thiết bị có phần cứng hỗ trợ điều chỉnh độ sáng
     <string name="about_desc_dynamic_night_light">Tự động chuyển đổi bộ lọc ánh sáng xanh trên màn hình của bạn dựa trên ứng dụng nền trước.</string>
     <string name="about_desc_screen_locked_security">Tăng cường bảo mật khi thiết bị của bạn bị khóa.\n\nHạn chế quyền truy cập vào một số ô QS nhạy cảm ngăn chặn sửa đổi mạng trái phép và ngăn chặn chúng cố gắng làm như vậy lại bằng cách tăng tốc độ hoạt ảnh để ngăn chặn spam cảm ứng.\n\nTính năng này không mạnh mẽ và có thể có sai sót, chẳng hạn như một số ô cho phép chuyển đổi trực tiếp như bluetooth hoặc chế độ máy bay không thể ngăn chặn được.</string>
     <string name="about_desc_app_lock">Bảo mật ứng dụng của bạn bằng lớp xác thực phụ.\n\nPhương thức xác thực màn hình khóa thiết bị của bạn sẽ được sử dụng miễn là nó đáp ứng mức bảo mật sinh trắc học cấp 3 theo tiêu chuẩn Android.</string>
-    <string name="about_desc_location_reached">Nhận thông báo khi bạn đến gần điểm đến hơn để đảm bảo bạn không bao giờ bỏ lỡ điểm dừng.\n\nTruy cập Google Maps, nhấn và giữ một ghim ở gần điểm đến của bạn và đảm bảo rằng ghim đó có nội dung \"Đã đánh dấu ghim\" (Nếu không, tính toán khoảng cách có thể không chính xác), sau đó chia sẻ vị trí với ứng dụng Essentials và bắt đầu theo dõi.</string>
+    <string name="about_desc_location_reached">Nhận thông báo khi bạn đến gần điểm đến hơn để đảm bảo bạn không bao giờ bỏ lỡ điểm dừng.\n\nTruy cập Google Maps, nhấn và giữ một ghim ở gần điểm đến của bạn và đảm bảo rằng ghim đó có nội dung \"Đã đánh dấu ghim\" (Nếu không, tính toán khoảng cách có thể không chính xác), sau đó chia sẻ vị trí với ứng dụng Komorebi và bắt đầu theo dõi.</string>
     <string name="location_reached_add_title">Add Destination</string>
     <string name="location_reached_edit_title">Edit Destination</string>
     <string name="location_reached_name_placeholder">Home, Office, etc.</string>
@@ -754,7 +754,7 @@ Trên các thiết bị có phần cứng hỗ trợ điều chỉnh độ sáng
     <string name="location_reached_delete">Delete Destination</string>
     <string name="location_reached_tracking_now">Tracking Now</string>
     <string name="location_reached_restart_btn">Re-Start</string>
-    <string name="location_reached_instructional_desc">Share coordinates (Dropped pin) from Google Maps to Essentials to save as a destination.\n\nThe distance shown is the direct distance to the destination, not the distance along the roads.\n\nTake all calculations of time and distance with a grain of salt as they are not always accurate.</string>
+    <string name="location_reached_instructional_desc">Share coordinates (Dropped pin) from Google Maps to Komorebi to save as a destination.\n\nThe distance shown is the direct distance to the destination, not the distance along the roads.\n\nTake all calculations of time and distance with a grain of salt as they are not always accurate.</string>
     <string name="tile_location_reached">Are we there yet?</string>
     <string name="location_reached_pause">Pause</string>
     <string name="location_reached_resume">Resume</string>
@@ -769,8 +769,8 @@ Trên các thiết bị có phần cứng hỗ trợ điều chỉnh độ sáng
     <string name="about_desc_freeze">Đóng băng các ứng dụng để ngăn chúng chạy ẩn.\n\nNgăn chặn tình trạng hao pin và sử dụng dữ liệu bằng cách đóng băng hoàn toàn các ứng dụng khi bạn không sử dụng chúng. Chúng sẽ được rã đông ngay lập tức khi bạn khởi chạy chúng. Các ứng dụng sẽ không hiển thị trong ngăn ứng dụng và cũng sẽ không hiển thị để cập nhật ứng dụng trong Cửa hàng Play khi bị treo.</string>
     <string name="about_desc_system_keyboard">Phương thức nhập tùy chỉnh không ai yêu cầu.\n\nĐây chỉ là một thử nghiệm. Nhiều ngôn ngữ có thể không nhận được hỗ trợ vì đây là việc triển khai rất phức tạp và tốn thời gian.</string>
     <string name="about_desc_batteries">Theo dõi mức pin của tất cả các thiết bị được kết nối của bạn.\n\nXem trạng thái pin của tai nghe, đồng hồ Bluetooth và các phụ kiện khác ở cùng một nơi. Kết nối với ứng dụng AirSync để hiển thị mức pin máy Mac của bạn.</string>
-    <string name="about_desc_watermark">Thêm chú thích/hình mờ tùy chỉnh vào ảnh của bạn bằng dữ liệu EXIF ​​​​và thông tin thiết bị.\n\nChia sẻ hình ảnh trực tiếp từ ứng dụng khác lên Essentials để dễ dàng thêm hình mờ.</string>
-    <string name="about_desc_calendar_sync">Đồng bộ hóa tất cả lịch sắp tới của bạn bất kể các hạn chế đối với tài khoản Google không cho phép thêm vào thiết bị wearOS do chính sách của cơ quan hoặc trường học. \n\nĐảm bảo cài đặt ứng dụng đồng hành wearOS Essentials để hiển thị lịch trong ứng dụng cũng như trong một ô hoặc một chức năng.</string>
+    <string name="about_desc_watermark">Thêm chú thích/hình mờ tùy chỉnh vào ảnh của bạn bằng dữ liệu EXIF ​​​​và thông tin thiết bị.\n\nChia sẻ hình ảnh trực tiếp từ ứng dụng khác lên Komorebi để dễ dàng thêm hình mờ.</string>
+    <string name="about_desc_calendar_sync">Đồng bộ hóa tất cả lịch sắp tới của bạn bất kể các hạn chế đối với tài khoản Google không cho phép thêm vào thiết bị wearOS do chính sách của cơ quan hoặc trường học. \n\nĐảm bảo cài đặt ứng dụng đồng hành wearOS Komorebi để hiển thị lịch trong ứng dụng cũng như trong một ô hoặc một chức năng.</string>
     <string name="about_desc_app_updates">Theo dõi các bản cập nhật cho các ứng dụng đã cài đặt của bạn.\n\nNhận thông báo về các bản cập nhật có sẵn, xem nhật ký thay đổi và cài đặt chúng dễ dàng chỉ bằng một cú chạm.</string>
     <string name="about_desc_call_vibrations">Thêm phản hồi xúc giác cho cuộc gọi của bạn.\n\nRung khi cuộc gọi được kết nối, ngắt kết nối hoặc được chấp nhận, giúp bạn xác nhận bằng xúc giác mà không cần nhìn vào màn hình.</string>
     <string name="about_desc_sound_mode_tile">Chuyển đổi nhanh chóng giữa các chế độ Âm thanh, Rung và Im lặng.\n\nMột ô tiện lợi để thay đổi chế độ chuông của bạn mà không cần sử dụng các nút âm lượng hoặc cài đặt. Bạn có thể sắp xếp lại các chế độ hoặc tắt bất kỳ chế độ nào nếu không cần thiết để tùy chỉnh ô chuyển đổi theo hành vi chu kỳ.</string>
@@ -850,7 +850,7 @@ Cần có quyền ghi cài đặt bảo mật để bật hoặc tắt tính nă
     <string name="diy_action_sound_mode">Chế độ âm thanh</string>
     <string name="diy_sound_mode_desc">Hành động này cho phép chuyển đổi giữa các chế độ Âm thanh, Rung và Im lặng dựa trên trình kích hoạt. Nó yêu cầu quyền truy cập Không làm phiền.</string>
     <!-- About Section -->
-    <string name="app_developer_name">Sameera Wijerathna</string>
+    <string name="app_developer_name">aislingheart</string>
     <string name="app_description">Hộp công cụ tất cả trong một dành cho Pixel và Android của bạn</string>
     <!-- Edge Lighting -->
     <string name="color_mode_system">Hệ thống</string>
@@ -1088,7 +1088,7 @@ Cần có quyền ghi cài đặt bảo mật để bật hoặc tắt tính nă
     <!-- Instructions Content -->
     <string name="instruction_section_perms_title">Quyền truy cập, thông báo và lớp phủ</string>
     <string name="instruction_step_perms_1">Bạn có thể nhận được thông báo từ chối quyền truy cập này nếu cố gắng cấp các quyền nhạy cảm như quyền truy cập, trình nghe thông báo hoặc quyền lớp phủ. Để cấp nó, hãy kiểm tra các bước dưới đây.</string>
-    <string name="instruction_step_perms_2">1. Vào trang thông tin ứng dụng của Essentials.</string>
+    <string name="instruction_step_perms_2">1. Vào trang thông tin ứng dụng của Komorebi.</string>
     <string name="instruction_step_perms_3">2. Mở menu 3 chấm và chọn \'Cho phép cài đặt hạn chế\'. Bạn có thể phải xác thực bằng sinh trắc học. Sau khi hoàn tất, hãy thử cấp lại quyền.</string>
     <string name="instruction_section_shizuku_title">Shizuku</string>
     <string name="instruction_section_shizuku_desc">Shizuku là một công cụ mạnh mẽ cho phép các ứng dụng sử dụng API hệ thống trực tiếp với quyền ADB hoặc quyền root. Nó được yêu cầu cho các tính năng như chế độ tối thiểu của Maps, App Freezer. Và sẽ không cấp một số quyền như WRITE_SECURE_SETTINGS. \n\nNhưng phiên bản Cửa hàng Play của Shizuku có thể đã lỗi thời và có thể sẽ không sử dụng được trên các phiên bản Android gần đây, vì vậy trong trường hợp đó, vui lòng tải phiên bản mới nhất từ ​​github hoặc một nhánh cập nhật của nó.</string>
@@ -1121,7 +1121,7 @@ Cần có quyền ghi cài đặt bảo mật để bật hoặc tắt tính nă
     <!-- Location Reached -->
     <string name="feat_location_reached_title">Chúng ta đến đó chưa?</string>
     <string name="feat_location_reached_desc">Cảnh báo điểm đến lân cận</string>
-    <string name="location_reached_how_to">Mở Google Maps, chọn một vị trí và chia sẻ vị trí đó với Essentials.</string>
+    <string name="location_reached_how_to">Mở Google Maps, chọn một vị trí và chia sẻ vị trí đó với Komorebi.</string>
     <string name="location_reached_radius_title">Bán kính cảnh báo: %d m</string>
     <string name="perm_location_title">Vị trí</string>
     <string name="perm_location_desc">Được sử dụng để phát hiện việc đến đích của bạn.</string>
@@ -1246,11 +1246,11 @@ Cần có quyền ghi cài đặt bảo mật để bật hoặc tắt tính nă
     <string name="feat_watch_title">Đồng hồ</string>
     <string name="feat_watch_desc">Tích hợp với WearOS</string>
     <string name="watch_no_companion_title">Không phát hiện Đồng hồ</string>
-    <string name="watch_no_companion_desc">Có vẻ như bạn chưa cài đặt ứng dụng đồng hành Essentials Wear trên đồng hồ của mình.</string>
+    <string name="watch_no_companion_desc">Có vẻ như bạn chưa cài đặt ứng dụng đồng hành Komorebi Wear trên đồng hồ của mình.</string>
     <string name="watch_install_companion_action">Cài đặt đồng hành</string>
     <string name="action_download_from_github">Download from GitHub</string>
     <string name="watch_help_title">Install on Watch</string>
-    <string name="watch_help_description">To use Watch features, you need to install the Essentials companion app on your Wear OS watch. Click the button below to open the Play Store directly on your watch.</string>
+    <string name="watch_help_description">To use Watch features, you need to install the Komorebi companion app on your Wear OS watch. Click the button below to open the Play Store directly on your watch.</string>
     <string name="watch_help_open_play_store">Open on Watch</string>
     <string name="cat_interaction">Sự tương tác</string>
     <string name="cat_interface">Giao diện</string>
@@ -1383,11 +1383,11 @@ Một số cài đặt có thể cần quyền nâng cao hoặc phải khởi đ
     <string name="msg_flashbang">Get ready to be flashbanged!</string>
     <string name="action_abort">Abort</string>
     <string name="action_continue">Continue</string>
-    <string name="prank_trial_expired_title">Your Essentials trial has expired</string>
-    <string name="prank_trial_expired_desc">Your free trial period of Essentials has ended. Access to advanced features like Button Remap, App Freezing, and DIY Automations with Premium.</string>
+    <string name="prank_trial_expired_title">Your Komorebi trial has expired</string>
+    <string name="prank_trial_expired_desc">Your free trial period of Komorebi has ended. Access to advanced features like Button Remap, App Freezing, and DIY Automations with Premium.</string>
     <string name="prank_button_premium">What\'s in Premium?</string>
     <string name="prank_reveal_title">April Fools!</string>
-    <string name="prank_reveal_desc">Just kidding, Essentials is and will always be free and open source. Enjoy! (っ◕‿◕)っ</string>
+    <string name="prank_reveal_desc">Just kidding, Komorebi is and will always be free and open source. Enjoy! (っ◕‿◕)っ</string>
     <string name="notification_lighting_style_system">System</string>
     <string name="notification_lighting_system_mode_title">Ripple Animation</string>
     <string name="notification_lighting_system_mode_charging_ripple">Bottom</string>
@@ -1623,7 +1623,7 @@ Cần có quyền quản trị thiết bị nếu sử dụng chế độ khóa.
     <string name="pixel_searchbar_style_date">Ngày</string>
     <string name="pixel_searchbar_background_pill_desc">Hiển thị ngày tháng bên trong một vùng chứa.</string>
     <string name="watch_notif_sync_title">Đồng bộ hóa thông báo</string>
-    <string name="watch_notif_sync_desc">Tới trình khởi chạy Essentials</string>
+    <string name="watch_notif_sync_desc">Tới trình khởi chạy Komorebi</string>
     <string name="watch_notif_sync_choose_apps">Chọn ứng dụng</string>
     <string name="watch_notif_sync_choose_apps_desc">Chỉ những ứng dụng được chọn mới được đồng bộ hóa với đồng hồ</string>
     <string name="watch_call_sync_title">Đồng bộ hoá cuộc gọi</string>
@@ -1764,9 +1764,9 @@ Cần có quyền quản trị thiết bị nếu sử dụng chế độ khóa.
     <string name="perm_install_packages_title">Cài đặt ứng dụng không rõ nguồn gốc</string>
     <string name="perm_install_packages_desc">Ứng dụng này cần thiết để tự động tải xuống và cài đặt các bản cập nhật.</string>
     <string name="perm_contacts_title">Quyền truy cập danh bạ</string>
-    <string name="perm_contacts_desc">Để hiển thị danh bạ trong kết quả tìm kiếm Pixel, Essentials cần quyền đọc danh bạ của bạn.</string>
+    <string name="perm_contacts_desc">Để hiển thị danh bạ trong kết quả tìm kiếm Pixel, Komorebi cần quyền đọc danh bạ của bạn.</string>
     <string name="perm_storage_title">Truy cập tất cả các tập tin</string>
-    <string name="perm_storage_desc">Để đọc hình nền hiện tại của bạn, vốn không thể truy cập bằng các quyền thông thường, Essentials cần quyền truy cập vào bộ nhớ ngoài.</string>
+    <string name="perm_storage_desc">Để đọc hình nền hiện tại của bạn, vốn không thể truy cập bằng các quyền thông thường, Komorebi cần quyền truy cập vào bộ nhớ ngoài.</string>
     <string name="perm_bubbles_title">Bong bóng nổi</string>
     <string name="perm_bubbles_desc">Cho phép xem trước nội dung web mở trong các bong bóng hội thoại nổi phía trên các ứng dụng khác</string>
     <string name="perm_bubbles_instructions">Đặt thành \"Tất cả cuộc trò chuyện có thể hiển thị dưới dạng thông báo nổi bật\" trong cài đặt thông báo ứng dụng, hoặc cấp quyền thông qua Shizuku / Root.</string>
@@ -1988,7 +1988,7 @@ Cần có quyền truy cập trợ năng để hiển thị lớp phủ và cầ
     <string name="island_max_items_title">Số lượng tối đa để xem</string>
     <string name="diy_action_notification_lighting">Kích hoạt đèn thông báo</string>
     <string name="diy_action_overlay_control">Lớp phủ</string>
-    <string name="essential_search_label">Tìm kiếm Essential</string>
+    <string name="essential_search_label">Tìm kiếm Komorebi</string>
     <string name="island_landscape_top_spacing_title">Khoảng cách phía trên ở chế độ ngang</string>
     <string name="island_bond_edge_title">Liên kết với tai thỏ khi không hoạt động</string>
     <string name="feat_widget_stack_title">Chồng tiện ích</string>
@@ -2042,7 +2042,7 @@ Các tiện ích trong chồng (stack) sẽ tự động chuyển đổi theo b�
 
 Một chỉ báo trạng thái kiểu iPhone Duo giúp hiển thị pin, mạng, trạng thái phát nội dung đa phương tiện và nhiều thông tin khác trong giao diện nhỏ gọn, tối giản, lý tưởng nhất là quanh camera, với nhiều mục hiển thị và thao tác bằng cử chỉ.
 
-Đối với các thiết bị gập, hãy tắt tùy chọn “Tự động phát hiện camera” nếu tính năng này không đáng tin cậy, rồi căn chỉnh Duo thủ công với vị trí camera bên trong và bên ngoài. Sau đó, Essentials sẽ ghi nhớ bố cục của bạn.</string>
+Đối với các thiết bị gập, hãy tắt tùy chọn “Tự động phát hiện camera” nếu tính năng này không đáng tin cậy, rồi căn chỉnh Duo thủ công với vị trí camera bên trong và bên ngoài. Sau đó, Komorebi sẽ ghi nhớ bố cục của bạn.</string>
     <string name="label_shake_for_help">Lắc để trợ giúp</string>
     <string name="about_desc_island">Dynamic island dành cho Android của bạn, bao quanh phần khoét hình camera.
 
@@ -2071,18 +2071,18 @@ Tự động tắt đèn pin khi điện thoại nằm trong túi, giảm độ 
 Một số thiết bị không hỗ trợ phần cứng cần thiết để điều chỉnh độ sáng.</string>
     <string name="about_desc_face_illumination">Giúp tính năng mở khóa bằng khuôn mặt nhận diện bạn trong bóng tối.
 
-Khi màn hình bật sáng trong điều kiện thiếu sáng, Essentials sẽ chiếu lên màn hình một ánh sáng dịu có màu để camera trước có thể nhìn thấy khuôn mặt bạn. Bạn có thể đặt ngưỡng ánh sáng môi trường để quyết định khi nào tính năng này hoạt động, chọn màu ánh sáng và chọn xem tính năng sẽ tự động chiếu sáng khi màn hình bật hay chỉ hoạt động khi bạn kích hoạt.
+Khi màn hình bật sáng trong điều kiện thiếu sáng, Komorebi sẽ chiếu lên màn hình một ánh sáng dịu có màu để camera trước có thể nhìn thấy khuôn mặt bạn. Bạn có thể đặt ngưỡng ánh sáng môi trường để quyết định khi nào tính năng này hoạt động, chọn màu ánh sáng và chọn xem tính năng sẽ tự động chiếu sáng khi màn hình bật hay chỉ hoạt động khi bạn kích hoạt.
 
 Tính năng này cũng có thể kích hoạt mở khóa thay bạn. Cần có quyền Trợ năng.</string>
     <string name="about_desc_link_actions">Chọn cách mở liên kết thay vì bị giới hạn ở một ứng dụng.
 
-Khi bạn mở một liên kết, Essentials cho phép bạn chọn giữa nhiều ứng dụng để xử lý liên kết đó. Bạn cũng có thể mở liên kết trong bong bóng, sao chép, chia sẻ hoặc rút gọn liên kết và tạo mã QR.</string>
+Khi bạn mở một liên kết, Komorebi cho phép bạn chọn giữa nhiều ứng dụng để xử lý liên kết đó. Bạn cũng có thể mở liên kết trong bong bóng, sao chép, chia sẻ hoặc rút gọn liên kết và tạo mã QR.</string>
     <string name="about_desc_daily_wallpaper">Giữ hình nền luôn mới mẻ với hình nền được tuyển chọn mỗi ngày hoặc đặt hình nền động.
 
 Chọn hình nền, xem trước và xếp hàng hình nền cho ngày mai trước khi áp dụng, đồng thời quản lý hình nền động ở cùng một nơi.</string>
     <string name="about_desc_watch">Tích hợp giữa điện thoại và đồng hồ Wear OS của bạn.
 
-Cài đặt ứng dụng đồng hành Essentials trên đồng hồ để đồng bộ hóa thông báo và cuộc gọi, khóa điện thoại từ đồng hồ, tùy chỉnh mặt đồng hồ và các tiện ích, đồng bộ hóa chế độ âm thanh và trạng thái vị trí, cài đặt eSIM và bật tính năng gỡ lỗi không dây từ xa.</string>
+Cài đặt ứng dụng đồng hành Komorebi trên đồng hồ để đồng bộ hóa thông báo và cuộc gọi, khóa điện thoại từ đồng hồ, tùy chỉnh mặt đồng hồ và các tiện ích, đồng bộ hóa chế độ âm thanh và trạng thái vị trí, cài đặt eSIM và bật tính năng gỡ lỗi không dây từ xa.</string>
     <string name="about_desc_network_download_rate_limit">Limit the system-wide download speed.\n\nUseful to stop large downloads and updates from using all of your bandwidth. Requires advanced permissions such as Shizuku or root.</string>
     <string name="about_desc_mobile_data_always_on">Keeps mobile data active even while connected to Wi-Fi.\n\nThis lets your phone switch to mobile data instantly when the Wi-Fi connection gets weak or drops, at the cost of some extra battery use.</string>
     <string name="about_desc_wireless_display_certification">Shows the hidden wireless display certification options in Android\'s developer settings.\n\nThese options expose extra Wi-Fi display (Miracast) settings for testing and troubleshooting casting.</string>
@@ -2105,7 +2105,7 @@ Thật tiện lợi nếu bạn để quên điện thoại ở đâu đó và m
     <string name="about_desc_watch_controls">Tùy chỉnh các điều khiển hiển thị trên đồng hồ của bạn.
 
 Chọn những thao tác khả dụng để đồng hồ chỉ hiển thị những gì bạn cần.</string>
-    <string name="about_desc_watchface">Tùy chỉnh mặt đồng hồ Essentials trên đồng hồ Wear OS của bạn.
+    <string name="about_desc_watchface">Tùy chỉnh mặt đồng hồ Komorebi trên đồng hồ Wear OS của bạn.
 
 Thay đổi giao diện và cài đặt của mặt đồng hồ bằng điện thoại.</string>
     <string name="about_desc_complications">Tùy chỉnh các tiện ích thông tin hiển thị trên mặt đồng hồ.

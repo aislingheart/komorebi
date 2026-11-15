@@ -133,39 +133,11 @@ fun RaycastScreenHost(
     var activeActionPanel by remember { mutableStateOf<RaycastActionPanelSpec?>(null) }
     var selectedItemId by remember(screen) { mutableStateOf<String?>(null) }
 
-    val primaryPanel: RaycastActionPanelSpec? = when (screen) {
-        is RaycastViewScreen.ListScreen -> {
-            val allItems = screen.sections.flatMap { it.items }
-            val focused = allItems.firstOrNull { it.id == selectedItemId } ?: allItems.firstOrNull()
-            focused?.actions ?: screen.actions
-        }
-        is RaycastViewScreen.GridScreen -> {
-            val allItems = screen.sections.flatMap { it.items }
-            val focused = allItems.firstOrNull { it.id == selectedItemId } ?: allItems.firstOrNull()
-            focused?.actions ?: screen.actions
-        }
-        is RaycastViewScreen.DetailScreen -> screen.actions
-        is RaycastViewScreen.FormScreen -> screen.actions
-    }
-
-    val formState = remember(screen) { mutableStateMapOf<String, Any>() }
-    if (screen is RaycastViewScreen.FormScreen) {
-        screen.fields.forEach { field ->
-            if (!formState.containsKey(field.id)) {
-                when (field.kind) {
-                    "checkbox" -> formState[field.id] = field.boolValue ?: false
-                    else -> formState[field.id] = field.textValue ?: ""
-                }
-            }
-        }
-    }
+    val primaryPanel = rememberRaycastPrimaryPanel(screen, selectedItemId)
+    val formState = rememberRaycastFormState(screen)
 
     fun executeAction(action: RaycastActionSpec) {
-        if (action.isSubmit && action.onSubmitId != null) {
-            onInvokeCallback(action.onSubmitId, arrayOf(formState.toMap()))
-        } else if (action.onActionId != null) {
-            onInvokeCallback(action.onActionId, emptyArray())
-        }
+        executeRaycastAction(action, formState, onInvokeCallback)
     }
 
     Scaffold(
@@ -265,127 +237,223 @@ fun RaycastScreenHost(
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            when (screen) {
-                is RaycastViewScreen.ListScreen -> RaycastListView(
-                    screen = screen,
-                    extension = extension,
-                    selectedItemId = selectedItemId,
-                    onSelect = { item ->
-                        selectedItemId = item.id
-                        screen.onSelectionChangeId?.let { onInvokeCallback(it, arrayOf(item.id)) }
-                    },
-                    onPrimaryAction = { item ->
-                        selectedItemId = item.id
-                        val primary = item.actions?.primaryAction ?: screen.actions?.primaryAction
-                        if (primary != null) executeAction(primary)
-                        else if (item.actions != null) activeActionPanel = item.actions
-                    },
-                    onLongPress = { item ->
-                        selectedItemId = item.id
-                        activeActionPanel = item.actions ?: screen.actions
-                    },
-                    onSearchChange = { query ->
-                        screen.onSearchTextChangeId?.let { onInvokeCallback(it, arrayOf(query)) }
-                    },
-                    onDropdownChange = { dropdown, value ->
-                        dropdown.onChangeId?.let { onInvokeCallback(it, arrayOf(value)) }
-                    },
-                    onLoadMore = {
-                        screen.onLoadMoreId?.let { onInvokeCallback(it, emptyArray()) }
-                    },
-                )
-                is RaycastViewScreen.GridScreen -> RaycastGridView(
-                    screen = screen,
-                    extension = extension,
-                    onPrimaryAction = { item ->
-                        selectedItemId = item.id
-                        val primary = item.actions?.primaryAction ?: screen.actions?.primaryAction
-                        if (primary != null) executeAction(primary)
-                        else if (item.actions != null) activeActionPanel = item.actions
-                    },
-                    onLongPress = { item ->
-                        selectedItemId = item.id
-                        activeActionPanel = item.actions ?: screen.actions
-                    },
-                    onSearchChange = { query ->
-                        screen.onSearchTextChangeId?.let { onInvokeCallback(it, arrayOf(query)) }
-                    },
-                    onDropdownChange = { dropdown, value ->
-                        dropdown.onChangeId?.let { onInvokeCallback(it, arrayOf(value)) }
-                    },
-                )
-                is RaycastViewScreen.DetailScreen -> RaycastDetailView(
-                    markdown = screen.markdown,
-                    metadata = screen.metadata,
-                    extension = extension,
-                )
-                is RaycastViewScreen.FormScreen -> RaycastFormView(
-                    fields = screen.fields,
-                    formState = formState,
-                    onFieldChange = { field, newVal ->
-                        formState[field.id] = newVal
-                        field.onChangeId?.let { onInvokeCallback(it, arrayOf(newVal)) }
-                    },
-                )
-            }
+            RaycastScreenBody(
+                screen = screen,
+                extension = extension,
+                selectedItemId = selectedItemId,
+                formState = formState,
+                onSelectItem = { selectedItemId = it },
+                onOpenActionPanel = { activeActionPanel = it },
+                onInvokeCallback = onInvokeCallback,
+            )
         }
     }
 
     activeActionPanel?.let { panel ->
-        ModalBottomSheet(
+        RaycastActionPanelSheet(
+            panel = panel,
+            extension = extension,
             onDismissRequest = { activeActionPanel = null },
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .padding(bottom = 28.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text(
-                    text = panel.title?.takeIf { it.isNotBlank() } ?: "Actions",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(bottom = 4.dp),
-                )
-                panel.sections.forEach { section ->
-                    if (!section.title.isNullOrBlank()) {
-                        Text(
-                            text = section.title,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(top = 6.dp),
-                        )
-                    }
-                    section.actions.forEach { action ->
-                        RaycastActionRow(
-                            action = action,
-                            extension = extension,
-                            onClick = {
-                                activeActionPanel = null
-                                executeAction(action)
-                            },
-                        )
-                    }
+            onExecuteAction = { action ->
+                activeActionPanel = null
+                executeAction(action)
+            },
+        )
+    }
+}
+
+@Composable
+fun rememberRaycastPrimaryPanel(
+    screen: RaycastViewScreen,
+    selectedItemId: String?,
+): RaycastActionPanelSpec? = when (screen) {
+    is RaycastViewScreen.ListScreen -> {
+        val allItems = screen.sections.flatMap { it.items }
+        val focused = allItems.firstOrNull { it.id == selectedItemId } ?: allItems.firstOrNull()
+        focused?.actions ?: screen.actions
+    }
+    is RaycastViewScreen.GridScreen -> {
+        val allItems = screen.sections.flatMap { it.items }
+        val focused = allItems.firstOrNull { it.id == selectedItemId } ?: allItems.firstOrNull()
+        focused?.actions ?: screen.actions
+    }
+    is RaycastViewScreen.DetailScreen -> screen.actions
+    is RaycastViewScreen.FormScreen -> screen.actions
+}
+
+@Composable
+fun rememberRaycastFormState(screen: RaycastViewScreen): MutableMap<String, Any> {
+    val formState = remember(screen) { mutableStateMapOf<String, Any>() }
+    if (screen is RaycastViewScreen.FormScreen) {
+        screen.fields.forEach { field ->
+            if (!formState.containsKey(field.id)) {
+                when (field.kind) {
+                    "checkbox" -> formState[field.id] = field.boolValue ?: false
+                    else -> formState[field.id] = field.textValue ?: ""
                 }
-                panel.submenus.forEach { submenu ->
+            }
+        }
+    }
+    return formState
+}
+
+fun executeRaycastAction(
+    action: RaycastActionSpec,
+    formState: Map<String, Any>,
+    onInvokeCallback: (String, Array<Any?>) -> Unit,
+) {
+    if (action.isSubmit && action.onSubmitId != null) {
+        onInvokeCallback(action.onSubmitId, arrayOf(formState.toMap()))
+    } else if (action.onActionId != null) {
+        onInvokeCallback(action.onActionId, emptyArray())
+    }
+}
+
+@Composable
+fun RaycastScreenBody(
+    screen: RaycastViewScreen,
+    extension: InstalledRaycastExtension,
+    selectedItemId: String?,
+    formState: MutableMap<String, Any>,
+    onSelectItem: (String) -> Unit,
+    onOpenActionPanel: (RaycastActionPanelSpec) -> Unit,
+    onInvokeCallback: (String, Array<Any?>) -> Unit,
+    externalSearchQuery: String? = null,
+    hideSearchBar: Boolean = false,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+) {
+    fun execute(action: RaycastActionSpec) {
+        executeRaycastAction(action, formState, onInvokeCallback)
+    }
+
+    when (screen) {
+        is RaycastViewScreen.ListScreen -> RaycastListView(
+            screen = screen,
+            extension = extension,
+            selectedItemId = selectedItemId,
+            externalQuery = externalSearchQuery,
+            hideSearchBar = hideSearchBar,
+            contentPadding = contentPadding,
+            onSelect = { item ->
+                onSelectItem(item.id)
+                screen.onSelectionChangeId?.let { onInvokeCallback(it, arrayOf(item.id)) }
+            },
+            onPrimaryAction = { item ->
+                onSelectItem(item.id)
+                val primary = item.actions?.primaryAction ?: screen.actions?.primaryAction
+                if (primary != null) execute(primary)
+                else if (item.actions != null) onOpenActionPanel(item.actions)
+            },
+            onLongPress = { item ->
+                onSelectItem(item.id)
+                (item.actions ?: screen.actions)?.let(onOpenActionPanel)
+            },
+            onSearchChange = { query ->
+                screen.onSearchTextChangeId?.let { onInvokeCallback(it, arrayOf(query)) }
+            },
+            onDropdownChange = { dropdown, value ->
+                dropdown.onChangeId?.let { onInvokeCallback(it, arrayOf(value)) }
+            },
+            onLoadMore = {
+                screen.onLoadMoreId?.let { onInvokeCallback(it, emptyArray()) }
+            },
+        )
+        is RaycastViewScreen.GridScreen -> RaycastGridView(
+            screen = screen,
+            extension = extension,
+            externalQuery = externalSearchQuery,
+            hideSearchBar = hideSearchBar,
+            contentPadding = contentPadding,
+            onPrimaryAction = { item ->
+                onSelectItem(item.id)
+                val primary = item.actions?.primaryAction ?: screen.actions?.primaryAction
+                if (primary != null) execute(primary)
+                else if (item.actions != null) onOpenActionPanel(item.actions)
+            },
+            onLongPress = { item ->
+                onSelectItem(item.id)
+                (item.actions ?: screen.actions)?.let(onOpenActionPanel)
+            },
+            onSearchChange = { query ->
+                screen.onSearchTextChangeId?.let { onInvokeCallback(it, arrayOf(query)) }
+            },
+            onDropdownChange = { dropdown, value ->
+                dropdown.onChangeId?.let { onInvokeCallback(it, arrayOf(value)) }
+            },
+        )
+        is RaycastViewScreen.DetailScreen -> RaycastDetailView(
+            markdown = screen.markdown,
+            metadata = screen.metadata,
+            extension = extension,
+            contentPadding = contentPadding,
+        )
+        is RaycastViewScreen.FormScreen -> RaycastFormView(
+            fields = screen.fields,
+            formState = formState,
+            contentPadding = contentPadding,
+            onFieldChange = { field, newVal ->
+                formState[field.id] = newVal
+                field.onChangeId?.let { onInvokeCallback(it, arrayOf(newVal)) }
+            },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RaycastActionPanelSheet(
+    panel: RaycastActionPanelSpec,
+    extension: InstalledRaycastExtension,
+    onDismissRequest: () -> Unit,
+    onExecuteAction: (RaycastActionSpec) -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = panel.title?.takeIf { it.isNotBlank() } ?: "Actions",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(bottom = 4.dp),
+            )
+            panel.sections.forEach { section ->
+                if (!section.title.isNullOrBlank()) {
                     Text(
-                        text = submenu.title,
+                        text = section.title,
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.secondary,
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(top = 6.dp),
                     )
-                    submenu.actions.forEach { action ->
-                        RaycastActionRow(
-                            action = action,
-                            extension = extension,
-                            onClick = {
-                                activeActionPanel = null
-                                executeAction(action)
-                            },
-                        )
-                    }
+                }
+                section.actions.forEach { action ->
+                    RaycastActionRow(
+                        action = action,
+                        extension = extension,
+                        onClick = { onExecuteAction(action) },
+                    )
+                }
+            }
+            panel.submenus.forEach { submenu ->
+                Text(
+                    text = submenu.title,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+                submenu.actions.forEach { action ->
+                    RaycastActionRow(
+                        action = action,
+                        extension = extension,
+                        onClick = { onExecuteAction(action) },
+                    )
                 }
             }
         }
@@ -439,6 +507,9 @@ private fun RaycastListView(
     screen: RaycastViewScreen.ListScreen,
     extension: InstalledRaycastExtension,
     selectedItemId: String?,
+    externalQuery: String? = null,
+    hideSearchBar: Boolean = false,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
     onSelect: (RaycastListItemSpec) -> Unit,
     onPrimaryAction: (RaycastListItemSpec) -> Unit,
     onLongPress: (RaycastListItemSpec) -> Unit,
@@ -447,9 +518,10 @@ private fun RaycastListView(
     onLoadMore: () -> Unit,
 ) {
     var localQuery by remember(screen.searchText) { mutableStateOf(screen.searchText ?: "") }
+    val activeQuery = externalQuery ?: localQuery
 
-    val filteredSections = remember(screen.sections, localQuery, screen.filtering) {
-        val q = localQuery.trim().lowercase()
+    val filteredSections = remember(screen.sections, activeQuery, screen.filtering) {
+        val q = activeQuery.trim().lowercase()
         if (!screen.filtering || q.isEmpty()) screen.sections
         else screen.sections.mapNotNull { sec ->
             val items = sec.items.filter { item ->
@@ -462,16 +534,18 @@ private fun RaycastListView(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        RaycastSearchAndDropdownBar(
-            query = localQuery,
-            placeholder = screen.searchBarPlaceholder ?: "Search...",
-            dropdown = screen.dropdown,
-            onQueryChange = {
-                localQuery = it
-                onSearchChange(it)
-            },
-            onDropdownChange = onDropdownChange,
-        )
+        if (!hideSearchBar) {
+            RaycastSearchAndDropdownBar(
+                query = activeQuery,
+                placeholder = screen.searchBarPlaceholder ?: "Search...",
+                dropdown = screen.dropdown,
+                onQueryChange = {
+                    localQuery = it
+                    onSearchChange(it)
+                },
+                onDropdownChange = onDropdownChange,
+            )
+        }
 
         val totalItems = filteredSections.sumOf { it.items.size }
         if (totalItems == 0) {
@@ -479,7 +553,7 @@ private fun RaycastListView(
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+                contentPadding = contentPadding,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 filteredSections.forEachIndexed { sectionIndex, section ->
@@ -600,14 +674,18 @@ private fun RaycastListView(
 private fun RaycastGridView(
     screen: RaycastViewScreen.GridScreen,
     extension: InstalledRaycastExtension,
+    externalQuery: String? = null,
+    hideSearchBar: Boolean = false,
+    contentPadding: PaddingValues = PaddingValues(16.dp),
     onPrimaryAction: (RaycastGridItemSpec) -> Unit,
     onLongPress: (RaycastGridItemSpec) -> Unit,
     onSearchChange: (String) -> Unit,
     onDropdownChange: (RaycastDropdownSpec, String) -> Unit,
 ) {
     var localQuery by remember(screen.searchText) { mutableStateOf(screen.searchText ?: "") }
-    val filteredSections = remember(screen.sections, localQuery, screen.filtering) {
-        val q = localQuery.trim().lowercase()
+    val activeQuery = externalQuery ?: localQuery
+    val filteredSections = remember(screen.sections, activeQuery, screen.filtering) {
+        val q = activeQuery.trim().lowercase()
         if (!screen.filtering || q.isEmpty()) screen.sections
         else screen.sections.mapNotNull { sec ->
             val items = sec.items.filter { item ->
@@ -620,16 +698,18 @@ private fun RaycastGridView(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        RaycastSearchAndDropdownBar(
-            query = localQuery,
-            placeholder = screen.searchBarPlaceholder ?: "Search grid...",
-            dropdown = screen.dropdown,
-            onQueryChange = {
-                localQuery = it
-                onSearchChange(it)
-            },
-            onDropdownChange = onDropdownChange,
-        )
+        if (!hideSearchBar) {
+            RaycastSearchAndDropdownBar(
+                query = activeQuery,
+                placeholder = screen.searchBarPlaceholder ?: "Search grid...",
+                dropdown = screen.dropdown,
+                onQueryChange = {
+                    localQuery = it
+                    onSearchChange(it)
+                },
+                onDropdownChange = onDropdownChange,
+            )
+        }
 
         if (filteredSections.sumOf { it.items.size } == 0) {
             RaycastEmptyState(screen.emptyView, extension)
@@ -637,7 +717,7 @@ private fun RaycastGridView(
             val cols = screen.columns.coerceIn(2, 5)
             LazyVerticalGrid(
                 columns = GridCells.Fixed(cols),
-                contentPadding = PaddingValues(16.dp),
+                contentPadding = contentPadding,
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxSize(),
@@ -721,12 +801,13 @@ private fun RaycastDetailView(
     markdown: String,
     metadata: List<RaycastMetadataEntry>,
     extension: InstalledRaycastExtension,
+    contentPadding: PaddingValues = PaddingValues(16.dp),
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
+            .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         RaycastMarkdownBlock(markdown)
@@ -744,13 +825,14 @@ private fun RaycastDetailView(
 private fun RaycastFormView(
     fields: List<RaycastFormFieldSpec>,
     formState: MutableMap<String, Any>,
+    contentPadding: PaddingValues = PaddingValues(16.dp),
     onFieldChange: (RaycastFormFieldSpec, Any) -> Unit,
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
+            .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         fields.forEach { field ->

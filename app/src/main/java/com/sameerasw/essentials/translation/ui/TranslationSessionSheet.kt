@@ -92,7 +92,7 @@ fun TranslationSessionSheet(
             scope.launch {
                 val jsonPayload = TranslationManager.session.toJsonPayload()
                 val commentBody =
-                    "Automated translation submission from Essentials app.\n\n```json\n$jsonPayload\n```"
+                    "Automated translation submission from Komorebi app.\n\n```json\n$jsonPayload\n```"
                 Log.d(
                     "TranslationSessionSheet",
                     "Posting submission comment for user: ${currentUser.login}",
@@ -100,8 +100,8 @@ fun TranslationSessionSheet(
                 val success =
                     gitHubRepository.addDiscussionComment(
                         token = token,
-                        owner = "sameerasw",
-                        repo = "essentials",
+                        owner = "aislingheart",
+                        repo = "komorebi",
                         discussionNumber = 601,
                         body = commentBody,
                     )

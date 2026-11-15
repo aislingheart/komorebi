@@ -67,6 +67,7 @@ data class InternalCommandItem(
     val description: String,
     val keywords: List<String>,
     @DrawableRes val iconRes: Int,
+    val closesSearchUi: Boolean = true,
     val onExecute: (Context) -> Unit,
 )
 

@@ -91,7 +91,7 @@ fun FeatureSettingsScreen(
             viewModel.check(context)
         }
         LinkPickerScreen(
-            uri = "https://sameerasw.com".toUri(),
+            uri = "https://github.com/aislingheart/komorebi".toUri(),
             onFinish = onBack,
             modifier = Modifier.fillMaxSize(),
             demo = false,

@@ -284,7 +284,7 @@ private fun ExtensionsHubScreen(
 }
 
 @Composable
-private fun InstalledExtensionCard(
+fun InstalledExtensionCard(
     extension: InstalledRaycastExtension,
     onRunCommand: (String) -> Unit,
     onUninstall: () -> Unit,
@@ -380,7 +380,7 @@ private fun InstalledExtensionCard(
 }
 
 @Composable
-private fun StoreListingCard(
+fun StoreListingCard(
     listing: StoreExtensionListing,
     isInstalling: Boolean,
     onInstall: () -> Unit,

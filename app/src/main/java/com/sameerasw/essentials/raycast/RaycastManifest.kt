@@ -112,11 +112,20 @@ object RaycastExtensionRepository {
     }
 
     internal fun ensureStarterExtensionsInDir(root: File) {
-        val marker = File(root, ".starters_v1")
-        val notesDir = File(root, "essentials-quick-notes")
-        val colorDir = File(root, "essentials-color-studio")
-        val devDir = File(root, "essentials-dev-toolkit")
+        val marker = File(root, ".starters_v2")
+        val notesDir = File(root, "komorebi-quick-notes")
+        val colorDir = File(root, "komorebi-color-studio")
+        val devDir = File(root, "komorebi-dev-toolkit")
         val firstRunNeeded = !marker.isFile || marker.length() == 0L
+
+        if (firstRunNeeded) {
+            listOf("essentials-quick-notes", "essentials-color-studio", "essentials-dev-toolkit").forEach { legacyId ->
+                val legacyDir = File(root, legacyId)
+                if (legacyDir.isDirectory && File(legacyDir, ".builtin_starter").exists()) {
+                    legacyDir.deleteRecursively()
+                }
+            }
+        }
 
         if (firstRunNeeded || (notesDir.exists() && !isStarterDirHealthy(notesDir, listOf("package.json", "browse-notes.js", "create-note.js")))) {
             installStarterNotes(notesDir)
@@ -213,7 +222,7 @@ object RaycastExtensionRepository {
         File(dir, "package.json").writeText(
             """
             {
-              "name": "essentials-quick-notes",
+              "name": "komorebi-quick-notes",
               "title": "Quick Notes",
               "description": "Capture and search markdown notes stored locally using @raycast/api LocalStorage.",
               "author": "Komorebi",
@@ -408,7 +417,7 @@ object RaycastExtensionRepository {
         File(dir, "package.json").writeText(
             """
             {
-              "name": "essentials-color-studio",
+              "name": "komorebi-color-studio",
               "title": "Color Studio",
               "description": "Browse curated Material & Tailwind color palettes in a Raycast Grid component.",
               "author": "Komorebi",
@@ -473,7 +482,7 @@ object RaycastExtensionRepository {
         File(dir, "package.json").writeText(
             """
             {
-              "name": "essentials-dev-toolkit",
+              "name": "komorebi-dev-toolkit",
               "title": "Dev Toolkit",
               "description": "Generate UUIDs, hashes, and inspect Base64/JSON strings locally.",
               "author": "Komorebi",

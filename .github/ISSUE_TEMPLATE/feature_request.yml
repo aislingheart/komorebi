@@ -1,16 +1,16 @@
 name: Feature Request
-description: Suggest a new feature for the Essentials Android app
+description: Suggest a new feature for the Komorebi Android app
 title: "[Feature]: "
 labels: ["enhancement", "needs-triage"]
 type: Feature
-assignees: ["sameerasw"]
+assignees: ["aislingheart"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for your interest in improving Essentials! Please fill out the form below to suggest a new feature.
+        Thanks for your interest in improving Komorebi! Please fill out the form below to suggest a new feature.
 
-        **Please don't start implementing this until the issue is labeled `approved` and assigned to you.** Pull requests for features without an approved issue will be closed. See [CONTRIBUTING.md](https://github.com/sameerasw/essentials/blob/develop/CONTRIBUTING.md).
+        See [CONTRIBUTING.md](https://github.com/aislingheart/komorebi/blob/main/CONTRIBUTING.md) for guidelines.
   - type: textarea
     id: problem
     attributes:

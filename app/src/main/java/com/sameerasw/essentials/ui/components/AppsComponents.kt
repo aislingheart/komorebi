@@ -109,7 +109,7 @@ fun ImportExportButtons(
                             "yyyyMMdd_HHmmss",
                             Locale.getDefault(),
                         ).format(Date())
-                    exportLauncher.launch("essentials_updates_$timeStamp.json")
+                    exportLauncher.launch("komorebi_updates_$timeStamp.json")
                 },
                 modifier = Modifier.weight(1f),
                 colors =

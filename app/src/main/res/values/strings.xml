@@ -28,7 +28,7 @@
     <string name="shut_up_restore_keyboard">Restore keyboard</string>
     <string name="shut_up_restore_delay_title">Restoration Delay</string>
     <string name="shut_up_restore_delay_desc">Wait time before restoring settings after exiting a Shut-Up! app</string>
-    <string name="accessibility_service_description"><b>Essentials Accessibility Service</b>\n\nThis service is required for the following advanced features:\n\n<b>• Physical Button Remapping:</b>\nDetects volume button presses even when the screen is off to trigger actions like the Flashlight.\n\n<b>• Per-App Settings:</b>\nMonitors the currently active app to apply specific profiles for Dynamic Night Light, Notification Lighting Colors, and App Lock.\n\n<b>• Screen Control:</b>\nAllows the app to lock the screen (e.g. via Double Tap or Widgets) and detect screen state changes.\n\n<b>• Security:</b>\nPrevents unauthorized changes by detecting window content when the device is locked.\n\n<small>No input text or sensitive user data is collected or transmitted.</small></string>
+    <string name="accessibility_service_description"><b>Komorebi Accessibility Service</b>\n\nThis service is required for the following advanced features:\n\n<b>• Physical Button Remapping:</b>\nDetects volume button presses even when the screen is off to trigger actions like the Flashlight.\n\n<b>• Per-App Settings:</b>\nMonitors the currently active app to apply specific profiles for Dynamic Night Light, Notification Lighting Colors, and App Lock.\n\n<b>• Screen Control:</b>\nAllows the app to lock the screen (e.g. via Double Tap or Widgets) and detect screen state changes.\n\n<b>• Security:</b>\nPrevents unauthorized changes by detecting window content when the device is locked.\n\n<small>No input text or sensitive user data is collected or transmitted.</small></string>
     <string name="freeze_activity_title">App Freezing</string>
     <string name="freeze_activity_subtitle">Disable apps that are rarely used</string>
     <string name="freeze_shortcut_short_label">Frozen Apps</string>
@@ -143,7 +143,7 @@
     <string name="setting_hidden_debugging_title">Hidden debugging support</string>
     <string name="setting_hidden_debugging_help_1">In Android 17 QPR1 Google introduced a change where developer options and USB debugging options status is hidden for 3rd party apps and always reports 0.</string>
     <string name="setting_hidden_debugging_help_2">This helps to counter the garbage banking and other apps with BS security measures which we also counter with the "Shut Up" feature.</string>
-    <string name="setting_hidden_debugging_help_3">But this also breaks the detection for Essentials. In this case, enable this option to use Shizuku shell to detect the status which is still possible. Keep in mind that wireless debugging is not concealed.</string>
+    <string name="setting_hidden_debugging_help_3">But this also breaks the detection for Komorebi. In this case, enable this option to use Shizuku shell to detect the status which is still possible. Keep in mind that wireless debugging is not concealed.</string>
     <string name="setting_hidden_debugging_auto_title">Auto detect</string>
     <string name="setting_hidden_debugging_auto_help">Make sure developer options and USB debugging is enabled</string>
     <string name="setting_hidden_debugging_shizuku_required">Shizuku required</string>
@@ -222,7 +222,7 @@
     <string name="like_song_settings_desc">This feature requires notification access to detect the currently playing media and trigger the like action. Please enable it below.</string>
     <string name="like_song_toast_enabled">Show toast message</string>
     <string name="like_song_aod_overlay_title">Show overlay on AOD</string>
-    <string name="feat_essentials_on_display_title">Essentials On Display</string>
+    <string name="feat_essentials_on_display_title">Komorebi On Display</string>
     <string name="feat_essentials_on_display_desc">Glance at media and info on AOD</string>
     <string name="essentials_on_display_docked_mode_title">Docked mode</string>
     <string name="essentials_on_display_docked_mode_desc">No timeout</string>
@@ -256,7 +256,7 @@
     <string name="button_remap_power_actions">Custom actions</string>
     <string name="button_remap_power_no_actions">No actions. This gesture does nothing.</string>
     <string name="button_remap_power_hint">Double press always uses Android\'s camera gesture. Digital assistant uses Android\'s own gesture while both screen states keep it.</string>
-    <string name="button_remap_power_hold_handled_hint">Essentials runs this gesture, so turn on \"%1$s\". Holding no longer opens the power menu unless you pick it.</string>
+    <string name="button_remap_power_hold_handled_hint">Komorebi runs this gesture, so turn on \"%1$s\". Holding no longer opens the power menu unless you pick it.</string>
     <string name="button_remap_power_camera_flip_title">Flip camera with double press</string>
     <string name="button_remap_power_camera_flip_desc">Double press opens the camera. While a camera app is open, double press switches between the front and back cameras. Needs \"%1$s\". May not work in every camera app.</string>
     <string name="diy_action_open_activity">Open Activity</string>
@@ -275,12 +275,12 @@
     <string name="activity_picker_root_only">Root only</string>
     <string name="activity_picker_empty">No activities found</string>
     <string name="activity_picker_root_required_toast">This activity is not exported and can only be opened with root</string>
-    <string name="pinned_action_missing_toast">This shortcut no longer exists. Pin it again from Essentials.</string>
+    <string name="pinned_action_missing_toast">This shortcut no longer exists. Pin it again from Komorebi.</string>
     <string name="diy_action_hilight">Hilight Effect</string>
     <string name="feat_hilight_title">Hilight</string>
     <string name="feat_hilight_desc">Light the rear LEDs for notifications and live progress</string>
     <string name="about_desc_hilight">Lights the Hilight LEDs on the back of the Pixel 11 Pro, Pro XL and Pro Fold when notifications arrive, with a custom effect for each app you add. Hilight effects can also be used as an action in Button remap and automations. Needs Shizuku, which must be restarted after every reboot.</string>
-    <string name="hilight_status_no_access">Hilight needs Shizuku or Porter. Make sure it is running and Essentials has access to it.</string>
+    <string name="hilight_status_no_access">Hilight needs Shizuku or Porter. Make sure it is running and Komorebi has access to it.</string>
     <string name="hilight_status_unsupported_mode">Hilight needs Shizuku or Porter. Switch Privileged access in settings to Auto, Shizuku or Porter.</string>
     <string name="hilight_status_no_leds">No Hilight LEDs were found on this phone.</string>
     <string name="hilight_status_no_device">Hilight is only available on phones with Hilight LEDs: the Pixel 11 Pro, Pro XL and Pro Fold.</string>
@@ -332,10 +332,10 @@
     <string name="search_hilight_progress_desc">Show download and live update progress on the rear LEDs</string>
     <string name="feat_lockscreen_shortcuts_title">Lock screen shortcuts</string>
     <string name="feat_lockscreen_shortcuts_desc">Run your own actions from the lock screen</string>
-    <string name="about_desc_lockscreen_shortcuts">Adds Essentials shortcut buttons to the bottom corners of the lock screen. Touch and hold a shortcut to run its action. Only available while the system\'s own lock screen shortcuts are turned off.</string>
+    <string name="about_desc_lockscreen_shortcuts">Adds Komorebi shortcut buttons to the bottom corners of the lock screen. Touch and hold a shortcut to run its action. Only available while the system\'s own lock screen shortcuts are turned off.</string>
     <string name="lockscreen_shortcuts_enable_title">Enable lock screen shortcuts</string>
-    <string name="lockscreen_shortcuts_status_unknown">Lock your phone once so Essentials can check whether the system is already showing lock screen shortcuts.</string>
-    <string name="lockscreen_shortcuts_status_present">System lock screen shortcuts are in use. Set both shortcuts to None in Wallpaper &amp; style to use Essentials shortcuts instead.</string>
+    <string name="lockscreen_shortcuts_status_unknown">Lock your phone once so Komorebi can check whether the system is already showing lock screen shortcuts.</string>
+    <string name="lockscreen_shortcuts_status_present">System lock screen shortcuts are in use. Set both shortcuts to None in Wallpaper &amp; style to use Komorebi shortcuts instead.</string>
     <string name="lockscreen_shortcuts_status_none">No system lock screen shortcuts found.</string>
     <string name="lockscreen_shortcuts_open_wallpaper_style">Open Wallpaper &amp; style</string>
     <string name="diy_category_pixel_shortcuts">Pixel shortcuts</string>
@@ -357,7 +357,7 @@
     <string name="lockscreen_shortcuts_no_actions">No action. This shortcut is hidden.</string>
     <string name="lockscreen_shortcuts_hint">Each side runs one action. Touch and hold a shortcut on the lock screen to run it. Actions that open an app ask you to unlock first.</string>
     <string name="lockscreen_shortcut_hold_hint">Touch &amp; hold to run shortcut</string>
-    <string name="lockscreen_shortcut_content_desc">Essentials shortcut: %1$s</string>
+    <string name="lockscreen_shortcut_content_desc">Komorebi shortcut: %1$s</string>
     <string name="search_lockscreen_shortcuts_enable_title">Lock screen shortcuts</string>
     <string name="search_lockscreen_shortcuts_enable_desc">Custom shortcut buttons on the lock screen</string>
     <string name="feat_volume_steps_title">Volume steps</string>
@@ -596,7 +596,7 @@
     <string name="tile_dynamic_night_light">Dynamic Night Light</string>
     <string name="tile_locked_security">Locked Security</string>
     <string name="tile_app_lock">App Lock</string>
-    <string name="tile_essentials_on_display">Essentials on Display</string>
+    <string name="tile_essentials_on_display">Komorebi on Display</string>
     <string name="tile_mono_audio">Mono Audio</string>
     <string name="tile_flashlight">Flashlight</string>
     <string name="flashlight_mode_sos">SOS</string>
@@ -607,7 +607,7 @@
     <string name="tile_app_freezing">App Freezing</string>
     <string name="tile_flashlight_pulse">Flashlight Pulse</string>
     <string name="tile_stay_awake">Stay awake</string>
-    <string name="input_method_label">Essentials Keyboard</string>
+    <string name="input_method_label">Komorebi Keyboard</string>
     <string name="subtype_en_us">English (US)</string>
     <string name="tile_active">Active</string>
     <string name="tile_inactive">Inactive</string>
@@ -911,10 +911,10 @@
     <string name="diy_create_accessibility_shortcut_2_title">Accessibility Shortcut 2</string>
     <string name="diy_create_accessibility_shortcut_3_title">Accessibility Shortcut 3</string>
     <string name="diy_create_accessibility_shortcut_desc">Trigger action via volume keys or screen gesture</string>
-    <string name="diy_enable_accessibility_shortcut_prompt">Please enable Essentials Shortcut in Accessibility settings first</string>
-    <string name="diy_enable_accessibility_shortcut_1_prompt">Please enable Essentials Shortcut 1 in Accessibility settings first</string>
-    <string name="diy_enable_accessibility_shortcut_2_prompt">Please enable Essentials Shortcut 2 in Accessibility settings first</string>
-    <string name="diy_enable_accessibility_shortcut_3_prompt">Please enable Essentials Shortcut 3 in Accessibility settings first</string>
+    <string name="diy_enable_accessibility_shortcut_prompt">Please enable Komorebi Shortcut in Accessibility settings first</string>
+    <string name="diy_enable_accessibility_shortcut_1_prompt">Please enable Komorebi Shortcut 1 in Accessibility settings first</string>
+    <string name="diy_enable_accessibility_shortcut_2_prompt">Please enable Komorebi Shortcut 2 in Accessibility settings first</string>
+    <string name="diy_enable_accessibility_shortcut_3_prompt">Please enable Komorebi Shortcut 3 in Accessibility settings first</string>
     <string name="diy_create_pixel_searchbar_title">Pixel searchbar</string>
     <string name="diy_create_pixel_searchbar_desc">Tap action for Pixel searchbar replacement</string>
     <string name="diy_editor_new_title">New Automation</string>
@@ -1135,7 +1135,7 @@
     <string name="downloading_update_progress">Downloading update (%1$d%%)</string>
     <string name="update_download_failed">Download failed</string>
     <string name="perm_accessibility_desc_remap">Required to intercept hardware button events</string>
-    <string name="perm_accessibility_desc_essentials_on_display">Required to intercept volume key events while the screen is off to trigger the Essentials On Display overlay.</string>
+    <string name="perm_accessibility_desc_essentials_on_display">Required to intercept volume key events while the screen is off to trigger the Komorebi On Display overlay.</string>
     <string name="perm_accessibility_desc_duo">Required to display the ambient indicator overlay around the camera cutout.</string>
     <string name="perm_accessibility_desc_night_light">Needed to monitor foreground applications.</string>
     <string name="perm_write_secure_title">Write Secure Settings</string>
@@ -1166,7 +1166,7 @@
     <string name="tab_apps">Apps</string>
     <string name="tab_freeze_subtitle">Disabled apps</string>
     <string name="tab_diy_subtitle">Do It Yourself</string>
-    <string name="diy_header_caption">Automate essentials</string>
+    <string name="diy_header_caption">Automate your device</string>
     <string name="freeze_header_caption">%1$d/%2$d apps</string>
     <string name="tab_apps_subtitle">Find and manage apps</string>
     <string name="feat_app_updates_title">App Updates</string>
@@ -1199,7 +1199,7 @@
     <!-- Keyboard Setup -->
     <string name="label_keyboard_setup">Keyboard Setup</string>
     <string name="btn_enable_keyboard">Enable in settings</string>
-    <string name="btn_select_keyboard">Switch to Essentials</string>
+    <string name="btn_select_keyboard">Switch to Komorebi</string>
 
     <string name="label_enabled">Enabled</string>
     <string name="label_disabled">Disabled</string>
@@ -1232,7 +1232,7 @@
     <string name="sentry_report_mode_title">Crash reporting</string>
     <string name="sentry_mode_off">Off</string>
     <string name="sentry_mode_auto">Auto</string>
-    <string name="sentry_crash_toast">Komorebi crashed, report saved and sent</string>
+    <string name="sentry_crash_toast">Komorebi crashed, crash log saved locally</string>
     <string name="simulate_crash">Simulate crash</string>
     <string name="crash_logs_title">Crash logs</string>
     <string name="crash_logs_desc">View and share recent crash reports</string>
@@ -1252,7 +1252,7 @@
     <string name="btn_wallpaper_mobile">Mobile</string>
     <string name="welcome_title">Welcome to Komorebi</string>
     <string name="welcome_subtitle">A Toolbox for Android Nerds</string>
-    <string name="welcome_developer_attribution">by sameerasw.com</string>
+    <string name="welcome_developer_attribution">by aislingheart</string>
     <string name="action_lets_begin">Let\'s Begin</string>
     <string name="acknowledgement_title">Acknowledgement</string>
     <string name="acknowledgement_desc">This app is a collection of utilities that can interact deeply with your device system. Using some features might modify system settings or behavior in unexpected ways. \n\nYou only need to grant necessary permissions which are required for selected features you are using giving you full control over the app\'s behavior. \n\nFurther more, the app does not track or store any of your personal data, I don\'t need them... Keep to yourself safe. You can refer to the source code for more information. \n\nThis app is fully open source and is and always will be free to use. Do not pay or install from unknown sources.</string>
@@ -1305,7 +1305,7 @@
     <string name="action_what_is_this">What is this?</string>
     <string name="update_available_title">Update Available</string>
     <string name="about_desc_your_android">Glance at your device\'s hardware and software specifications in detail. This information is fetched from GSMArena and system properties to provide a comprehensive overview of your Android device.</string>
-    <string name="about_desc_essentials_on_display">Essentials On Display shows a Now Playing overlay on your lock screen when music is playing and playback changes. \n\nIf your device does not support overlays over AOD, you can opt for the Ambience screensaver added in your Android settings as an alternative while charging.</string>
+    <string name="about_desc_essentials_on_display">Komorebi On Display shows a Now Playing overlay on your lock screen when music is playing and playback changes. \n\nIf your device does not support overlays over AOD, you can opt for the Ambience screensaver added in your Android settings as an alternative while charging.</string>
     <string name="about_desc_notification_lighting">Notification Lighting adds a beautiful edge lighting effect when you receive notifications.\n\nYou can customize the animation style, colors, and behavior. It works even when the screen is off (OEM dependent) or on top of your current app. Pick apps, notification priority or what behavior it should be triggering on from given controls. If your OEM does not support overlays above AOD, sue the Ambient display option found below.</string>
     <string name="about_desc_screen_off_widget">Easily turn the screen off with a tap on a transparent resizable widget that does not add icons or any clutter to your home screen.</string>
     <string name="about_desc_statusbar_icons">Take full control over your status bar.\n\nHide individual icons like WiFi, Bluetooth, or cellular data, hide all system or notification icons at once, or only hide system icons while the device is locked. Smart visibility can hide mobile data automatically when WiFi is connected or in certain modes.\n\nYou can also show seconds in the clock, change its position or hide it, show the battery percentage, hide the camera and microphone chips, or hide the entire status bar. Some advanced flags need Shizuku or Root.\n\nThese are AOSP controls, so your device OS might not respect all of them.</string>
@@ -1319,7 +1319,7 @@
     <string name="about_desc_screen_locked_security">Enhance security when your device is locked.\n\nRestrict access to some sensitive QS tiles preventing unauthorized network modifications and further preventing them re-attempting to do so by increasing the animation speed to prevent touch spam.\n\nThis feature is not robust and may have flaws such as some tiles which allow toggling directly such as bluetooth or flight mode not being able to be prevented.</string>
     <string name="about_desc_app_lock">Secure your apps with a secondary authentication layer.\n\nYour device lock screen authentication method will be used as long as it meets the class 3 biometric security level by Android standards.</string>
     <string name="about_desc_conscious_gate">Adds a brief mindful conscious gate screen before opening apps you\'ve chosen to be more intentional about, such as social media.\n\nThe Continue button stays disabled for a few seconds so you have a moment to decide, and the pause can optionally reappear if you keep using the app past a set time.</string>
-    <string name="about_desc_location_reached">Get notified when you get closer to your destination to ensure you never miss the stop.\n\nGo to Google Maps, long press a pin nearby to your destination and make sure it says \"Dropped pin\" (Otherwise the distance calculation might not be accurate), And then share the location to the Essentials app and start tracking.</string>
+    <string name="about_desc_location_reached">Get notified when you get closer to your destination to ensure you never miss the stop.\n\nGo to Google Maps, long press a pin nearby to your destination and make sure it says \"Dropped pin\" (Otherwise the distance calculation might not be accurate), And then share the location to the Komorebi app and start tracking.</string>
     <string name="location_reached_add_title">Add Destination</string>
     <string name="location_reached_edit_title">Edit Destination</string>
     <string name="location_reached_name_placeholder">Home, Office, etc.</string>
@@ -1333,7 +1333,7 @@
     <string name="location_reached_delete">Delete Destination</string>
     <string name="location_reached_tracking_now">Tracking Now</string>
     <string name="location_reached_restart_btn">Re-Start</string>
-    <string name="location_reached_instructional_desc">Share coordinates (Dropped pin) from Google Maps to Essentials to save as a destination.\n\nThe distance shown is the direct distance to the destination, not the distance along the roads.\n\nTake all calculations of time and distance with a grain of salt as they are not always accurate.</string>
+    <string name="location_reached_instructional_desc">Share coordinates (Dropped pin) from Google Maps to Komorebi to save as a destination.\n\nThe distance shown is the direct distance to the destination, not the distance along the roads.\n\nTake all calculations of time and distance with a grain of salt as they are not always accurate.</string>
     <string name="tile_location_reached">Are we there yet?</string>
     <string name="location_reached_pause">Pause</string>
     <string name="location_reached_resume">Resume</string>
@@ -1348,8 +1348,8 @@
     <string name="about_desc_freeze">Freeze apps to stop them from running in the background.\n\nPrevent battery drain and data usage by completely freezing apps when you are not using them. They will be unfrozen instantly when you launch them. The apps will not show up in the app drawer and also will not show up for app updates in Play Store while frozen.</string>
     <string name="about_desc_system_keyboard">A custom input method no-one asked for.\n\nIt is just an experiment. Multiple languages may not get support as it is a very complex and time consuming implementation.</string>
     <string name="about_desc_batteries">Monitor battery levels of all your connected devices.\n\nSee the battery status of your Bluetooth headphones, watch, and other accessories in one place. Connect with AirSync application to display your mac battery level as well.</string>
-    <string name="about_desc_watermark">Add a custom caption/ watermark to your photos with EXIF data and device information.\n\nShare an image directly from other app to Essentials to easily add a watermark.</string>
-    <string name="about_desc_calendar_sync">Sync all your upcoming calendar schedule not matter the restrictions on Google accounts not letting to be added to wearOS devices due to work or school policies. \n\nMake sure to install the wearOS Essentials companion app to display the schedule in the app as well as in a tile or a complication.</string>
+    <string name="about_desc_watermark">Add a custom caption/ watermark to your photos with EXIF data and device information.\n\nShare an image directly from other app to Komorebi to easily add a watermark.</string>
+    <string name="about_desc_calendar_sync">Sync all your upcoming calendar schedule not matter the restrictions on Google accounts not letting to be added to wearOS devices due to work or school policies. \n\nMake sure to install the wearOS Komorebi companion app to display the schedule in the app as well as in a tile or a complication.</string>
     <string name="about_desc_app_updates">Keep track of updates for your installed apps.\n\nGet notified about available updates, view changelogs and install them easily with a tap.</string>
     <string name="about_desc_call_vibrations">Add haptic feedback to your calls.\n\nVibrate when a call is connected, disconnected, or accepted, giving you tactile confirmation without looking at the screen.</string>
     <string name="about_desc_sound_mode_tile">Quickly toggle between Sound, Vibrate, and Silent modes.\n\nA convenient tile to change your ringer mode without using the volume buttons or settings. You can re-order the modes or disable any if not needed to customize the tile toggle to cycle behavior.</string>
@@ -1402,11 +1402,11 @@
     <string name="diy_trigger_android_auto_connected">Android Auto Connected</string>
     <string name="diy_trigger_android_auto_disconnected">Android Auto Disconnected</string>
     <string name="diy_trigger_accessibility_button">Accessibility Shortcut</string>
-    <string name="accessibility_shortcut_service_name">Essentials Shortcut</string>
-    <string name="accessibility_shortcut_service_1_name">Essentials Shortcut 1</string>
-    <string name="accessibility_shortcut_service_2_name">Essentials Shortcut 2</string>
-    <string name="accessibility_shortcut_service_3_name">Essentials Shortcut 3</string>
-    <string name="split_screen_shortcut_service_name">Essentials Split Screen</string>
+    <string name="accessibility_shortcut_service_name">Komorebi Shortcut</string>
+    <string name="accessibility_shortcut_service_1_name">Komorebi Shortcut 1</string>
+    <string name="accessibility_shortcut_service_2_name">Komorebi Shortcut 2</string>
+    <string name="accessibility_shortcut_service_3_name">Komorebi Shortcut 3</string>
+    <string name="split_screen_shortcut_service_name">Komorebi Split Screen</string>
     <string name="split_screen_shortcut_service_desc">Put the current app into split screen with the accessibility gesture or button</string>
     <string name="accessibility_shortcut_service_desc">Trigger DIY automations via system accessibility button or volume key shortcut</string>
     <string name="diy_select_bluetooth_device_title">Select Bluetooth Device</string>
@@ -1445,7 +1445,7 @@
     <string name="diy_category_apps">Apps</string>
     <string name="diy_category_system">System</string>
     <string name="diy_category_sound_media">Sound &amp; Media</string>
-    <string name="diy_category_essentials">Essentials Tweaks</string>
+    <string name="diy_category_essentials">Komorebi Tweaks</string>
     <string name="diy_category_system_screen">System &amp; Screen</string>
     <string name="diy_category_battery_power">Battery &amp; Power</string>
     <string name="diy_category_time_schedule">Time &amp; Schedule</string>
@@ -1570,7 +1570,7 @@
     <string name="diy_action_circle_to_search">Circle to Search</string>
     <string name="diy_action_pin_app">Pin Foreground App</string>
     <string name="diy_action_split_screen">Toggle Split Screen</string>
-    <string name="diy_action_sometimes_essentials">Sometimes Essential</string>
+    <string name="diy_action_sometimes_essentials">Komorebi Actions</string>
     <string name="diy_action_freeze_tag">Freeze by Tags</string>
     <string name="diy_action_open_app">Open App</string>
     <string name="diy_action_duo_turnon">Turn On Duo</string>
@@ -1661,7 +1661,7 @@
     <string name="diy_set_keyboard_switch_failed">Keyboard switching failed: %1$s</string>
 
     <!-- About Section -->
-    <string name="app_developer_name">Sameera Wijerathna</string>
+    <string name="app_developer_name">aislingheart</string>
     <string name="app_description">The all-in-one toolbox for your Pixel and Androids</string>
 
     <!-- Edge Lighting -->
@@ -1684,9 +1684,11 @@
     <string name="update_channel_name">App Updates</string>
     <string name="update_channel_desc">Notifications for new app updates</string>
     <string name="notification_update_available">Update Available!</string>
-    <string name="notification_update_subtext">Check out what\'s new in Essentials v%1$s</string>
-    <string name="action_update_to_version">Update to Essentials v%1$s</string>
+    <string name="notification_update_subtext">Check out what\'s new in Komorebi v%1$s</string>
+    <string name="action_update_to_version">Update to Komorebi v%1$s</string>
     <string name="action_check_for_updates">Check for updates</string>
+    <string name="update_ready_to_install">Update Ready to Install</string>
+    <string name="update_ready_to_install_desc">Tap to install Komorebi v%1$s</string>
     <string name="battery_notification_no_devices">No devices connected</string>
 
     <string name="label_unknown">Unknown</string>
@@ -1961,7 +1963,7 @@
     <!-- Instructions Content -->
     <string name="instruction_section_perms_title">Accessibility, Notification and Overlay permissions</string>
     <string name="instruction_step_perms_1">You may get this access denied message if you try to grant sensitive permissions such as accessibility, notification listener or overlay permissions. To grant it, check the steps below.</string>
-    <string name="instruction_step_perms_2">1. Go to app info page of Essentials.</string>
+    <string name="instruction_step_perms_2">1. Go to app info page of Komorebi.</string>
     <string name="instruction_step_perms_3">2. Open the 3-dot menu and select \'Allow restricted settings\'. You may have to authenticate with biometrics. Once done, Try to grant the permission again.</string>
 
     <string name="instruction_section_shizuku_title">Shizuku</string>
@@ -2007,7 +2009,7 @@
     <string name="instruction_section_flashlight_desc">Only a limited number of devices got hardware and software support adjusting the flashlight intensity. \n\n\'The minimum version of Android is 13 (SDK33).\nFlashlight brightness control only supports HAL version 3.8 and higher, so among the supported devices, the latest ones (For example, Pixel 6/7, Samsung S23, etc.)\'\npolodarb/Flashlight-Tiramisu</string>
 
     <string name="instruction_section_about_title">What the hell is this app?</string>
-    <string name="instruction_section_about_desc">Good question,\n\nI always wanted to extract the most out of my devices as I\'ve been a rooted user for ever since I got my first Project Treble device. And I\'ve been loving the Tasker app which is like the god when comes automation and utilizing every possible API and internal features of Android.\n\nSo I am not unrooted and back on stock Android beta experience and wanted to get the most out from what is possible with given privileges. Might as well share them. So with my beginner knowledge in Kotlin Jetpack and with the support of many research and assist tools and also the great community, I built an all-in-one app containing everything I wanted to be in my Android with given permissions. And here it is.\n\nFeature requests are welcome, I will consider and see if they are achievable with available permissions and my skills. Nowadays what is not possible. :)\n\nWhy not on Play Store?\nI don\'t wanna risk getting my Developer account banned due to the highly sensitive and internal permissions and APIs being used in the app. But with the way Android sideloading is headed, let\'s see what we have to do. I do understand the concerns of sideloaded apps being malicious.\nWhile we are at the topic, Checkout my other app AirSync if you are a mac + Android user. *shameless plug*\n\nEnjoy, Keep building! (っ◕‿◕)っ</string>
+    <string name="instruction_section_about_desc">Komorebi is an open-source Android command palette, Raycast-compatible extension runner, and system toolkit.\n\nBuilt on top of Essentials, Vicinae, and the Raycast Extensions ecosystem, Komorebi brings fast universal search, programmable extensions, and system customization together in one place.</string>
 
     <string name="instruction_section_genai_title">On-Device GenAI (Gemini Nano)</string>
     <string name="instruction_section_genai_desc">Powered locally by Google Gemini Nano via Android\'s AICore system service. Executes foundation models on-device for improved user privacy without sending data to remote servers.\n\n• Requirements &amp; AICore: Uses ML Kit GenAI Prompt APIs on supported devices (such as Pixel 9/10 series, Galaxy S25/S26, etc.) running Android AICore.\n• App Foreground Limitation: GenAI API inference is permitted only when the app is in the top foreground.\n• Quota &amp; Execution: Subject to AICore per-app battery and inference quotas. Features run entirely offline once AICore model download completes.\n• Context Automations: Maps prompt requests into DIY triggers, states, app tags, and deep settings locally on device.</string>
@@ -2037,13 +2039,13 @@
     <string name="toast_report_saved">Report saved</string>
     <string name="error_save_report">Failed to save report</string>
     <string name="action_copy_clipboard">Copy to Clipboard</string>
-    <string name="bug_report_email_subject">Essentials Bug Report</string>
+    <string name="bug_report_email_subject">Komorebi Bug Report</string>
     <string name="bug_report_send_via">Please enable crash reporting as it will automatically report details that would help resolving issues.</string>
 
     <!-- Location Reached -->
     <string name="feat_location_reached_title">Are we there yet?</string>
     <string name="feat_location_reached_desc">Destination nearby alerts</string>
-    <string name="location_reached_how_to">Open Google Maps, pick a location, and share it to Essentials.</string>
+    <string name="location_reached_how_to">Open Google Maps, pick a location, and share it to Komorebi.</string>
     <string name="location_reached_radius_title">Alert Radius: %d m</string>
     <string name="perm_location_title">Location</string>
     <string name="perm_location_desc">Used to detect arrival at your destination.</string>
@@ -2193,14 +2195,14 @@
     <string name="feat_watch_title">Watch</string>
     <string name="feat_watch_desc">Integrations with WearOS</string>
     <string name="watch_no_companion_title">No Watch detected</string>
-    <string name="watch_no_companion_desc">It looks like you do not have the Essentials Wear companion app installed on your watch.</string>
+    <string name="watch_no_companion_desc">It looks like you do not have the Komorebi Wear companion app installed on your watch.</string>
     <string name="watch_install_companion_action">Install Companion</string>
     <string name="action_download_from_github">Download from GitHub</string>
     <string name="watch_help_title">Install on Watch</string>
-    <string name="watch_help_description">To use Watch features, you need to install the Essentials companion app on your Wear OS watch. Click the button below to open the Play Store directly on your watch.</string>
+    <string name="watch_help_description">To use Watch features, you need to install the Komorebi companion app on your Wear OS watch. Click the button below to open the Play Store directly on your watch.</string>
     <string name="watch_help_open_play_store">Open on Watch</string>
-    <string name="watch_update_required_title">Update Essentials Wear</string>
-    <string name="watch_update_required_desc">A new version of Essentials Wear is available for your watch. Update to ensure full compatibility.</string>
+    <string name="watch_update_required_title">Update Komorebi Wear</string>
+    <string name="watch_update_required_desc">A new version of Komorebi Wear is available for your watch. Update to ensure full compatibility.</string>
     <string name="watch_update_action">Update App</string>
     <string name="feat_watch_controls_title">Customize</string>
     <string name="feat_watch_controls_desc">Customize controls</string>
@@ -2550,11 +2552,11 @@
     <string name="msg_flashbang">Get ready to be flashbanged!</string>
     <string name="action_abort">Abort</string>
     <string name="action_continue">Continue</string>
-    <string name="prank_trial_expired_title">Your Essentials trial has expired</string>
-    <string name="prank_trial_expired_desc">Your free trial period of Essentials has ended. Access to advanced features like Button Remap, App Freezing, and DIY Automations with Premium.</string>
+    <string name="prank_trial_expired_title">Your Komorebi trial has expired</string>
+    <string name="prank_trial_expired_desc">Your free trial period of Komorebi has ended. Access to advanced features like Button Remap, App Freezing, and DIY Automations with Premium.</string>
     <string name="prank_button_premium">What\'s in Premium?</string>
     <string name="prank_reveal_title">April Fools!</string>
-    <string name="prank_reveal_desc">Just kidding, Essentials is and will always be free and open source. Enjoy! (っ◕‿◕)っ</string>
+    <string name="prank_reveal_desc">Just kidding, Komorebi is and will always be free and open source. Enjoy! (っ◕‿◕)っ</string>
 
     <string name="notification_lighting_style_system">System</string>
     <string name="notification_lighting_system_mode_title">Ripple Animation</string>
@@ -2717,8 +2719,8 @@
     <!-- External Control Permission -->
     <string name="external_control_token_title">External control token</string>
     <string name="external_control_token_saved">Token saved</string>
-    <string name="perm_external_control_label">control Essentials features</string>
-    <string name="perm_external_control_desc">read, update and control Essentials features and settings</string>
+    <string name="perm_external_control_label">control Komorebi features</string>
+    <string name="perm_external_control_desc">read, update and control Komorebi features and settings</string>
     <string name="pixel_searchbar_settings_title">Pixel Searchbar Customization</string>
     <string name="pixel_searchbar_style_searchbar">Search</string>
     <string name="pixel_searchbar_placeholder">Search phone &amp; web…</string>
@@ -2739,7 +2741,7 @@
     <string name="pixel_searchbar_widget_change">Change widget</string>
     <string name="pixel_searchbar_widget_remove">Remove widget</string>
     <string name="pixel_searchbar_bind_permission_title">Widget host permission required</string>
-    <string name="pixel_searchbar_bind_permission_desc">Essentials needs permission to host widgets. Tap to grant.</string>
+    <string name="pixel_searchbar_bind_permission_desc">Komorebi needs permission to host widgets. Tap to grant.</string>
     <string name="pixel_searchbar_scraped_line1">Scraped title</string>
     <string name="pixel_searchbar_scraped_line2">Scraped subtitle</string>
     <string name="pixel_searchbar_widget_padding_h">Horizontal padding</string>
@@ -2849,7 +2851,7 @@
     <string name="tile_lock">Lock</string>
     <string name="tile_device">Device</string>
     <string name="feat_app_functions_title">AppFunctions AI (Gemini)</string>
-    <string name="feat_app_functions_desc">Expose Essentials features to Gemini and Android AI assistants</string>
+    <string name="feat_app_functions_desc">Expose Komorebi features to Gemini and Android AI assistants</string>
     <string name="about_desc_app_functions">Enables standard Android AppFunctions metadata so system AI assistants like Gemini can control flashlight, caffeinate, sound modes, automations, and display settings directly through voice or chat commands.</string>
     <string name="watch_notif_sync_title">Notifications</string>
     <string name="watch_notif_sync_desc">For the launcher only</string>
@@ -2933,9 +2935,9 @@
     <string name="watchface_clock_outline_desc">Show only font outlines instead of filled text</string>
     <string name="watchface_clock_outline_thickness">Outline thickness</string>
     <string name="app_medrop">MeDrop</string>
-    <string name="action_licenses_and_credits">Licenses</string>
+    <string name="action_licenses_and_credits">Credits &amp; Licenses</string>
     <string name="licenses_credits_title">Licenses &amp; Credits</string>
-    <string name="licenses_credits_subtitle">Open source projects powering Essentials</string>
+    <string name="licenses_credits_subtitle">Open source projects and references powering Komorebi</string>
     <string name="action_license">License</string>
     <string name="action_source_code">Source Code</string>
     <string name="watch_complications_title">Complications</string>
@@ -2982,7 +2984,7 @@
     <string name="feat_aod_wallpaper_disable_on_dnd">Disable on DND</string>
     <string name="feat_aod_wallpaper_media_apps">Skip media apps</string>
     <string name="perm_storage_title">All files access</string>
-    <string name="perm_storage_desc">To read your current wallpaper which is not accessible with regular privileges, Essentials needs external storage permissions.</string>
+    <string name="perm_storage_desc">To read your current wallpaper which is not accessible with regular privileges, Komorebi needs external storage permissions.</string>
 
     <!-- Pixel Search Results -->
     <string name="pixel_search_results_title">Search results</string>
@@ -3065,10 +3067,10 @@
     <string name="action_show_granted">Show granted</string>
     <string name="action_hide_granted">Hide granted</string>
     <string name="perm_local_network_title">Local network access</string>
-    <string name="perm_local_network_desc">Android 17 blocks apps from talking to devices on your Wi-Fi network unless you allow it. Essentials needs this to work with your watch over the local network.</string>
+    <string name="perm_local_network_desc">Android 17 blocks apps from talking to devices on your Wi-Fi network unless you allow it. Komorebi needs this to work with your watch over the local network.</string>
     <string name="perm_bubbles_title">Floating Bubbles</string>
     <string name="perm_sensitive_notifications_title">Read sensitive notifications</string>
-    <string name="perm_sensitive_notifications_desc">Android hides one-time codes from notification listeners. Essentials needs this access to show codes on the island.</string>
+    <string name="perm_sensitive_notifications_desc">Android hides one-time codes from notification listeners. Komorebi needs this access to show codes on the island.</string>
     <string name="perm_sensitive_notifications_instructions">Grant it with Shizuku or root, or run the command over ADB.</string>
     <string name="perm_bubbles_desc">Allow web previews to open in floating conversation bubbles above other apps</string>
     <string name="perm_bubbles_instructions">Set to "All conversations can bubble" in app notification settings, or grant via Shizuku / Root.</string>
@@ -3077,7 +3079,7 @@
     <!-- Duo -->
     <string name="duo_title">Duo</string>
     <string name="duo_desc">This doesn\'t fold</string>
-    <string name="about_desc_duo">This doesn\'t fold\n\nAn iPhone Duo style status indicator to show your battery, network, media status and more in a compact, minimal UI ideally around your camera with various items to show and gestures to interact with.\n\nFor foldable devices, Ensure to turn off \'Auto-detect camera\' option if it\'s not reliable and manually align Duo with your inside and outside camera positions and then Essentials will remember your layout.</string>
+    <string name="about_desc_duo">This doesn\'t fold\n\nAn iPhone Duo style status indicator to show your battery, network, media status and more in a compact, minimal UI ideally around your camera with various items to show and gestures to interact with.\n\nFor foldable devices, Ensure to turn off \'Auto-detect camera\' option if it\'s not reliable and manually align Duo with your inside and outside camera positions and then Komorebi will remember your layout.</string>
     <string name="about_desc_duo_tile">Turn the Duo camera ring overlay on or off from your Quick Settings.</string>
     <string name="duo_enable_title">Enable Duo</string>
     <string name="duo_enable_desc">This doesn\'t fold, but does cool stuff</string>
@@ -3509,7 +3511,7 @@
     <string name="island_notification_options_title">Notification options</string>
     <string name="feat_face_unlock_brightness_title">Face illumination</string>
     <string name="feat_face_unlock_brightness_desc">Bump brightness in low light</string>
-    <string name="about_desc_face_illumination">Helps face unlock recognize you in the dark.\n\nWhen the screen wakes up in low light, Essentials lights up the screen with a soft tinted glow so the front camera can see your face. You can set the ambient light threshold that decides when it kicks in, pick the light tint, and choose whether it illuminates automatically on wake-up or only when you trigger it.\n\nIt can also trigger the unlock for you. Accessibility permission is required.</string>
+    <string name="about_desc_face_illumination">Helps face unlock recognize you in the dark.\n\nWhen the screen wakes up in low light, Komorebi lights up the screen with a soft tinted glow so the front camera can see your face. You can set the ambient light threshold that decides when it kicks in, pick the light tint, and choose whether it illuminates automatically on wake-up or only when you trigger it.\n\nIt can also trigger the unlock for you. Accessibility permission is required.</string>
     <string name="feat_screenshot_share_cleanup_title">Delete shared screenshots</string>
     <string name="feat_screenshot_share_cleanup_desc">Trash screenshots after sharing</string>
     <string name="screenshot_share_cleanup_trashed">Shared screenshot moved to trash</string>
@@ -3612,8 +3614,8 @@
     <string name="shizuku_not_running_desc">Please start Shizuku to enable features.</string>
     <string name="shizuku_not_running_feature_desc">Please start Shizuku to use %1$s.</string>
     <string name="shizuku_permission_missing_title">Shizuku permission missing</string>
-    <string name="shizuku_permission_missing_desc">Please grant Shizuku permission for Essentials.</string>
-    <string name="shizuku_permission_missing_feature_desc">Please grant Shizuku permission for Essentials to use %1$s.</string>
+    <string name="shizuku_permission_missing_desc">Please grant Shizuku permission for Komorebi.</string>
+    <string name="shizuku_permission_missing_feature_desc">Please grant Shizuku permission for Komorebi to use %1$s.</string>
     <string name="shizuku_status_alerts_channel_name">Shizuku Status Alerts</string>
     <string name="conscious_gate_island_wasting_time">Wasting time</string>
     <string name="conscious_gate_island_remaining">remaining</string>
@@ -3622,8 +3624,8 @@
     <string name="action_collapse_status_bar">Collapse status bar</string>
 
     <!-- Watchface Promotion -->
-    <string name="whats_new_watchface_title">Essentials Watchface</string>
-    <string name="whats_new_watchface_desc">Install the Essentials watchface on your Wear OS watch straight from Google Play.</string>
+    <string name="whats_new_watchface_title">Komorebi Watchface</string>
+    <string name="whats_new_watchface_desc">Install the Komorebi watchface on your Wear OS watch straight from Google Play.</string>
     <string name="whats_new_watchface_summary">Now on Google Play for Wear OS</string>
     <string name="watchface_promo_step3_title">Install on Watch</string>
     <string name="watchface_promo_step3_desc">Open the Play Store listing directly on your watch to install</string>
@@ -3681,13 +3683,13 @@
     <string name="widget_stack_controls_edges">Widget edges</string>
     <string name="widget_stack_controls_auto_hide_desc">Tap below the stack to show them. They hide again after a few seconds.</string>
     <string name="widget_stack_show_controls_handle">Show arrows and dots</string>
-    <string name="widget_stack_overlay_needed">Allow Essentials to display over other apps so the stacked widgets keep updating</string>
+    <string name="widget_stack_overlay_needed">Allow Komorebi to display over other apps so the stacked widgets keep updating</string>
     <string name="widget_stack_grant">Grant</string>
     <string name="widget_stack_done">Done</string>
     <string name="widget_stack_unknown_widget">Widget</string>
-    <string name="about_desc_link_actions">Choose how links open instead of being stuck with one app.\n\nWhen you open a link, Essentials lets you pick between multiple apps to handle it, with the option to open it in a bubble, copy it, share it or shorten it and create a QR code.</string>
+    <string name="about_desc_link_actions">Choose how links open instead of being stuck with one app.\n\nWhen you open a link, Komorebi lets you pick between multiple apps to handle it, with the option to open it in a bubble, copy it, share it or shorten it and create a QR code.</string>
     <string name="about_desc_daily_wallpaper">Keep your wallpaper fresh with a daily curated wallpaper, or set a live wallpaper.\n\nPick your wallpaper, review and queue the next wallpaper before it is applied, and manage your live wallpaper from one place.</string>
-    <string name="about_desc_watch">Integrations between your phone and your Wear OS watch.\n\nInstall the Essentials companion on your watch to sync notifications and calls, lock your phone from the watch, customize the watchface and complications, sync sound mode and location status, install an eSIM and turn on wireless debugging remotely.</string>
+    <string name="about_desc_watch">Integrations between your phone and your Wear OS watch.\n\nInstall the Komorebi companion on your watch to sync notifications and calls, lock your phone from the watch, customize the watchface and complications, sync sound mode and location status, install an eSIM and turn on wireless debugging remotely.</string>
     <string name="about_desc_network_download_rate_limit">Limit the system-wide download speed.\n\nUseful to stop large downloads and updates from using all of your bandwidth. Requires advanced permissions such as Shizuku or root.</string>
     <string name="about_desc_mobile_data_always_on">Keeps mobile data active even while connected to Wi-Fi.\n\nThis lets your phone switch to mobile data instantly when the Wi-Fi connection gets weak or drops, at the cost of some extra battery use.</string>
     <string name="about_desc_wireless_display_certification">Shows the hidden wireless display certification options in Android\'s developer settings.\n\nThese options expose extra Wi-Fi display (Miracast) settings for testing and troubleshooting casting.</string>
@@ -3698,7 +3700,7 @@
     <string name="about_desc_sync_location_reached">Sends your Are we there yet status to your watch.\n\nThe status is shown in the device tile so you can see how close you are to your destination right from your wrist.</string>
     <string name="about_desc_lock_from_watch">Lock your phone remotely from your watch.\n\nHandy if you left your phone somewhere and want to secure it right away.</string>
     <string name="about_desc_watch_controls">Customize the controls shown on your watch.\n\nChoose which actions are available so the watch shows only what you need.</string>
-    <string name="about_desc_watchface">Customize the Essentials watchface on your Wear OS watch.\n\nChange its look and settings from your phone.</string>
+    <string name="about_desc_watchface">Customize the Komorebi watchface on your Wear OS watch.\n\nChange its look and settings from your phone.</string>
     <string name="about_desc_complications">Customize the complication widgets shown on your watchface.\n\nChoose which info appears and where, such as flashlight status or other glance items.</string>
     <string name="about_desc_notification_sync">Sync notifications between your phone and your watch.\n\nThis is only used for the launcher and is not a full notification mirror.</string>
     <string name="about_desc_call_sync">Sync call status between your phone and your watch.\n\nThis is only used for the launcher and is not a full call handler.</string>
@@ -3707,7 +3709,7 @@
     <string name="feature_reset_hold">Hold to reset</string>
     <string name="feature_reset_done">Settings reset</string>
     <string name="feature_reset_info_title">Reset this feature</string>
-    <string name="feature_reset_info_desc">Resets every Essentials setting for this feature to its default. System settings and permissions are not changed.</string>
+    <string name="feature_reset_info_desc">Resets every Komorebi setting for this feature to its default. System settings and permissions are not changed.</string>
     <string name="island_chips_title">Island chips</string>
     <string name="island_time_chip_title">Show in chip</string>
     <string name="island_calendar_compact_time_title">Compact time</string>
@@ -3790,7 +3792,7 @@
     <string name="wallpaper_lock_screen">Lock Screen</string>
     <string name="wallpaper_current_photo_credits">Current Photo Credits</string>
     <string name="wallpaper_view_photo">View Photo</string>
-    <string name="wallpaper_view_collection">View Sameera\'s Collection</string>
+    <string name="wallpaper_view_collection">View Curated Collection</string>
     <string name="watch_adb_permissions_title">Watch ADB Permissions</string>
     <string name="watch_adb_write_secure_desc">Required on the watch to toggle Wireless Debugging remotely.</string>
     <string name="watch_adb_dnd_title">Do Not Disturb (DND) Access</string>
@@ -3804,7 +3806,7 @@
     <string name="user_dictionary_empty">No words learned yet.</string>
     <string name="user_dictionary_reset_desc">Delete all learned words from dictionary</string>
     <string name="content_desc_subreddit_avatar">Subreddit avatar</string>
-    <string name="subreddit_description">A place to discuss about Essentials and other apps by me. Join the community and contribute to the projects, get help and learn a thing or two. ( ´ ▽ ` )ﾉ</string>
+    <string name="subreddit_description">Join the community to discuss Komorebi, share extensions, and contribute.</string>
     <string name="content_desc_app_icon">App icon</string>
     <string name="content_desc_pinned">Pinned</string>
     <string name="link_no_apps_share">No apps found to share with</string>
@@ -3824,7 +3826,7 @@
     <string name="settings_config_exported">Config exported successfully</string>
     <string name="settings_config_export_failed">Failed to export config</string>
     <string name="shizuku_auth_token_title">Shizuku Auth Token</string>
-    <string name="shizuku_auth_token_help">In shizuku, in the \'Control Shizuku with automation apps\' section, Open \'View intents\' and copy and paste the auth token from \'Extras\' section.\n\nThis allows Essentials to automate and re-start Shizuku on demand in features such as Shut-Up</string>
+    <string name="shizuku_auth_token_help">In shizuku, in the \'Control Shizuku with automation apps\' section, Open \'View intents\' and copy and paste the auth token from \'Extras\' section.\n\nThis allows Komorebi to automate and re-start Shizuku on demand in features such as Shut-Up</string>
     <string name="label_notify_new_updates">Notify for new updates</string>
     <string name="shizuku_auth_token_label">Shizuku auth token</string>
     <string name="toast_saved">Saved</string>
@@ -3839,7 +3841,7 @@
     <string name="wallpaper_trigger_update_desc">Trigger unsplash wallpaper update on your website directly:</string>
     <string name="app_lock_unlock_to_access">Unlock to access %1$s</string>
     <string name="content_desc_lock_icon">Lock icon</string>
-    <string name="content_desc_essentials_icon">Essentials app icon</string>
+    <string name="content_desc_essentials_icon">Komorebi app icon</string>
     <string name="app_lock_locked_title">App is locked</string>
     <string name="app_lock_locked_desc">Please authenticate to unlock or\ngive the phone to the owner\n( -_-)</string>
     <string name="action_shortcut_not_configured">No customized action shortcut configured</string>
@@ -3862,7 +3864,7 @@
     <string name="pixel_search_setting_storage">Internal storage, cleanup</string>
     <string name="pixel_search_setting_security_title">Security &amp; privacy</string>
     <string name="pixel_search_setting_security">Screen lock, app permissions</string>
-    <string name="pixel_search_shortcut_wallpaper">Essentials wallpaper changer</string>
+    <string name="pixel_search_shortcut_wallpaper">Komorebi wallpaper changer</string>
     <string name="pixel_search_shortcut_freeze">Freeze unused apps</string>
     <string name="tile_battery_info">Battery Info</string>
     <string name="tile_launch_grid">Launch grid</string>
@@ -3927,7 +3929,7 @@
     <string name="shorten_time_left_s">%1$ds left</string>
     <string name="toast_command_copied">Command copied</string>
     <string name="qs_tiles_grant_permission">Grant permission</string>
-    <string name="shut_up_auth_token_missing">Please enter the Shizuku auth token in Essentials settings</string>
+    <string name="shut_up_auth_token_missing">Please enter the Shizuku auth token in Komorebi settings</string>
     <string name="bug_report_share_failed">Failed to share report</string>
     <string name="prank_reset_toast">Prank reset for testing</string>
     <string name="accessibility_auto_granted">Accessibility auto-granted</string>

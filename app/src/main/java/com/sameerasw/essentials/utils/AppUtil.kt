@@ -63,7 +63,7 @@ object AppUtil {
                         .getInstalledApplications(0)
                         .filter { appInfo ->
                             // Filter out our own app unless requested
-                            includeSelf || !appInfo.packageName.contains("essentials")
+                            includeSelf || appInfo.packageName != context.packageName
                         }
 
                 val apps =

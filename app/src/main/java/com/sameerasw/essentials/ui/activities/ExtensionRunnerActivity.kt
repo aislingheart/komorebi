@@ -263,97 +263,112 @@ private fun ExtensionRunnerScreen(
     }
 
     if (showPreferences) {
-        val defs = remember(extension, command) {
-            (extension.manifest.preferences.orEmpty()) + (command.preferences.orEmpty())
-        }
-        val initialValues = remember(extension, command) {
-            RaycastExtensionRepository.getPreferenceValuesMap(context, extension, command)
-        }
-        val editedValues = remember(initialValues) {
-            mutableStateMapOf<String, Any>().apply { putAll(initialValues) }
-        }
-
-        ModalBottomSheet(
+        ExtensionPreferencesBottomSheet(
+            extension = extension,
+            command = command,
             onDismissRequest = { showPreferences = false },
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ExtensionPreferencesBottomSheet(
+    extension: InstalledRaycastExtension,
+    command: RaycastCommandManifest,
+    onDismissRequest: () -> Unit,
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val defs = remember(extension, command) {
+        (extension.manifest.preferences.orEmpty()) + (command.preferences.orEmpty())
+    }
+    val initialValues = remember(extension, command) {
+        RaycastExtensionRepository.getPreferenceValuesMap(context, extension, command)
+    }
+    val editedValues = remember(initialValues) {
+        mutableStateMapOf<String, Any>().apply { putAll(initialValues) }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp)
-                    .padding(bottom = 28.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
+            Text(
+                text = "${extension.displayTitle} Preferences",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            if (defs.isEmpty()) {
                 Text(
-                    text = "${extension.displayTitle} Preferences",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
+                    text = "This extension does not declare configurable preferences.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                if (defs.isEmpty()) {
-                    Text(
-                        text = "This extension does not declare configurable preferences.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    defs.forEach { def ->
-                        when (def.type.lowercase()) {
-                            "checkbox" -> {
-                                val checked = editedValues[def.name] as? Boolean ?: false
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(def.title.ifBlank { def.name }, style = MaterialTheme.typography.bodyLarge)
-                                        if (def.description.isNotBlank()) {
-                                            Text(def.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        }
+            } else {
+                defs.forEach { def ->
+                    when (def.type.lowercase()) {
+                        "checkbox" -> {
+                            val checked = editedValues[def.name] as? Boolean ?: false
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(def.title.ifBlank { def.name }, style = MaterialTheme.typography.bodyLarge)
+                                    if (def.description.isNotBlank()) {
+                                        Text(def.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
-                                    Switch(
-                                        checked = checked,
-                                        onCheckedChange = { editedValues[def.name] = it },
-                                    )
                                 }
-                            }
-                            else -> {
-                                val value = editedValues[def.name]?.toString() ?: ""
-                                OutlinedTextField(
-                                    value = value,
-                                    onValueChange = { editedValues[def.name] = it },
-                                    label = { Text(def.title.ifBlank { def.name }) },
-                                    placeholder = if (def.placeholder.isNotBlank()) {
-                                        { Text(def.placeholder) }
-                                    } else null,
-                                    supportingText = if (def.description.isNotBlank()) {
-                                        { Text(def.description) }
-                                    } else null,
-                                    visualTransformation = if (def.type.equals("password", ignoreCase = true)) {
-                                        PasswordVisualTransformation()
-                                    } else VisualTransformation.None,
-                                    shape = RoundedCornerShape(16.dp),
-                                    modifier = Modifier.fillMaxWidth(),
+                                Switch(
+                                    checked = checked,
+                                    onCheckedChange = { editedValues[def.name] = it },
                                 )
                             }
                         }
+                        else -> {
+                            val value = editedValues[def.name]?.toString() ?: ""
+                            OutlinedTextField(
+                                value = value,
+                                onValueChange = { editedValues[def.name] = it },
+                                label = { Text(def.title.ifBlank { def.name }) },
+                                placeholder = if (def.placeholder.isNotBlank()) {
+                                    { Text(def.placeholder) }
+                                } else null,
+                                supportingText = if (def.description.isNotBlank()) {
+                                    { Text(def.description) }
+                                } else null,
+                                visualTransformation = if (def.type.equals("password", ignoreCase = true)) {
+                                    PasswordVisualTransformation()
+                                } else VisualTransformation.None,
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
                     }
-                    Button(
-                        onClick = {
-                            defs.forEach { def ->
-                                editedValues[def.name]?.let { v ->
-                                    RaycastExtensionRepository.setPreferenceValue(context, extension.id, def, v)
-                                }
+                }
+                Button(
+                    onClick = {
+                        defs.forEach { def ->
+                            editedValues[def.name]?.let { v ->
+                                RaycastExtensionRepository.setPreferenceValue(context, extension.id, def, v)
                             }
-                            showPreferences = false
-                            Toast.makeText(context, "Preferences saved. Reopen command to apply.", Toast.LENGTH_SHORT).show()
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                    ) {
-                        Text("Save Preferences")
-                    }
+                        }
+                        onDismissRequest()
+                        Toast.makeText(context, "Preferences saved. Reopen command to apply.", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                ) {
+                    Text("Save Preferences")
                 }
             }
         }
