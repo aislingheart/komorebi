@@ -271,22 +271,19 @@ object EmojiCatalog {
     fun categories(): List<String> = ENTRIES.map { it.category }.distinct()
 
     fun search(query: String): List<EmojiEntry> {
-        val cleaned = query.trim().removePrefix(":").removeSuffix(":").lowercase(Locale.US)
+        val cleaned = query.trim().removePrefix(":").removeSuffix(":").trim()
         if (cleaned.isEmpty()) return ENTRIES
 
         return ENTRIES.mapNotNull { entry ->
-            val nameLower = entry.name.lowercase(Locale.US)
-            val catLower = entry.category.lowercase(Locale.US)
-            val score = when {
-                entry.emoji == cleaned -> 100
-                nameLower == cleaned -> 95
-                entry.keywords.any { it.equals(cleaned, ignoreCase = true) } -> 90
-                nameLower.startsWith(cleaned) -> 80
-                entry.keywords.any { it.lowercase(Locale.US).startsWith(cleaned) } -> 70
-                nameLower.contains(cleaned) -> 60
-                entry.keywords.any { it.lowercase(Locale.US).contains(cleaned) } -> 50
-                catLower.contains(cleaned) -> 30
-                else -> 0
+            val score = if (entry.emoji == cleaned) {
+                1000
+            } else {
+                com.sameerasw.essentials.utils.FuzzySearchUtil.scoreFields(
+                    query = cleaned,
+                    primary = entry.name,
+                    secondary = entry.keywords,
+                    tertiary = listOf(entry.category),
+                )
             }
             if (score > 0) entry to score else null
         }.sortedByDescending { it.second }.map { it.first }

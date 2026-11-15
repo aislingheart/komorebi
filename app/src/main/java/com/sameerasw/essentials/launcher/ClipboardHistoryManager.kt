@@ -99,10 +99,18 @@ object ClipboardHistoryManager {
         val all = getEntries(context)
         val trimmed = query.trim()
         if (trimmed.isEmpty()) return all
-        return all.filter {
-            it.text.contains(trimmed, ignoreCase = true) ||
-                it.contentType.contains(trimmed, ignoreCase = true)
-        }
+        return all.mapNotNull { entry ->
+            val score = com.sameerasw.essentials.utils.FuzzySearchUtil.scoreFields(
+                query = trimmed,
+                primary = entry.text.take(300),
+                secondary = listOf(entry.contentType),
+            )
+            if (score > 0) entry to score else null
+        }.sortedWith(
+            compareByDescending<Pair<ClipboardEntry, Int>> { it.second }
+                .thenByDescending { it.first.pinned }
+                .thenByDescending { it.first.timestamp },
+        ).map { it.first }
     }
 
     fun copyEntry(context: Context, entry: ClipboardEntry) {

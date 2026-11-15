@@ -517,6 +517,10 @@ class MainViewModel : ViewModel() {
         pixelSearchResultWeb.value = settingsRepository.isPixelSearchResultWebEnabled()
         pixelSearchBubblesWeb.value = settingsRepository.isPixelSearchBubblesWebEnabled()
         pixelSearchEngine.value = settingsRepository.getPixelSearchEngine()
+        pixelSearchReachability.value = settingsRepository.isPixelSearchReachabilityEnabled()
+        pixelSearchUsageRanking.value = settingsRepository.isPixelSearchUsageRankingEnabled()
+        pixelSearchTypoTolerance.value = settingsRepository.isPixelSearchTypoToleranceEnabled()
+        com.sameerasw.essentials.utils.FuzzySearchUtil.setTypoToleranceEnabled(pixelSearchTypoTolerance.value)
         isFaceUnlockBrightnessEnabled.value = settingsRepository.isFaceUnlockBrightnessEnabled()
     }
     fun setEnableUnsupportedFeatures(
@@ -1050,6 +1054,9 @@ class MainViewModel : ViewModel() {
     val pixelSearchResultWeb = mutableStateOf(true)
     val pixelSearchBubblesWeb = mutableStateOf(false)
     val pixelSearchEngine = mutableStateOf("Google")
+    val pixelSearchReachability = mutableStateOf(false)
+    val pixelSearchUsageRanking = mutableStateOf(true)
+    val pixelSearchTypoTolerance = mutableStateOf(true)
     fun setPixelSearchResultAppsEnabled(enabled: Boolean) {
         pixelSearchResultApps.value = enabled
         settingsRepository.setPixelSearchResultAppsEnabled(enabled)
@@ -1085,6 +1092,19 @@ class MainViewModel : ViewModel() {
     fun setPixelSearchEngine(engine: String) {
         pixelSearchEngine.value = engine
         settingsRepository.setPixelSearchEngine(engine)
+    }
+    fun setPixelSearchReachabilityEnabled(enabled: Boolean) {
+        pixelSearchReachability.value = enabled
+        settingsRepository.setPixelSearchReachabilityEnabled(enabled)
+    }
+    fun setPixelSearchUsageRankingEnabled(enabled: Boolean) {
+        pixelSearchUsageRanking.value = enabled
+        settingsRepository.setPixelSearchUsageRankingEnabled(enabled)
+        com.sameerasw.essentials.utils.SearchUsageTracker.invalidateRankingSetting()
+    }
+    fun setPixelSearchTypoToleranceEnabled(enabled: Boolean) {
+        pixelSearchTypoTolerance.value = enabled
+        settingsRepository.setPixelSearchTypoToleranceEnabled(enabled)
     }
     fun setPixelSearchbarTapActionEnabled(
         enabled: Boolean,

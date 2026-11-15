@@ -302,26 +302,40 @@ object BuiltInLauncherTools {
         ),
     )
 
-    fun search(query: String): List<BuiltInLauncherAction> {
-        val trimmed = query.trim().lowercase(Locale.US)
-        if (trimmed.isEmpty()) return allActions()
+    fun search(query: String): List<BuiltInLauncherAction> =
+        searchScored(query).map { it.first }
+
+    fun search(context: Context, query: String): List<BuiltInLauncherAction> =
+        searchScored(context, query).map { it.first }
+
+    fun searchScored(query: String): List<Pair<BuiltInLauncherAction, Int>> {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) return allActions().map { it to 1000 }
 
         return allActions().mapNotNull { action ->
-            val titleLower = action.title.lowercase(Locale.US)
-            val subLower = action.subtitle.lowercase(Locale.US)
-            val score = when {
-                titleLower == trimmed -> 100
-                action.keywords.any { it.equals(trimmed, ignoreCase = true) } -> 95
-                titleLower.startsWith(trimmed) -> 85
-                action.keywords.any { it.startsWith(trimmed) } -> 80
-                titleLower.contains(trimmed) -> 65
-                action.keywords.any { it.contains(trimmed) } -> 55
-                subLower.contains(trimmed) -> 35
-                else -> 0
-            }
+            val score = com.sameerasw.essentials.utils.FuzzySearchUtil.scoreFields(
+                query = trimmed,
+                primary = action.title,
+                secondary = action.keywords,
+                tertiary = listOf(action.subtitle, action.badge),
+            )
             if (score > 0) action to score else null
-        }.sortedByDescending { it.second }.map { it.first }
+        }.sortedWith(
+            compareByDescending<Pair<BuiltInLauncherAction, Int>> { it.second }
+                .thenBy { it.first.title.lowercase(Locale.US) },
+        )
     }
+
+    fun searchScored(context: Context, query: String): List<Pair<BuiltInLauncherAction, Int>> =
+        searchScored(query).map { (action, score) ->
+            action to score + com.sameerasw.essentials.utils.SearchUsageTracker.boost(
+                context,
+                com.sameerasw.essentials.utils.SearchUsageTracker.actionKey(action.id),
+            )
+        }.sortedWith(
+            compareByDescending<Pair<BuiltInLauncherAction, Int>> { it.second }
+                .thenBy { it.first.title.lowercase(Locale.US) },
+        )
 
     private fun copyAndToast(context: Context, label: String, value: String, message: String) {
         val appContext = context.applicationContext

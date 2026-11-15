@@ -107,25 +107,38 @@ object SnippetsRepository {
         persist(appContext, current)
     }
 
-    fun search(context: Context, query: String): List<TextSnippet> {
+    fun search(context: Context, query: String): List<TextSnippet> =
+        searchScored(context, query).map { it.first }
+
+    fun searchScored(context: Context, query: String): List<Pair<TextSnippet, Int>> {
         val all = list(context)
-        val trimmed = query.trim().lowercase(Locale.US)
-        if (trimmed.isEmpty()) return all
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) return all.map { it to 1000 }
         return all.mapNotNull { snippet ->
-            val kw = snippet.keyword.lowercase(Locale.US)
-            val name = snippet.name.lowercase(Locale.US)
-            val body = snippet.content.lowercase(Locale.US)
-            val score = when {
-                kw.isNotEmpty() && kw == trimmed -> 100
-                name == trimmed -> 95
-                kw.isNotEmpty() && kw.startsWith(trimmed) -> 85
-                name.startsWith(trimmed) -> 75
-                kw.contains(trimmed) || name.contains(trimmed) -> 60
-                body.contains(trimmed) -> 40
-                else -> 0
+            val kw = snippet.keyword.trim()
+            val exactKw = kw.isNotEmpty() && kw.equals(trimmed, ignoreCase = true)
+            val score = if (exactKw) {
+                1000
+            } else {
+                com.sameerasw.essentials.utils.FuzzySearchUtil.scoreFields(
+                    query = trimmed,
+                    primary = snippet.name,
+                    secondary = listOf(kw),
+                    tertiary = listOf(snippet.content),
+                )
             }
-            if (score > 0) snippet to score else null
-        }.sortedByDescending { it.second }.map { it.first }
+            if (score > 0) {
+                snippet to score + com.sameerasw.essentials.utils.SearchUsageTracker.boost(
+                    context,
+                    com.sameerasw.essentials.utils.SearchUsageTracker.suggestionKey("snippet", snippet.id),
+                )
+            } else {
+                null
+            }
+        }.sortedWith(
+            compareByDescending<Pair<TextSnippet, Int>> { it.second }
+                .thenBy { it.first.name.lowercase(Locale.US) },
+        )
     }
 
     fun expandContent(content: String, clipboardText: String = ""): String {

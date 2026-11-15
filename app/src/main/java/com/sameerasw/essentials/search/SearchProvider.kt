@@ -63,6 +63,7 @@ data class EntityRouteItem(
     val sourceLabel: String,
     val navigationIntent: Intent,
     val mapIntent: Intent,
+    val score: Int = 0,
 )
 
 data class InternalCommandItem(
@@ -73,6 +74,7 @@ data class InternalCommandItem(
     @DrawableRes val iconRes: Int,
     val closesSearchUi: Boolean = true,
     val onExecute: (Context) -> Unit,
+    val score: Int = 0,
 )
 
 data class DiscoveredShortcut(
@@ -85,6 +87,7 @@ data class DiscoveredShortcut(
     val icon: ImageBitmap? = null,
     @DrawableRes val fallbackIconRes: Int,
     val fromShizuku: Boolean = false,
+    val score: Int = 0,
 )
 
 data class AppFunctionItem(
@@ -94,4 +97,5 @@ data class AppFunctionItem(
     val functionLabel: String,
     val icon: ImageBitmap?,
     val launchIntent: Intent?,
+    val score: Int = 0,
 )

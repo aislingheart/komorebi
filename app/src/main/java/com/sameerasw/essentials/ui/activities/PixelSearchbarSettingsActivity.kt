@@ -91,6 +91,17 @@ fun PixelSearchbarSettingsScreen(onBack: () -> Unit) {
     val viewModel: MainViewModel = viewModel()
     val context = LocalContext.current
 
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer =
+            androidx.lifecycle.LifecycleEventObserver { _, event ->
+                if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                    viewModel.check(context)
+                }
+            }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     remember(context) { viewModel.check(context) }
 
     val isPitchBlackThemeEnabled by viewModel.isPitchBlackThemeEnabled
@@ -544,6 +555,9 @@ fun PixelSearchbarSettingsUI(
                 val settingsEnabled = viewModel.pixelSearchResultSettings.value
                 val shortcutsEnabled = viewModel.pixelSearchResultShortcuts.value
                 val webEnabled = viewModel.pixelSearchResultWeb.value
+                val reachabilityEnabled = viewModel.pixelSearchReachability.value
+                val usageRankingEnabled = viewModel.pixelSearchUsageRanking.value
+                val typoToleranceEnabled = viewModel.pixelSearchTypoTolerance.value
 
                 RoundedCardContainer {
                     IconToggleItem(
@@ -653,6 +667,39 @@ fun PixelSearchbarSettingsUI(
                         onCheckedChange = { checked ->
                             HapticUtil.performVirtualKeyHaptic(view)
                             viewModel.setPixelSearchResultWebEnabled(checked)
+                        },
+                    )
+
+                    IconToggleItem(
+                        iconRes = R.drawable.rounded_keyboard_24,
+                        title = stringResource(R.string.pixel_search_reachability_title),
+                        description = stringResource(R.string.pixel_search_reachability_desc),
+                        isChecked = reachabilityEnabled,
+                        onCheckedChange = { checked ->
+                            HapticUtil.performVirtualKeyHaptic(view)
+                            viewModel.setPixelSearchReachabilityEnabled(checked)
+                        },
+                    )
+
+                    IconToggleItem(
+                        iconRes = R.drawable.rounded_history_24,
+                        title = stringResource(R.string.pixel_search_usage_ranking_title),
+                        description = stringResource(R.string.pixel_search_usage_ranking_desc),
+                        isChecked = usageRankingEnabled,
+                        onCheckedChange = { checked ->
+                            HapticUtil.performVirtualKeyHaptic(view)
+                            viewModel.setPixelSearchUsageRankingEnabled(checked)
+                        },
+                    )
+
+                    IconToggleItem(
+                        iconRes = R.drawable.rounded_auto_awesome_24,
+                        title = stringResource(R.string.pixel_search_typo_tolerance_title),
+                        description = stringResource(R.string.pixel_search_typo_tolerance_desc),
+                        isChecked = typoToleranceEnabled,
+                        onCheckedChange = { checked ->
+                            HapticUtil.performVirtualKeyHaptic(view)
+                            viewModel.setPixelSearchTypoToleranceEnabled(checked)
                         },
                     )
 

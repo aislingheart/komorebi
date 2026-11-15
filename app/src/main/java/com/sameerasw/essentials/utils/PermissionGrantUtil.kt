@@ -18,7 +18,7 @@ import android.provider.Settings
 
 object PermissionGrantUtil {
     private const val ACCESSIBILITY_SERVICE_CLASS =
-        "com.sameerasw.essentials.services.tiles.ScreenOffAccessibilityService"
+        "com.sameerasw.essentials.services.AccessibilityShortcutService1"
     private const val NOTIFICATION_LISTENER_CLASS =
         "com.sameerasw.essentials.services.NotificationListener"
 

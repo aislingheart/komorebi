@@ -20,9 +20,10 @@ import android.view.inputmethod.InputMethodManager
 
 object PermissionUtils {
     private const val ACCESSIBILITY_SERVICE_CLASS =
-        "com.sameerasw.essentials.services.tiles.ScreenOffAccessibilityService"
+        "com.sameerasw.essentials.services.AccessibilityShortcutService1"
     private const val NOTIFICATION_LISTENER_CLASS =
         "com.sameerasw.essentials.services.NotificationListener"
+
     private const val DEVICE_ADMIN_RECEIVER_CLASS =
         "com.sameerasw.essentials.services.receivers.SecurityDeviceAdminReceiver"
 
@@ -45,14 +46,21 @@ object PermissionUtils {
      * @return The resulting Boolean data.
      */
     fun isAccessibilityServiceEnabled(context: Context): Boolean {
-        val enabledServices =
+        val enabledServices = getEnabledAccessibilityServices(context) ?: return false
+        return enabledServices.any { service ->
+            service.startsWith("${context.packageName}/")
+        }
+    }
+
+    private fun getEnabledAccessibilityServices(context: Context): List<String>? =
+        try {
             Settings.Secure.getString(
                 context.contentResolver,
                 Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-            )
-        val serviceName = "${context.packageName}/$ACCESSIBILITY_SERVICE_CLASS"
-        return enabledServices?.contains(serviceName) == true
-    }
+            )?.split(':')
+        } catch (_: Exception) {
+            null
+        }
 
     /**
      * Executes the is accessibility shortcut service enabled operation.
@@ -114,8 +122,9 @@ object PermissionUtils {
                     context.contentResolver,
                     "enabled_notification_listeners",
                 ) ?: return false
-            val componentName = ComponentName(context, NOTIFICATION_LISTENER_CLASS)
-            enabledServices.contains(componentName.flattenToString())
+            enabledServices
+                .split(':')
+                .any { it.startsWith("${context.packageName}/") && it.contains("NotificationListener") }
         } catch (_: Exception) {
             false
         }
@@ -149,14 +158,7 @@ object PermissionUtils {
      */
     fun isNotificationLightingAccessibilityServiceEnabled(context: Context): Boolean =
         try {
-            val enabledServices =
-                Settings.Secure.getString(
-                    context.contentResolver,
-                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-                )
-            val serviceName =
-                "${context.packageName}/$ACCESSIBILITY_SERVICE_CLASS"
-            enabledServices?.contains(serviceName) == true
+            isAccessibilityServiceEnabled(context)
         } catch (e: Exception) {
             false
         }
@@ -652,7 +654,12 @@ object PermissionUtils {
                 context,
                 android.Manifest.permission.READ_MEDIA_AUDIO,
             ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-            hasImages && hasVideo && hasAudio
+            val hasSelected = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&
+                androidx.core.content.ContextCompat.checkSelfPermission(
+                    context,
+                    android.Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED,
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            hasImages || hasVideo || hasAudio || hasSelected
         } else {
             androidx.core.content.ContextCompat.checkSelfPermission(
                 context,

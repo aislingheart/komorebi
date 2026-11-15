@@ -3044,6 +3044,12 @@
     <string name="pixel_search_use_bubbles_desc">Open search results and links in floating bubble overlays</string>
     <string name="pixel_search_engine_title">Search engine</string>
     <string name="pixel_search_engine_desc">Default search provider used when searching the web</string>
+    <string name="pixel_search_reachability_title">Reachability layout</string>
+    <string name="pixel_search_reachability_desc">Show the most likely result closest to the keyboard and less likely results above it</string>
+    <string name="pixel_search_usage_ranking_title">Rank by usage</string>
+    <string name="pixel_search_usage_ranking_desc">Move apps, settings, files, and shortcuts you use most often higher in results</string>
+    <string name="pixel_search_typo_tolerance_title">Typo guessing</string>
+    <string name="pixel_search_typo_tolerance_desc">Match results even when the query is slightly misspelled</string>
     <string name="pixel_search_open_url_action">Open \"%1$s\"</string>
     <string name="bubble_web_link_copied">Link copied to clipboard</string>
     <string name="label_apply_after_reboot">Apply after reboot</string>

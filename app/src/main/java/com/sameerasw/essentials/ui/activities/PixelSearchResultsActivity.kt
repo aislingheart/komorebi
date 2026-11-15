@@ -224,8 +224,10 @@ import com.sameerasw.essentials.ui.core.sheets.PixelSearchFileActionSheet
 import com.sameerasw.essentials.utils.AppUtil
 import com.sameerasw.essentials.utils.ColorUtil
 import com.sameerasw.essentials.utils.FileSearchUtil
+import com.sameerasw.essentials.utils.FuzzySearchUtil
 import com.sameerasw.essentials.utils.HapticUtil
 import com.sameerasw.essentials.utils.PermissionUtils
+import com.sameerasw.essentials.utils.SearchUsageTracker
 import com.sameerasw.essentials.utils.WindowingUtils
 import com.sameerasw.essentials.viewmodels.MainViewModel
 import kotlinx.coroutines.Dispatchers
@@ -575,6 +577,12 @@ fun PixelSearchResultsScreen(
     val isWebEnabled = remember { repository.isPixelSearchResultWebEnabled() }
     val isBubblesWebEnabled = remember { repository.isPixelSearchBubblesWebEnabled() }
     val searchEngine = remember { repository.getPixelSearchEngine() }
+    val reachabilityLayout by viewModel.pixelSearchReachability
+    val typoToleranceEnabled by viewModel.pixelSearchTypoTolerance
+
+    LaunchedEffect(typoToleranceEnabled) {
+        FuzzySearchUtil.setTypoToleranceEnabled(typoToleranceEnabled)
+    }
 
     LaunchedEffect(Unit) {
         discoveredProviders = SearchProviderDiscovery.discoverProviders(context)
@@ -589,7 +597,7 @@ fun PixelSearchResultsScreen(
     }
     val builtInActions = remember { BuiltInLauncherTools.allActions() }
     val matchingToolActions = remember(query, activeScope) {
-        if (activeScope == null && query.isNotBlank()) BuiltInLauncherTools.search(query).take(6) else emptyList()
+        if (activeScope == null && query.isNotBlank()) BuiltInLauncherTools.search(context, query).take(6) else emptyList()
     }
     val matchingSnippets = remember(query, activeScope, launcherDataVersion) {
         if (activeScope == null && query.isNotBlank()) SnippetsRepository.search(context, query).take(5) else emptyList()
@@ -598,14 +606,22 @@ fun PixelSearchResultsScreen(
         if (activeScope == null && query.isNotBlank()) QuicklinksRepository.search(context, query).take(5) else emptyList()
     }
     val matchingProviders = remember(query, activeScope, discoveredProviders) {
-        val q = query.trim().lowercase()
-        if (activeScope != null || q.isEmpty()) emptyList()
-        else discoveredProviders.filter { p ->
-            p.title.lowercase().contains(q) ||
-                p.subtitle.lowercase().contains(q) ||
-                p.category.lowercase().contains(q) ||
-                p.aliases.any { it.equals(q, ignoreCase = true) || it.startsWith(q, ignoreCase = true) }
-        }.take(6)
+        val q = query.trim()
+        if (activeScope != null || q.isEmpty()) {
+            emptyList()
+        } else {
+            discoveredProviders.mapNotNull { provider ->
+                val score = FuzzySearchUtil.scoreFields(
+                    query = q,
+                    primary = provider.title,
+                    secondary = provider.aliases,
+                    tertiary = listOf(provider.subtitle, provider.category),
+                )
+                if (score > 0) provider to score else null
+            }.sortedByDescending { it.second }
+                .take(6)
+                .map { it.first }
+        }
     }
 
     BackHandler(
@@ -649,6 +665,7 @@ fun PixelSearchResultsScreen(
 
     fun executeBuiltInAction(action: BuiltInLauncherAction) {
         HapticUtil.performVirtualKeyHaptic(view)
+        SearchUsageTracker.record(context, SearchUsageTracker.actionKey(action.id))
         if (action.opensModal != null) {
             activeToolModal = action.opensModal
             return
@@ -727,18 +744,42 @@ fun PixelSearchResultsScreen(
                     SearchProviderKind.APPS -> {
                         val installed = AppUtil.getInstalledApps(context, includeSelf = true)
                         val filteredApps = installed
-                            .filter { trimmed.isEmpty() || it.appName.contains(trimmed, ignoreCase = true) }
+                            .mapNotNull { app ->
+                                val baseScore = if (trimmed.isEmpty()) {
+                                    1000
+                                } else {
+                                    FuzzySearchUtil.scoreFields(
+                                        query = trimmed,
+                                        primary = app.appName,
+                                    )
+                                }
+                                if (baseScore <= 0) {
+                                    null
+                                } else {
+                                    app to (
+                                        baseScore +
+                                            SearchUsageTracker.boost(
+                                                context,
+                                                SearchUsageTracker.appKey(app.packageName),
+                                            )
+                                        )
+                                }
+                            }
+                            .sortedWith(
+                                compareByDescending<Pair<com.sameerasw.essentials.domain.model.NotificationApp, Int>> { it.second }
+                                    .thenBy { it.first.appName.lowercase() },
+                            )
+                            .take(24)
                             .map {
+                                val app = it.first
                                 PixelSearchResultItem.AppItem(
-                                    appName = it.appName,
-                                    packageName = it.packageName,
-                                    icon = it.icon,
-                                    isSystemApp = it.isSystemApp,
+                                    appName = app.appName,
+                                    packageName = app.packageName,
+                                    icon = app.icon,
+                                    isSystemApp = app.isSystemApp,
                                     isFrozen = false,
                                 )
                             }
-                            .sortedBy { it.appName.lowercase() }
-                            .take(24)
                         withContext(Dispatchers.Main) {
                             appResults = filteredApps
                             contactResults = emptyList()
@@ -919,20 +960,38 @@ fun PixelSearchResultsScreen(
             if (isAppsEnabled) {
                 val installed = AppUtil.getInstalledApps(context, includeSelf = true)
                 val filteredApps = installed
-                    .filter { app ->
-                        app.appName.contains(trimmed, ignoreCase = true)
+                    .mapNotNull { app ->
+                        val baseScore = FuzzySearchUtil.scoreFields(
+                            query = trimmed,
+                            primary = app.appName,
+                        )
+                        if (baseScore <= 0) {
+                            null
+                        } else {
+                            app to (
+                                baseScore +
+                                    SearchUsageTracker.boost(
+                                        context,
+                                        SearchUsageTracker.appKey(app.packageName),
+                                    )
+                                )
+                        }
                     }
+                    .sortedWith(
+                        compareByDescending<Pair<com.sameerasw.essentials.domain.model.NotificationApp, Int>> { it.second }
+                            .thenBy { it.first.appName.lowercase() },
+                    )
+                    .take(6)
                     .map {
+                        val app = it.first
                         PixelSearchResultItem.AppItem(
-                            appName = it.appName,
-                            packageName = it.packageName,
-                            icon = it.icon,
-                            isSystemApp = it.isSystemApp,
+                            appName = app.appName,
+                            packageName = app.packageName,
+                            icon = app.icon,
+                            isSystemApp = app.isSystemApp,
                             isFrozen = false,
                         )
                     }
-                    .sortedBy { it.appName.lowercase() }
-                    .take(6)
                 withContext(Dispatchers.Main) {
                     appResults = filteredApps
                 }
@@ -1029,6 +1088,7 @@ fun PixelSearchResultsScreen(
         matchingSnippets,
         matchingQuicklinks,
         scopedPhotos,
+        reachabilityLayout,
     ) {
         if (!userHasScrolled && (listState.firstVisibleItemIndex != 0 || listState.firstVisibleItemScrollOffset != 0)) {
             listState.scrollToItem(0)
@@ -1106,15 +1166,25 @@ fun PixelSearchResultsScreen(
                     when {
                         internalCommands.isNotEmpty() -> {
                             val cmd = internalCommands.first()
+                            SearchUsageTracker.record(context, SearchUsageTracker.suggestionKey("command", cmd.id))
                             cmd.onExecute(context)
                             if (cmd.closesSearchUi) onFinish()
                         }
                         systemSettingResults.isNotEmpty() -> {
-                            context.startActivity(systemSettingResults.first().intent)
+                            val systemSetting = systemSettingResults.first()
+                            SearchUsageTracker.record(
+                                context,
+                                SearchUsageTracker.suggestionKey("syssetting", systemSetting.title),
+                            )
+                            context.startActivity(systemSetting.intent)
                             onFinish()
                         }
                         settingResults.isNotEmpty() -> {
                             val setting = settingResults.first().searchableItem
+                            SearchUsageTracker.record(
+                                context,
+                                SearchUsageTracker.settingKey(setting.featureKey, setting.title),
+                            )
                             context.startActivity(
                                 Intent(context, FeatureSettingsActivity::class.java).apply {
                                     putExtra("feature", setting.featureKey)
@@ -1148,6 +1218,7 @@ fun PixelSearchResultsScreen(
             }
             hasCommands -> {
                 val cmd = internalCommands.first()
+                SearchUsageTracker.record(context, SearchUsageTracker.suggestionKey("command", cmd.id))
                 cmd.onExecute(context)
                 if (cmd.closesSearchUi) onFinish()
             }
@@ -1155,14 +1226,18 @@ fun PixelSearchResultsScreen(
                 executeBuiltInAction(matchingToolActions.first())
             }
             hasSnippets -> {
-                val expanded = SnippetsRepository.expandAndCopy(context, matchingSnippets.first())
+                val snippet = matchingSnippets.first()
+                SearchUsageTracker.record(context, SearchUsageTracker.suggestionKey("snippet", snippet.id))
+                val expanded = SnippetsRepository.expandAndCopy(context, snippet)
                 Toast.makeText(context, "Copied snippet: ${expanded.take(40)}", Toast.LENGTH_SHORT).show()
                 onFinish()
             }
             hasExactQuicklink -> {
                 val parts = trimmedQuery.split(Regex("\\s+"), limit = 2)
                 val arg = parts.getOrNull(1).orEmpty()
-                QuicklinksRepository.launch(context, matchingQuicklinks.first(), arg)
+                val link = matchingQuicklinks.first()
+                SearchUsageTracker.record(context, SearchUsageTracker.suggestionKey("quicklink", link.id))
+                QuicklinksRepository.launch(context, link, arg)
                 onFinish()
             }
             hasRoutes -> {
@@ -1177,7 +1252,9 @@ fun PixelSearchResultsScreen(
             hasQuicklinks -> {
                 val parts = trimmedQuery.split(Regex("\\s+"), limit = 2)
                 val arg = if (parts.size > 1) parts[1] else ""
-                QuicklinksRepository.launch(context, matchingQuicklinks.first(), arg)
+                val link = matchingQuicklinks.first()
+                SearchUsageTracker.record(context, SearchUsageTracker.suggestionKey("quicklink", link.id))
+                QuicklinksRepository.launch(context, link, arg)
                 onFinish()
             }
             hasContacts -> {
@@ -1199,11 +1276,20 @@ fun PixelSearchResultsScreen(
                 onFinish()
             }
             hasSystemSettings -> {
-                context.startActivity(systemSettingResults.first().intent)
+                val systemSetting = systemSettingResults.first()
+                SearchUsageTracker.record(
+                    context,
+                    SearchUsageTracker.suggestionKey("syssetting", systemSetting.title),
+                )
+                context.startActivity(systemSetting.intent)
                 onFinish()
             }
             hasEssentials -> {
                 val setting = settingResults.first().searchableItem
+                SearchUsageTracker.record(
+                    context,
+                    SearchUsageTracker.settingKey(setting.featureKey, setting.title),
+                )
                 val intent = Intent(context, FeatureSettingsActivity::class.java).apply {
                     putExtra("feature", setting.featureKey)
                     setting.targetSettingHighlightKey?.let {
@@ -1214,7 +1300,9 @@ fun PixelSearchResultsScreen(
                 onFinish()
             }
             hasShortcuts -> {
-                SearchProviderDiscovery.launchShortcut(context, shortcutResults.first())
+                val shortcut = shortcutResults.first()
+                SearchUsageTracker.record(context, SearchUsageTracker.suggestionKey("shortcut", shortcut.id))
+                SearchProviderDiscovery.launchShortcut(context, shortcut)
                 onFinish()
             }
             else -> {
@@ -1326,14 +1414,22 @@ fun PixelSearchResultsScreen(
             ) {
                 LazyColumn(
                     state = listState,
+                    reverseLayout = reachabilityLayout,
                     modifier = Modifier
                         .fillMaxSize()
                         .nestedScroll(overscrollNestedScrollConnection)
                         .padding(horizontal = 16.dp),
-                    contentPadding = PaddingValues(
-                        top = statusBarHeight + 14.dp,
-                        bottom = 120.dp,
-                    ),
+                    contentPadding = if (reachabilityLayout) {
+                        PaddingValues(
+                            top = 120.dp,
+                            bottom = statusBarHeight + 14.dp,
+                        )
+                    } else {
+                        PaddingValues(
+                            top = statusBarHeight + 14.dp,
+                            bottom = 120.dp,
+                        )
+                    },
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                 // STAGE 2: SCOPED PHOTOS GRID
@@ -1683,6 +1779,7 @@ fun PixelSearchResultsScreen(
                                     containerColor = if (isTopmost) highlightColor else normalCardColor,
                                     onClick = {
                                         HapticUtil.performVirtualKeyHaptic(view)
+                                        SearchUsageTracker.record(context, SearchUsageTracker.suggestionKey("snippet", snippet.id))
                                         val expanded = SnippetsRepository.expandAndCopy(context, snippet)
                                         Toast.makeText(context, "Copied snippet: ${expanded.take(40)}", Toast.LENGTH_SHORT).show()
                                         onFinish()
@@ -1718,6 +1815,7 @@ fun PixelSearchResultsScreen(
                                     containerColor = if (isTopmost) highlightColor else normalCardColor,
                                     onClick = {
                                         HapticUtil.performVirtualKeyHaptic(view)
+                                        SearchUsageTracker.record(context, SearchUsageTracker.suggestionKey("quicklink", link.id))
                                         QuicklinksRepository.launch(context, link, arg)
                                         onFinish()
                                     },
@@ -1768,6 +1866,7 @@ fun PixelSearchResultsScreen(
                                     onToggle = {},
                                     onClick = {
                                         HapticUtil.performVirtualKeyHaptic(view)
+                                        SearchUsageTracker.record(context, SearchUsageTracker.suggestionKey("command", cmd.id))
                                         cmd.onExecute(context)
                                         if (cmd.closesSearchUi) onFinish()
                                     },
@@ -2230,6 +2329,10 @@ fun PixelSearchResultsScreen(
                                     onToggle = {},
                                     onClick = {
                                         HapticUtil.performVirtualKeyHaptic(view)
+                                        SearchUsageTracker.record(
+                                            context,
+                                            SearchUsageTracker.suggestionKey("syssetting", setting.title),
+                                        )
                                         context.startActivity(setting.intent)
                                         onFinish()
                                     },
@@ -2290,6 +2393,10 @@ fun PixelSearchResultsScreen(
                                                     }
                                                 }
                                             }
+                                        SearchUsageTracker.record(
+                                            context,
+                                            SearchUsageTracker.settingKey(setting.featureKey, setting.title),
+                                        )
                                         context.startActivity(intent)
                                         onFinish()
                                     },
@@ -2334,6 +2441,7 @@ fun PixelSearchResultsScreen(
                                     onToggle = {},
                                     onClick = {
                                         HapticUtil.performVirtualKeyHaptic(view)
+                                        SearchUsageTracker.record(context, SearchUsageTracker.suggestionKey("shortcut", shortcut.id))
                                         SearchProviderDiscovery.launchShortcut(context, shortcut)
                                         onFinish()
                                     },
@@ -2616,7 +2724,9 @@ fun PixelSearchResultsScreen(
                                 .onPreviewKeyEvent { keyEvent ->
                                     if (keyEvent.type == KeyEventType.KeyDown) {
                                         when {
-                                            keyEvent.key == Key.Tab && activeScope == null && prefixSuggestion != null -> {
+                                            (keyEvent.key == Key.Tab || keyEvent.key == Key.Spacebar) &&
+                                                activeScope == null &&
+                                                prefixSuggestion != null -> {
                                                 enterScope(prefixSuggestion.provider)
                                                 true
                                             }
@@ -3928,6 +4038,7 @@ private fun BoxScope.InlineActiveExtensionRunner(
 }
 
 private fun launchFile(context: Context, item: PixelSearchResultItem.FileItem) {
+    SearchUsageTracker.record(context, SearchUsageTracker.fileKey(item.uri.toString()))
     try {
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(item.uri, item.mimeType)
@@ -4058,6 +4169,7 @@ private fun applyGrayscaleFilter(bitmap: ImageBitmap): ImageBitmap {
 }
 
 private fun launchApp(context: Context, packageName: String) {
+    SearchUsageTracker.record(context, SearchUsageTracker.appKey(packageName))
     try {
         val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
         if (launchIntent != null) {

@@ -14,6 +14,8 @@ import com.sameerasw.essentials.R
 import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.domain.StatusBarIconRegistry
 import com.sameerasw.essentials.domain.model.SearchableItem
+import com.sameerasw.essentials.utils.FuzzySearchUtil
+import com.sameerasw.essentials.utils.SearchUsageTracker
 
 object SearchRegistry {
     fun search(
@@ -32,9 +34,17 @@ object SearchRegistry {
         query: String,
         includeUnsupportedFeatures: Boolean = false,
         includeLegacyFeatures: Boolean = true,
-    ): List<SearchableItem> {
-        val q = query.trim().lowercase()
-        if (q.isEmpty()) return emptyList()
+    ): List<SearchableItem> =
+        searchScored(context, query, includeUnsupportedFeatures, includeLegacyFeatures).map { it.first }
+
+    fun searchScored(
+        context: Context,
+        query: String,
+        includeUnsupportedFeatures: Boolean = false,
+        includeLegacyFeatures: Boolean = true,
+    ): List<Pair<SearchableItem, Int>> {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) return emptyList()
 
         val allItems = mutableListOf<SearchableItem>()
 
@@ -119,11 +129,23 @@ object SearchRegistry {
         }
 
         return allItems
-            .filter { item ->
-                item.title.lowercase().contains(q) ||
-                    item.description.lowercase().contains(q) ||
-                    item.category.lowercase().contains(q) ||
-                    item.keywords.any { it.lowercase().contains(q) }
-            }.sortedByDescending { it.title.lowercase().startsWith(q) }
+            .mapNotNull { item ->
+                val baseScore = FuzzySearchUtil.scoreFields(
+                    query = trimmed,
+                    primary = item.title,
+                    secondary = item.keywords,
+                    tertiary = listOfNotNull(item.parentFeature, item.category, item.description),
+                )
+                if (baseScore > 0) {
+                    val score = baseScore + SearchUsageTracker.boost(
+                        context,
+                        SearchUsageTracker.settingKey(item.featureKey, item.title),
+                    )
+                    item to score
+                } else {
+                    null
+                }
+            }
+            .sortedWith(compareByDescending<Pair<SearchableItem, Int>> { it.second }.thenBy { it.first.title.lowercase() })
     }
 }

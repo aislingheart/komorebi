@@ -47,6 +47,8 @@ import com.sameerasw.essentials.ui.activities.ExtensionRunnerActivity
 import com.sameerasw.essentials.ui.activities.ExtensionsActivity
 import com.sameerasw.essentials.ui.activities.PixelSearchbarSettingsActivity
 import com.sameerasw.essentials.utils.FileSearchUtil
+import com.sameerasw.essentials.utils.FuzzySearchUtil
+import com.sameerasw.essentials.utils.SearchUsageTracker
 import com.sameerasw.essentials.utils.ShizukuUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -716,10 +718,23 @@ object SearchProviderDiscovery {
             }
         }.getOrDefault(emptyList())
 
-        return (commands + extensionCommands).filter { cmd ->
-            cmd.title.lowercase(Locale.getDefault()).contains(q) ||
-                cmd.keywords.any { it.contains(q) || q.contains(it) }
-        }
+        val trimmed = query.trim()
+        return (commands + extensionCommands).mapNotNull { cmd ->
+            val score = FuzzySearchUtil.scoreFields(
+                query = trimmed,
+                primary = cmd.title,
+                secondary = cmd.keywords,
+                tertiary = listOf(cmd.description),
+            )
+            if (score > 0) {
+                cmd.copy(score = score + SearchUsageTracker.boost(context, SearchUsageTracker.suggestionKey("command", cmd.id)))
+            } else {
+                null
+            }
+        }.sortedWith(
+            compareByDescending<InternalCommandItem> { it.score }
+                .thenBy { it.title.lowercase(Locale.getDefault()) },
+        )
     }
 
     suspend fun discoverShortcuts(
@@ -737,15 +752,27 @@ object SearchProviderDiscovery {
             loaded
         }
 
-        val q = query.trim().lowercase(Locale.getDefault())
-        all.filter { item ->
+        val trimmed = query.trim()
+        all.mapNotNull { item ->
             val pkgOk = packageFilter == null || item.packageName == packageFilter
-            val queryOk = q.isEmpty() ||
-                item.shortLabel.lowercase(Locale.getDefault()).contains(q) ||
-                item.longLabel.lowercase(Locale.getDefault()).contains(q) ||
-                item.appName.lowercase(Locale.getDefault()).contains(q)
-            pkgOk && queryOk
-        }.take(12)
+            if (!pkgOk) return@mapNotNull null
+            if (trimmed.isEmpty()) return@mapNotNull item.copy(score = 1000)
+
+            val score = FuzzySearchUtil.scoreFields(
+                query = trimmed,
+                primary = item.shortLabel,
+                secondary = listOfNotNull(item.longLabel.takeIf { it.isNotBlank() && it != item.shortLabel }),
+                tertiary = listOf(item.appName),
+            )
+            if (score > 0) {
+                item.copy(score = score + SearchUsageTracker.boost(context, SearchUsageTracker.suggestionKey("shortcut", item.id)))
+            } else {
+                null
+            }
+        }.sortedWith(
+            compareByDescending<DiscoveredShortcut> { it.score }
+                .thenBy { it.shortLabel.lowercase(Locale.getDefault()) },
+        ).take(12)
     }
 
     private fun fetchAllShortcuts(context: Context): List<DiscoveredShortcut> {
@@ -937,9 +964,13 @@ object SearchProviderDiscovery {
                 pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
             }.getOrDefault(pkg)
             val svcLabel = runCatching { ri.loadLabel(pm).toString() }.getOrDefault("App Function")
-            if (!appName.lowercase(Locale.getDefault()).contains(q) &&
-                !svcLabel.lowercase(Locale.getDefault()).contains(q)
-            ) {
+            val finalLabel = svcLabel.ifBlank { "App Function" }
+            val score = FuzzySearchUtil.scoreFields(
+                query = query.trim(),
+                primary = finalLabel,
+                secondary = listOf(appName),
+            )
+            if (score <= 0) {
                 return@mapNotNull null
             }
 
@@ -947,11 +978,14 @@ object SearchProviderDiscovery {
                 id = "appfn:$pkg:${si.name}",
                 packageName = pkg,
                 appName = appName,
-                functionLabel = svcLabel.ifBlank { "App Function" },
+                functionLabel = finalLabel,
                 icon = loadAppIcon(pm, pkg),
                 launchIntent = pm.getLaunchIntentForPackage(pkg),
+                score = score,
             )
-        }.distinctBy { it.id }.take(5)
+        }.distinctBy { it.id }
+            .sortedByDescending { it.score }
+            .take(5)
     }
 
     suspend fun resolveEntities(
@@ -959,13 +993,27 @@ object SearchProviderDiscovery {
         query: String,
         discoveredShortcuts: List<DiscoveredShortcut>,
     ): List<EntityRouteItem> = withContext(Dispatchers.IO) {
-        val q = query.trim().lowercase(Locale.getDefault())
+        val trimmed = query.trim()
+        val q = trimmed.lowercase(Locale.getDefault())
         if (q.length < 2) return@withContext emptyList()
+
+        val navVerbPrefixes = listOf(
+            "navigate to ", "navigate ", "directions to ", "directions ",
+            "route to ", "route ", "drive to ", "go to ", "map ",
+        )
+        val matchedVerb = navVerbPrefixes.firstOrNull { q.startsWith(it) }
+        val entityQuery = if (matchedVerb != null) {
+            trimmed.substring(matchedVerb.length).trim()
+        } else {
+            trimmed
+        }
+        if (entityQuery.length < 2) return@withContext emptyList()
+        val eqLower = entityQuery.lowercase(Locale.getDefault())
 
         val results = mutableListOf<EntityRouteItem>()
         val seenAddresses = HashSet<String>()
 
-        fun addRoute(id: String, label: String, address: String, sourceLabel: String) {
+        fun addRoute(id: String, label: String, address: String, sourceLabel: String, score: Int) {
             val clean = address.trim()
             if (clean.isEmpty() || !seenAddresses.add(clean.lowercase(Locale.getDefault()))) return
             val navIntent = Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=${Uri.encode(clean)}")).apply {
@@ -974,6 +1022,7 @@ object SearchProviderDiscovery {
             val mapIntent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=${Uri.encode(clean)}")).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
+            val finalScore = if (matchedVerb != null) (score + 120).coerceAtMost(1000) else score
             results.add(
                 EntityRouteItem(
                     id = id,
@@ -982,23 +1031,29 @@ object SearchProviderDiscovery {
                     sourceLabel = sourceLabel,
                     navigationIntent = navIntent,
                     mapIntent = mapIntent,
+                    score = finalScore,
                 ),
             )
         }
 
-        val isHomeQuery = "home".startsWith(q) || q == "home"
-        val isWorkQuery = "work".startsWith(q) || "office".startsWith(q) || q == "work"
+        val homeScore = FuzzySearchUtil.score(entityQuery, "home")
+        val workScore = maxOf(
+            FuzzySearchUtil.score(entityQuery, "work"),
+            FuzzySearchUtil.score(entityQuery, "office"),
+        )
+        val isHomeQuery = homeScore >= 600
+        val isWorkQuery = workScore >= 600
 
         // 1. Saved Places in SettingsRepository (if configured)
         val repo = SettingsRepository(context)
         if (isHomeQuery) {
             repo.getHomeAddress()?.takeIf { it.isNotBlank() }?.let { addr ->
-                addRoute("saved:home", "Home", addr, "Saved Place")
+                addRoute("saved:home", "Home", addr, "Saved Place", homeScore)
             }
         }
         if (isWorkQuery) {
             repo.getWorkAddress()?.takeIf { it.isNotBlank() }?.let { addr ->
-                addRoute("saved:work", "Work", addr, "Saved Place")
+                addRoute("saved:work", "Work", addr, "Saved Place", workScore)
             }
         }
 
@@ -1021,7 +1076,7 @@ object SearchProviderDiscovery {
                         val addrIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.StructuredPostal.FORMATTED_ADDRESS)
                         val typeIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.StructuredPostal.TYPE)
                         val labelIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.StructuredPostal.LABEL)
-                        while (cursor.moveToNext() && results.size < 6) {
+                        while (cursor.moveToNext() && results.size < 10) {
                             val address = if (addrIdx >= 0) cursor.getString(addrIdx) else null
                             if (address.isNullOrBlank()) continue
                             val name = if (nameIdx >= 0) cursor.getString(nameIdx).orEmpty() else ""
@@ -1033,15 +1088,21 @@ object SearchProviderDiscovery {
                                 ContactsContract.CommonDataKinds.StructuredPostal.TYPE_WORK -> "Work"
                                 else -> customLabel.ifBlank { "Address" }
                             }
-                            val matches = (isHomeQuery && type == ContactsContract.CommonDataKinds.StructuredPostal.TYPE_HOME) ||
-                                (isWorkQuery && type == ContactsContract.CommonDataKinds.StructuredPostal.TYPE_WORK) ||
-                                name.lowercase(Locale.getDefault()).contains(q) ||
-                                typeName.lowercase(Locale.getDefault()).contains(q) ||
-                                address.lowercase(Locale.getDefault()).contains(q)
-
-                            if (matches) {
+                            val fuzzyScore = FuzzySearchUtil.scoreFields(
+                                query = entityQuery,
+                                primary = name.ifBlank { typeName },
+                                secondary = listOf(typeName),
+                                tertiary = listOf(address),
+                            )
+                            val typeBoost = when {
+                                isHomeQuery && type == ContactsContract.CommonDataKinds.StructuredPostal.TYPE_HOME -> homeScore
+                                isWorkQuery && type == ContactsContract.CommonDataKinds.StructuredPostal.TYPE_WORK -> workScore
+                                else -> 0
+                            }
+                            val bestScore = maxOf(fuzzyScore, typeBoost)
+                            if (bestScore >= 450) {
                                 val title = if (name.isNotBlank()) "$name ($typeName)" else typeName
-                                addRoute("contact:$title:$address", title, address, source)
+                                addRoute("contact:$title:$address", title, address, source, bestScore)
                             }
                         }
                     }
@@ -1070,15 +1131,19 @@ object SearchProviderDiscovery {
                 )?.use { cursor ->
                     val titleIdx = cursor.getColumnIndex(CalendarContract.Events.TITLE)
                     val locIdx = cursor.getColumnIndex(CalendarContract.Events.EVENT_LOCATION)
-                    while (cursor.moveToNext() && results.size < 6) {
+                    while (cursor.moveToNext() && results.size < 10) {
                         val location = if (locIdx >= 0) cursor.getString(locIdx) else null
                         if (location.isNullOrBlank()) continue
                         val eventTitle = if (titleIdx >= 0) cursor.getString(titleIdx).orEmpty() else "Event"
-                        val matches = eventTitle.lowercase(Locale.getDefault()).contains(q) ||
-                            location.lowercase(Locale.getDefault()).contains(q) ||
-                            (isWorkQuery && (eventTitle.lowercase(Locale.getDefault()).contains("work") || eventTitle.lowercase(Locale.getDefault()).contains("office")))
-                        if (matches) {
-                            addRoute("cal:$eventTitle:$location", eventTitle, location, "Calendar")
+                        val fuzzyScore = FuzzySearchUtil.scoreFields(
+                            query = entityQuery,
+                            primary = eventTitle,
+                            secondary = listOf(location),
+                        )
+                        val workFallback = if (isWorkQuery && (eventTitle.contains("work", ignoreCase = true) || eventTitle.contains("office", ignoreCase = true))) workScore else 0
+                        val bestScore = maxOf(fuzzyScore, workFallback)
+                        if (bestScore >= 450) {
+                            addRoute("cal:$eventTitle:$location", eventTitle, location, "Calendar", bestScore)
                         }
                     }
                 }
@@ -1092,11 +1157,17 @@ object SearchProviderDiscovery {
                 (isHomeQuery && lbl.contains("home")) || (isWorkQuery && lbl.contains("work"))
             }.forEach { sc ->
                 val placeLabel = sc.longLabel.ifBlank { sc.shortLabel }
-                addRoute("sc:${sc.id}", "${sc.appName}: $placeLabel", placeLabel, "Shortcut")
+                addRoute(
+                    "sc:${sc.id}",
+                    "${sc.appName}: $placeLabel",
+                    placeLabel,
+                    "Shortcut",
+                    if (isHomeQuery) homeScore else workScore,
+                )
             }
         }
 
-        results.take(4)
+        results.sortedByDescending { it.score }.take(4)
     }
 
     suspend fun searchPhotos(
@@ -1104,7 +1175,8 @@ object SearchProviderDiscovery {
         query: String,
         limit: Int = 36,
     ): List<PixelSearchResultItem.FileItem> = withContext(Dispatchers.IO) {
-        val trimmed = query.trim().lowercase(Locale.getDefault())
+        val rawTrimmed = query.trim()
+        val trimmed = rawTrimmed.lowercase(Locale.getDefault())
         val resolver = context.contentResolver
         val list = mutableListOf<PixelSearchResultItem.FileItem>()
         val seenIds = HashSet<Long>()
@@ -1149,6 +1221,7 @@ object SearchProviderDiscovery {
 
         val uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
         val sortOrder = "${MediaStore.Images.Media.DATE_MODIFIED} DESC"
+        val fuzzyPhotos = mutableListOf<Pair<PixelSearchResultItem.FileItem, Int>>()
 
         runCatching {
             resolver.query(uri, projection, null, null, sortOrder)?.use { cursor ->
@@ -1159,7 +1232,10 @@ object SearchProviderDiscovery {
                 val dateCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_MODIFIED)
                 val bucketCol = cursor.getColumnIndex(MediaStore.Images.Media.BUCKET_DISPLAY_NAME)
 
-                while (cursor.moveToNext() && list.size < limit) {
+                val maxScan = if (trimmed.isEmpty()) limit else 600
+                var scanned = 0
+                while (cursor.moveToNext() && scanned < maxScan) {
+                    scanned++
                     val id = cursor.getLong(idCol)
                     if (seenIds.contains(id)) continue
 
@@ -1171,17 +1247,23 @@ object SearchProviderDiscovery {
                     val dateSec = cursor.getLong(dateCol)
                     val dateLabel = DateFormat.format("MMMM yyyy MMM", Date(dateSec * 1000L)).toString()
 
-                    val matches = trimmed.isEmpty() ||
-                        name.lowercase(Locale.getDefault()).contains(trimmed) ||
-                        bucket.lowercase(Locale.getDefault()).contains(trimmed) ||
-                        dateLabel.lowercase(Locale.getDefault()).contains(trimmed)
-
-                    if (!matches) continue
+                    val score = if (rawTrimmed.isEmpty()) {
+                        1
+                    } else {
+                        val stem = name.substringBeforeLast(".")
+                        FuzzySearchUtil.scoreFields(
+                            query = rawTrimmed,
+                            primary = stem.ifBlank { name },
+                            secondary = listOf(bucket, name),
+                            tertiary = listOf(dateLabel),
+                        )
+                    }
+                    if (score <= 0) continue
 
                     seenIds.add(id)
                     val mime = cursor.getString(mimeCol) ?: "image/*"
                     val contentUri = ContentUris.withAppendedId(uri, id)
-                    list.add(
+                    fuzzyPhotos.add(
                         PixelSearchResultItem.FileItem(
                             id = id,
                             uri = contentUri,
@@ -1194,12 +1276,17 @@ object SearchProviderDiscovery {
                             isGif = mime.equals("image/gif", ignoreCase = true) || name.endsWith(".gif", ignoreCase = true),
                             path = bucket.ifBlank { null },
                             iconRes = FileSearchUtil.getIconForMimeType(mime, name),
-                        ),
+                        ) to score,
                     )
+                    if (rawTrimmed.isEmpty() && list.size + fuzzyPhotos.size >= limit) break
                 }
             }
         }
-        list.take(limit)
+        val sortedFuzzy = fuzzyPhotos.sortedWith(
+            compareByDescending<Pair<PixelSearchResultItem.FileItem, Int>> { it.second }
+                .thenByDescending { it.first.dateModified },
+        ).map { it.first }
+        (list + sortedFuzzy).take(limit)
     }
 
     fun launchPhotoInGallery(context: Context, item: PixelSearchResultItem.FileItem) {

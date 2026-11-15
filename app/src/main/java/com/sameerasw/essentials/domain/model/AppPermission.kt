@@ -159,8 +159,22 @@ enum class AppPermission(
             NOTIFICATION_POLICY -> PermissionUtils.hasNotificationPolicyAccess(context)
             SENSITIVE_NOTIFICATIONS -> PermissionGrantUtil.hasSensitiveNotifications(context)
             LOCAL_NETWORK -> PermissionUtils.hasLocalNetworkPermission(context)
+            POST_NOTIFICATIONS -> PermissionUtils.isPostNotificationsEnabled(context)
+            READ_PHONE_STATE -> PermissionUtils.hasReadPhoneStatePermission(context)
+            LOCATION -> PermissionUtils.hasLocationPermission(context)
+            BACKGROUND_LOCATION -> PermissionUtils.hasBackgroundLocationPermission(context)
+            DEVICE_ADMIN -> PermissionUtils.isDeviceAdminActive(context)
+            READ_CALENDAR -> PermissionUtils.hasReadCalendarPermission(context)
+            USAGE_STATS -> PermissionUtils.hasUsageStatsPermission(context)
+            DEFAULT_BROWSER -> PermissionUtils.isDefaultBrowser(context)
+            BLUETOOTH -> PermissionUtils.hasBluetoothPermission(context)
+            READ_CONTACTS -> context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            WATCH_CALL_SYNC -> PermissionUtils.hasCallPermissions(context)
+            STORAGE -> PermissionUtils.hasStoragePermission(context)
+            NOTIFICATION_BUBBLES -> PermissionUtils.hasBubblePermission(context)
+            REQUEST_INSTALL_PACKAGES -> context.packageManager.canRequestPackageInstalls()
             ROOT, SHIZUKU -> ShellUtils.isAvailable(context) && ShellUtils.hasPermission(context)
-            else -> true
         }
 
     companion object {

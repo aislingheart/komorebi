@@ -22,6 +22,8 @@ object FileSearchUtil {
     data class FileSearchResults(
         val mediaItems: List<PixelSearchResultItem.FileItem> = emptyList(),
         val documentItems: List<PixelSearchResultItem.FileItem> = emptyList(),
+        val topMediaScore: Int = 0,
+        val topDocScore: Int = 0,
     )
 
     suspend fun searchFiles(
@@ -33,8 +35,9 @@ object FileSearchUtil {
     ): FileSearchResults = withContext(Dispatchers.IO) {
         val trimmed = query.trim()
 
-        val mediaList = mutableListOf<PixelSearchResultItem.FileItem>()
-        val docList = mutableListOf<PixelSearchResultItem.FileItem>()
+        val scoredMedia = mutableListOf<Pair<PixelSearchResultItem.FileItem, Int>>()
+        val scoredDocs = mutableListOf<Pair<PixelSearchResultItem.FileItem, Int>>()
+        val seenIds = HashSet<Long>(128)
         val resolver = context.contentResolver
 
         val projection = arrayOf(
@@ -47,113 +50,145 @@ object FileSearchUtil {
             MediaStore.MediaColumns.DATA,
         )
 
-        // Exclude 0-byte files and hidden dot files
-        val selection = if (trimmed.isNotEmpty()) {
-            "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ? AND " +
-                "${MediaStore.Files.FileColumns.SIZE} > 0 AND " +
-                "${MediaStore.Files.FileColumns.DISPLAY_NAME} NOT LIKE '.%'"
-        } else {
+        val baseSelection =
             "${MediaStore.Files.FileColumns.SIZE} > 0 AND " +
                 "${MediaStore.Files.FileColumns.DISPLAY_NAME} NOT LIKE '.%'"
-        }
-        val selectionArgs = if (trimmed.isNotEmpty()) arrayOf("%$trimmed%") else null
         val sortOrder = "${MediaStore.Files.FileColumns.DATE_MODIFIED} DESC"
-
         val queryUri = MediaStore.Files.getContentUri("external")
 
-        try {
-            resolver.query(
-                queryUri,
-                projection,
-                selection,
-                selectionArgs,
-                sortOrder,
-            )?.use { cursor ->
-                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID)
-                val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
-                val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
-                val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
-                val dateCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
-                val mediaTypeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MEDIA_TYPE)
-                val dataCol = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
+        fun processCursor(selection: String, selectionArgs: Array<String>?, maxRows: Int) {
+            try {
+                resolver.query(
+                    queryUri,
+                    projection,
+                    selection,
+                    selectionArgs,
+                    sortOrder,
+                )?.use { cursor ->
+                    val idCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID)
+                    val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
+                    val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
+                    val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
+                    val dateCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
+                    val mediaTypeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MEDIA_TYPE)
+                    val dataCol = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
 
-                while (cursor.moveToNext() && (mediaList.size + docList.size < 100)) {
-                    val name = cursor.getString(nameCol) ?: continue
-                    if (name.startsWith(".") || name.contains(".thumbnails", ignoreCase = true)) continue
+                    var scanned = 0
+                    while (cursor.moveToNext() && scanned < maxRows) {
+                        scanned++
+                        val id = cursor.getLong(idCol)
+                        if (!seenIds.add(id)) continue
 
-                    val id = cursor.getLong(idCol)
-                    val mime = cursor.getString(mimeCol) ?: getMimeTypeFromExtension(name)
-                    val size = cursor.getLong(sizeCol)
-                    val date = cursor.getLong(dateCol)
-                    val mediaType = cursor.getInt(mediaTypeCol)
-                    val path = if (dataCol != -1) cursor.getString(dataCol) else null
+                        val name = cursor.getString(nameCol) ?: continue
+                        if (name.startsWith(".") || name.contains(".thumbnails", ignoreCase = true)) continue
 
-                    val isImage = mediaType == MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE || mime.startsWith("image/", ignoreCase = true)
-                    val isVideo = mediaType == MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO || mime.startsWith("video/", ignoreCase = true)
-                    val isAudio = mediaType == MediaStore.Files.FileColumns.MEDIA_TYPE_AUDIO || mime.startsWith("audio/", ignoreCase = true)
-                    val isGif = mime.equals("image/gif", ignoreCase = true) || name.endsWith(".gif", ignoreCase = true)
-                    val isMedia = isImage || isVideo || isGif
+                        val mime = cursor.getString(mimeCol) ?: getMimeTypeFromExtension(name)
+                        val size = cursor.getLong(sizeCol)
+                        val date = cursor.getLong(dateCol)
+                        val mediaType = cursor.getInt(mediaTypeCol)
+                        val path = if (dataCol != -1) cursor.getString(dataCol) else null
 
-                    val contentUri = if (isImage) {
-                        ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
-                    } else if (isVideo) {
-                        ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
-                    } else if (isAudio) {
-                        ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
-                    } else {
-                        ContentUris.withAppendedId(queryUri, id)
-                    }
+                        val isImage = mediaType == MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE || mime.startsWith("image/", ignoreCase = true)
+                        val isVideo = mediaType == MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO || mime.startsWith("video/", ignoreCase = true)
+                        val isAudio = mediaType == MediaStore.Files.FileColumns.MEDIA_TYPE_AUDIO || mime.startsWith("audio/", ignoreCase = true)
+                        val isGif = mime.equals("image/gif", ignoreCase = true) || name.endsWith(".gif", ignoreCase = true)
+                        val isMedia = isImage || isVideo || isGif
 
-                    val iconRes = getIconForMimeType(mime, name)
+                        if (isMedia && !searchMedia) continue
+                        if (!isMedia && !searchDocs) continue
 
-                    val item = PixelSearchResultItem.FileItem(
-                        id = id,
-                        uri = contentUri,
-                        displayName = name,
-                        mimeType = mime,
-                        sizeBytes = size,
-                        dateModified = date,
-                        isMedia = isMedia,
-                        isGif = isGif,
-                        isVideo = isVideo,
-                        isAudio = isAudio,
-                        path = path,
-                        iconRes = iconRes,
-                    )
+                        val score = if (trimmed.isEmpty()) {
+                            1
+                        } else {
+                            val stem = name.substringBeforeLast(".")
+                            val parentFolder = path?.let { java.io.File(it).parentFile?.name }
+                            FuzzySearchUtil.scoreFields(
+                                query = trimmed,
+                                primary = stem.ifBlank { name },
+                                secondary = listOf(name),
+                                tertiary = listOfNotNull(parentFolder),
+                            )
+                        }
+                        if (score <= 0) continue
 
-                    if (isMedia && searchMedia) {
-                        mediaList.add(item)
-                    } else if (!isMedia && searchDocs) {
-                        docList.add(item)
+                        val contentUri = if (isImage) {
+                            ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
+                        } else if (isVideo) {
+                            ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
+                        } else if (isAudio) {
+                            ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
+                        } else {
+                            ContentUris.withAppendedId(queryUri, id)
+                        }
+
+                        val iconRes = getIconForMimeType(mime, name)
+                        val item = PixelSearchResultItem.FileItem(
+                            id = id,
+                            uri = contentUri,
+                            displayName = name,
+                            mimeType = mime,
+                            sizeBytes = size,
+                            dateModified = date,
+                            isMedia = isMedia,
+                            isGif = isGif,
+                            isVideo = isVideo,
+                            isAudio = isAudio,
+                            path = path,
+                            iconRes = iconRes,
+                        )
+
+                        val rankedScore = score + SearchUsageTracker.boost(
+                            context,
+                            SearchUsageTracker.fileKey(contentUri.toString()),
+                        )
+                        if (isMedia) {
+                            scoredMedia.add(item to rankedScore)
+                        } else {
+                            scoredDocs.add(item to rankedScore)
+                        }
                     }
                 }
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("FileSearchUtil", "Error querying MediaStore", e)
-        }
-
-        fun score(item: PixelSearchResultItem.FileItem): Int {
-            if (trimmed.isEmpty()) return 0
-            val stem = item.displayName.substringBeforeLast(".")
-            return when {
-                stem.equals(trimmed, ignoreCase = true) -> 0
-                stem.startsWith(trimmed, ignoreCase = true) -> 1
-                item.displayName.startsWith(trimmed, ignoreCase = true) -> 2
-                else -> 3
+            } catch (e: Exception) {
+                android.util.Log.e("FileSearchUtil", "Error querying MediaStore", e)
             }
         }
 
-        val sortedMedia = mediaList.sortedWith(
-            compareBy<PixelSearchResultItem.FileItem> { score(it) }.thenByDescending { it.dateModified },
+        if (trimmed.isNotEmpty()) {
+            // Fast exact/substring pass first so older exact matches are always found
+            processCursor(
+                selection = "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ? AND $baseSelection",
+                selectionArgs = arrayOf("%$trimmed%"),
+                maxRows = 200,
+            )
+            // Recent files scan for fuzzy / acronym / typo / folder matches
+            processCursor(
+                selection = baseSelection,
+                selectionArgs = null,
+                maxRows = 1500,
+            )
+        } else {
+            processCursor(
+                selection = baseSelection,
+                selectionArgs = null,
+                maxRows = 100,
+            )
+        }
+
+        val sortedMedia = scoredMedia.sortedWith(
+            compareByDescending<Pair<PixelSearchResultItem.FileItem, Int>> { it.second }
+                .thenByDescending { it.first.dateModified },
         ).take(limit)
 
-        val sortedDocs = docList.sortedWith(
-            compareBy<PixelSearchResultItem.FileItem> { score(it) }.thenByDescending { it.dateModified },
+        val sortedDocs = scoredDocs.sortedWith(
+            compareByDescending<Pair<PixelSearchResultItem.FileItem, Int>> { it.second }
+                .thenByDescending { it.first.dateModified },
         ).take(limit)
 
         FileSearchResults(
-            mediaItems = sortedMedia,
-            documentItems = sortedDocs,
+            mediaItems = sortedMedia.map { it.first },
+            documentItems = sortedDocs.map { it.first },
+            topMediaScore = sortedMedia.firstOrNull()?.second ?: 0,
+            topDocScore = sortedDocs.firstOrNull()?.second ?: 0,
         )
     }
 

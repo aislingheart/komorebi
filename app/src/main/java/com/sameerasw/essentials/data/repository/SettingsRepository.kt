@@ -491,6 +491,9 @@ class SettingsRepository(
         const val KEY_PIXEL_SEARCH_RESULT_FILES = "pixel_search_result_files"
         const val KEY_PIXEL_SEARCH_BUBBLES_WEB = "pixel_search_bubbles_web"
         const val KEY_PIXEL_SEARCH_ENGINE = "pixel_search_engine"
+        const val KEY_PIXEL_SEARCH_REACHABILITY = "pixel_search_reachability"
+        const val KEY_PIXEL_SEARCH_USAGE_RANKING = "pixel_search_usage_ranking"
+        const val KEY_PIXEL_SEARCH_TYPO_TOLERANCE = "pixel_search_typo_tolerance"
         const val KEY_HOME_ADDRESS = "pixel_search_home_address"
         const val KEY_WORK_ADDRESS = "pixel_search_work_address"
         const val KEY_AUTO_ACCESSIBILITY_ENABLED = "auto_accessibility_enabled"
@@ -3836,6 +3839,15 @@ class SettingsRepository(
 
     fun getPixelSearchEngine(): String = getString(KEY_PIXEL_SEARCH_ENGINE, "Google") ?: "Google"
     fun setPixelSearchEngine(engine: String) = putString(KEY_PIXEL_SEARCH_ENGINE, engine)
+
+    fun isPixelSearchReachabilityEnabled(): Boolean = getBoolean(KEY_PIXEL_SEARCH_REACHABILITY, false)
+    fun setPixelSearchReachabilityEnabled(enabled: Boolean) = putBoolean(KEY_PIXEL_SEARCH_REACHABILITY, enabled)
+
+    fun isPixelSearchUsageRankingEnabled(): Boolean = getBoolean(KEY_PIXEL_SEARCH_USAGE_RANKING, true)
+    fun setPixelSearchUsageRankingEnabled(enabled: Boolean) = putBoolean(KEY_PIXEL_SEARCH_USAGE_RANKING, enabled)
+
+    fun isPixelSearchTypoToleranceEnabled(): Boolean = getBoolean(KEY_PIXEL_SEARCH_TYPO_TOLERANCE, true)
+    fun setPixelSearchTypoToleranceEnabled(enabled: Boolean) = putBoolean(KEY_PIXEL_SEARCH_TYPO_TOLERANCE, enabled)
 
     fun getHomeAddress(): String? = getString(KEY_HOME_ADDRESS, null)
     fun setHomeAddress(address: String?) = putString(KEY_HOME_ADDRESS, address)

@@ -139,29 +139,48 @@ object QuicklinksRepository {
         persist(appContext, current)
     }
 
-    fun search(context: Context, query: String): List<Quicklink> {
+    fun search(context: Context, query: String): List<Quicklink> =
+        searchScored(context, query).map { it.first }
+
+    fun searchScored(context: Context, query: String): List<Pair<Quicklink, Int>> {
         val all = list(context)
         val trimmed = query.trim()
-        if (trimmed.isEmpty()) return all
+        if (trimmed.isEmpty()) return all.map { it to 1000 }
         val parts = trimmed.split(Regex("\\s+"), limit = 2)
-        val head = parts[0].lowercase(Locale.US)
+        val head = parts[0]
+        val hasArg = parts.size > 1
 
         return all.mapNotNull { link ->
-            val kw = link.keyword.lowercase(Locale.US)
-            val name = link.name.lowercase(Locale.US)
-            val url = link.urlTemplate.lowercase(Locale.US)
-            val qLower = trimmed.lowercase(Locale.US)
-            val score = when {
-                kw.isNotEmpty() && kw == head -> 100
-                name == qLower -> 95
-                kw.isNotEmpty() && kw.startsWith(head) -> 80
-                name.startsWith(qLower) -> 75
-                name.contains(qLower) -> 60
-                url.contains(qLower) -> 40
-                else -> 0
+            val kw = link.keyword.trim()
+            val exactKwMatch = kw.isNotEmpty() && kw.equals(head, ignoreCase = true)
+            val score = if (exactKwMatch) {
+                if (hasArg) 1000 else 960
+            } else {
+                val fullScore = com.sameerasw.essentials.utils.FuzzySearchUtil.scoreFields(
+                    query = trimmed,
+                    primary = link.name,
+                    secondary = listOf(kw),
+                    tertiary = listOf(link.urlTemplate),
+                )
+                val headKwScore = if (kw.isNotEmpty() && hasArg) {
+                    (com.sameerasw.essentials.utils.FuzzySearchUtil.score(head, kw) * 0.90f).toInt()
+                } else {
+                    0
+                }
+                maxOf(fullScore, headKwScore)
             }
-            if (score > 0) link to score else null
-        }.sortedByDescending { it.second }.map { it.first }
+            if (score > 0) {
+                link to score + com.sameerasw.essentials.utils.SearchUsageTracker.boost(
+                    context,
+                    com.sameerasw.essentials.utils.SearchUsageTracker.suggestionKey("quicklink", link.id),
+                )
+            } else {
+                null
+            }
+        }.sortedWith(
+            compareByDescending<Pair<Quicklink, Int>> { it.second }
+                .thenBy { it.first.name.lowercase(Locale.US) },
+        )
     }
 
     fun resolveUrl(template: String, argument: String): String {
