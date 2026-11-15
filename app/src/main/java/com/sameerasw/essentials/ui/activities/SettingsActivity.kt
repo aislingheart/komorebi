@@ -1087,7 +1087,7 @@ fun SettingsContent(
                                 "yyyyMMdd_HHmmss",
                                 Locale.getDefault(),
                             ).format(Date())
-                        exportLauncher.launch("essentials_config_$timeStamp.json")
+                        exportLauncher.launch("komorebi_config_$timeStamp.json")
                     },
                     modifier =
                         Modifier
@@ -1304,6 +1304,7 @@ fun SettingsContent(
 
         RoundedCardContainer {
             AboutSection(
+                appName = stringResource(R.string.app_name),
                 onAvatarLongClick = {
                     val newState = !isDeveloperModeEnabled
                     viewModel.setDeveloperModeEnabled(newState, context)

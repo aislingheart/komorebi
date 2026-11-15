@@ -123,7 +123,7 @@ object SearchProviderDiscovery {
             SearchProvider(
                 id = "provider:settings",
                 title = "Settings",
-                subtitle = "System & Essentials settings",
+                subtitle = "System & Komorebi settings",
                 kind = SearchProviderKind.SETTINGS,
                 aliases = listOf("settings", "preferences", "config"),
                 iconRes = R.drawable.rounded_settings_24,
@@ -270,8 +270,8 @@ object SearchProviderDiscovery {
             InternalCommandItem(
                 id = "cmd:settings",
                 title = "App Settings & Configuration",
-                description = "Open Essentials configuration, themes, permissions, and backup",
-                keywords = listOf("settings", "config", "configure", "preferences", "essentials"),
+                description = "Open Komorebi configuration, themes, permissions, and backup",
+                keywords = listOf("settings", "config", "configure", "preferences", "komorebi", "essentials"),
                 iconRes = R.drawable.rounded_settings_24,
                 onExecute = { ctx ->
                     ctx.startActivity(

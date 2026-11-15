@@ -28,7 +28,9 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -480,9 +482,9 @@ private fun RaycastListView(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                filteredSections.forEach { section ->
+                filteredSections.forEachIndexed { sectionIndex, section ->
                     if (!section.title.isNullOrBlank()) {
-                        item(key = "header_${section.title}") {
+                        item(key = "header_${sectionIndex}_${section.title}") {
                             Text(
                                 text = section.title,
                                 style = MaterialTheme.typography.labelLarge,
@@ -492,7 +494,10 @@ private fun RaycastListView(
                             )
                         }
                     }
-                    items(section.items, key = { it.id }) { item ->
+                    itemsIndexed(
+                        items = section.items,
+                        key = { itemIndex, item -> "item_${sectionIndex}_${itemIndex}_${item.id}" },
+                    ) { _, item ->
                         val isSelected = item.id == selectedItemId
                         Surface(
                             shape = RoundedCornerShape(18.dp),
@@ -637,9 +642,12 @@ private fun RaycastGridView(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
-                filteredSections.forEach { section ->
+                filteredSections.forEachIndexed { sectionIndex, section ->
                     if (!section.title.isNullOrBlank()) {
-                        item(span = { GridItemSpan(cols) }) {
+                        item(
+                            key = "grid_header_${sectionIndex}_${section.title}",
+                            span = { GridItemSpan(cols) },
+                        ) {
                             Text(
                                 text = section.title,
                                 style = MaterialTheme.typography.labelLarge,
@@ -648,7 +656,10 @@ private fun RaycastGridView(
                             )
                         }
                     }
-                    items(section.items, key = { it.id }) { item ->
+                    itemsIndexed(
+                        items = section.items,
+                        key = { itemIndex, item -> "grid_item_${sectionIndex}_${itemIndex}_${item.id}" },
+                    ) { _, item ->
                         Surface(
                             shape = RoundedCornerShape(18.dp),
                             color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -916,7 +927,7 @@ private fun RaycastEmptyState(
             )
             if (!emptyView?.description.isNullOrBlank()) {
                 Text(
-                    text = emptyView?.description ?: "",
+                    text = emptyView.description ?: "",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

@@ -19,21 +19,39 @@ import com.sameerasw.essentials.ui.activities.PixelSearchResultsActivity
 class PixelSearchActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val query = intent.getStringExtra(SearchManager.QUERY)
-            ?: intent.getStringExtra("query")
+        launchSearch(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        launchSearch(intent)
+    }
+
+    private fun launchSearch(incoming: Intent?) {
+        val query = incoming?.getStringExtra(SearchManager.QUERY)
+            ?: incoming?.getStringExtra("query")
             ?: ""
 
         try {
             startActivity(
                 Intent(this, PixelSearchResultsActivity::class.java).apply {
                     putExtra(SearchManager.QUERY, query)
-                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                            Intent.FLAG_ACTIVITY_SINGLE_TOP,
+                    )
                 },
             )
         } catch (t: Throwable) {
             Log.e("PixelSearchActivity", "Failed to open search results", t)
             runCatching {
-                startActivity(Intent(this, SettingsActivity::class.java))
+                startActivity(
+                    Intent(this, SettingsActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    },
+                )
             }
         }
 

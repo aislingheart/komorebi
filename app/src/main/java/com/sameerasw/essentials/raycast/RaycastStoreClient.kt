@@ -106,11 +106,11 @@ object RaycastStoreClient {
             val req = Request.Builder()
                 .url(url)
                 .header("Accept", "application/json")
-                .header("User-Agent", "Essentials-RaycastCompat/1.0")
+                .header("User-Agent", "Komorebi-RaycastCompat/1.0")
                 .build()
             httpClient.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) error("Raycast Store HTTP ${resp.code}")
-                val body = resp.body?.string().orEmpty()
+                val body = resp.body.string()
                 gson.fromJson(body, RaycastStoreResponse::class.java).data.map {
                     it.copy(source = "raycast")
                 }
@@ -133,11 +133,11 @@ object RaycastStoreClient {
             val req = Request.Builder()
                 .url(url)
                 .header("Accept", "application/json")
-                .header("User-Agent", "Essentials-RaycastCompat/1.0")
+                .header("User-Agent", "Komorebi-RaycastCompat/1.0")
                 .build()
             httpClient.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) error("Vicinae Store HTTP ${resp.code}")
-                val body = resp.body?.string().orEmpty()
+                val body = resp.body.string()
                 val dto = gson.fromJson(body, VicinaeStoreResponse::class.java)
                 dto.extensions.map { ext ->
                     StoreExtensionListing(
@@ -167,11 +167,11 @@ object RaycastStoreClient {
                 ?: error("No download URL provided for ${listing.title}")
             val req = Request.Builder()
                 .url(url)
-                .header("User-Agent", "Essentials-RaycastCompat/1.0")
+                .header("User-Agent", "Komorebi-RaycastCompat/1.0")
                 .build()
             val bytes = httpClient.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) error("Download failed (HTTP ${resp.code})")
-                resp.body?.bytes() ?: error("Empty extension archive")
+                resp.body.bytes()
             }
 
             val safeFolder = "${listing.author.handle.ifBlank { "ext" }}-${listing.name}"

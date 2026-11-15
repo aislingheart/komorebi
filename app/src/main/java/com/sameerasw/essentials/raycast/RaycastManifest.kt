@@ -99,15 +99,37 @@ object RaycastExtensionRepository {
         return dir
     }
 
-    fun ensureStarterExtensions(context: Context) {
-        val root = extensionsRootDir(context)
-        val marker = File(root, ".starters_v1")
-        if (marker.exists()) return
+    private fun isStarterDirHealthy(dir: File, requiredFiles: List<String>): Boolean {
+        if (!dir.isDirectory) return false
+        return requiredFiles.all { name ->
+            val f = File(dir, name)
+            f.isFile && f.length() > 0L
+        }
+    }
 
-        installStarterNotes(File(root, "essentials-quick-notes"))
-        installStarterColorPalette(File(root, "essentials-color-studio"))
-        installStarterJsonUuid(File(root, "essentials-dev-toolkit"))
-        runCatching { marker.writeText("1") }
+    fun ensureStarterExtensions(context: Context) {
+        ensureStarterExtensionsInDir(extensionsRootDir(context))
+    }
+
+    internal fun ensureStarterExtensionsInDir(root: File) {
+        val marker = File(root, ".starters_v1")
+        val notesDir = File(root, "essentials-quick-notes")
+        val colorDir = File(root, "essentials-color-studio")
+        val devDir = File(root, "essentials-dev-toolkit")
+        val firstRunNeeded = !marker.isFile || marker.length() == 0L
+
+        if (firstRunNeeded || (notesDir.exists() && !isStarterDirHealthy(notesDir, listOf("package.json", "browse-notes.js", "create-note.js")))) {
+            installStarterNotes(notesDir)
+        }
+        if (firstRunNeeded || (colorDir.exists() && !isStarterDirHealthy(colorDir, listOf("package.json", "palette.js")))) {
+            installStarterColorPalette(colorDir)
+        }
+        if (firstRunNeeded || (devDir.exists() && !isStarterDirHealthy(devDir, listOf("package.json", "toolkit.js")))) {
+            installStarterJsonUuid(devDir)
+        }
+        if (firstRunNeeded) {
+            runCatching { marker.writeText("1") }
+        }
     }
 
     fun listInstalledExtensions(context: Context): List<InstalledRaycastExtension> {
@@ -185,7 +207,7 @@ object RaycastExtensionRepository {
         context.getSharedPreferences(CACHE_PREFIX + extensionId, Context.MODE_PRIVATE)
 
     private fun installStarterNotes(dir: File) {
-        if (dir.exists()) return
+        if (isStarterDirHealthy(dir, listOf("package.json", "browse-notes.js", "create-note.js"))) return
         dir.mkdirs()
         File(dir, ".builtin_starter").writeText("1")
         File(dir, "package.json").writeText(
@@ -194,7 +216,7 @@ object RaycastExtensionRepository {
               "name": "essentials-quick-notes",
               "title": "Quick Notes",
               "description": "Capture and search markdown notes stored locally using @raycast/api LocalStorage.",
-              "author": "Essentials",
+              "author": "Komorebi",
               "version": "1.0.0",
               "categories": ["Productivity"],
               "preferences": [
@@ -380,7 +402,7 @@ object RaycastExtensionRepository {
     }
 
     private fun installStarterColorPalette(dir: File) {
-        if (dir.exists()) return
+        if (isStarterDirHealthy(dir, listOf("package.json", "palette.js"))) return
         dir.mkdirs()
         File(dir, ".builtin_starter").writeText("1")
         File(dir, "package.json").writeText(
@@ -389,7 +411,7 @@ object RaycastExtensionRepository {
               "name": "essentials-color-studio",
               "title": "Color Studio",
               "description": "Browse curated Material & Tailwind color palettes in a Raycast Grid component.",
-              "author": "Essentials",
+              "author": "Komorebi",
               "version": "1.0.0",
               "categories": ["Design"],
               "commands": [
@@ -445,7 +467,7 @@ object RaycastExtensionRepository {
     }
 
     private fun installStarterJsonUuid(dir: File) {
-        if (dir.exists()) return
+        if (isStarterDirHealthy(dir, listOf("package.json", "toolkit.js"))) return
         dir.mkdirs()
         File(dir, ".builtin_starter").writeText("1")
         File(dir, "package.json").writeText(
@@ -454,7 +476,7 @@ object RaycastExtensionRepository {
               "name": "essentials-dev-toolkit",
               "title": "Dev Toolkit",
               "description": "Generate UUIDs, hashes, and inspect Base64/JSON strings locally.",
-              "author": "Essentials",
+              "author": "Komorebi",
               "version": "1.0.0",
               "categories": ["Developer Tools"],
               "commands": [

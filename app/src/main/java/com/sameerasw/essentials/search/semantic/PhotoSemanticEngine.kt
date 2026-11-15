@@ -97,27 +97,31 @@ object PhotoSemanticEngine {
         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
         val entities = mutableListOf<PhotoIndexEntity>()
 
-        for (item in pending) {
-            val uri = Uri.parse(item.contentUri)
-            val bitmap = decodeSampledBitmap(context, uri, 256)
-            val ocr = if (bitmap != null) runOcr(recognizer, bitmap) else ""
-            val visualTags = if (bitmap != null) deriveVisualTags(bitmap, item, ocr) else emptyList()
-            val vec = computePhotoVector(bitmap, item, ocr, visualTags)
-            bitmap?.recycle()
+        try {
+            for (item in pending) {
+                val uri = Uri.parse(item.contentUri)
+                val bitmap = decodeSampledBitmap(context, uri, 256)
+                val ocr = if (bitmap != null) runOcr(recognizer, bitmap) else ""
+                val visualTags = if (bitmap != null) deriveVisualTags(bitmap, item, ocr) else emptyList()
+                val vec = computePhotoVector(bitmap, item, ocr, visualTags)
+                bitmap?.recycle()
 
-            entities.add(
-                PhotoIndexEntity(
-                    mediaId = item.id,
-                    contentUri = item.contentUri,
-                    displayName = item.displayName,
-                    bucketName = item.bucketName,
-                    dateTaken = item.dateTaken,
-                    ocrText = ocr,
-                    sceneTags = visualTags.joinToString(" "),
-                    embeddingBlob = PhotoIndexEntity.fromFloatArray(vec),
-                    indexedAt = System.currentTimeMillis(),
-                ),
-            )
+                entities.add(
+                    PhotoIndexEntity(
+                        mediaId = item.id,
+                        contentUri = item.contentUri,
+                        displayName = item.displayName,
+                        bucketName = item.bucketName,
+                        dateTaken = item.dateTaken,
+                        ocrText = ocr,
+                        sceneTags = visualTags.joinToString(" "),
+                        embeddingBlob = PhotoIndexEntity.fromFloatArray(vec),
+                        indexedAt = System.currentTimeMillis(),
+                    ),
+                )
+            }
+        } finally {
+            runCatching { recognizer.close() }
         }
 
         dao.upsertAll(entities)

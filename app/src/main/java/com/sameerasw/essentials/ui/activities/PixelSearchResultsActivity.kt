@@ -172,10 +172,19 @@ import com.sameerasw.essentials.utils.PermissionUtils
 import com.sameerasw.essentials.utils.WindowingUtils
 import com.sameerasw.essentials.viewmodels.MainViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class PixelSearchResultsActivity : ComponentActivity() {
+
+    private var incomingIntentQuery by mutableStateOf<Pair<String, Int>?>(null)
+    private var intentNonce = 0
+
+    private fun extractQuery(intent: Intent?): String =
+        intent?.getStringExtra(SearchManager.QUERY)
+            ?: intent?.getStringExtra("query")
+            ?: ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -208,9 +217,7 @@ class PixelSearchResultsActivity : ComponentActivity() {
             window.setDimAmount(if (isSystemDark) 0.35f else 0.15f)
         }
 
-        val initialQuery = intent.getStringExtra(SearchManager.QUERY)
-            ?: intent.getStringExtra("query")
-            ?: ""
+        val initialQuery = extractQuery(intent)
 
         setContent {
             val repository = remember { SettingsRepository(this) }
@@ -219,6 +226,7 @@ class PixelSearchResultsActivity : ComponentActivity() {
             EssentialsTheme(pitchBlackTheme = isPitchBlack) {
                 PixelSearchResultsScreen(
                     initialQuery = initialQuery,
+                    incomingIntentQuery = incomingIntentQuery,
                     onFinish = { finish() },
                 )
             }
@@ -228,6 +236,8 @@ class PixelSearchResultsActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        intentNonce += 1
+        incomingIntentQuery = extractQuery(intent) to intentNonce
     }
 }
 
@@ -235,6 +245,7 @@ class PixelSearchResultsActivity : ComponentActivity() {
 @Composable
 fun PixelSearchResultsScreen(
     initialQuery: String,
+    incomingIntentQuery: Pair<String, Int>? = null,
     onFinish: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -425,6 +436,15 @@ fun PixelSearchResultsScreen(
     var discoveredProviders by remember { mutableStateOf<List<SearchProvider>>(emptyList()) }
     var activeScope by remember { mutableStateOf<SearchProvider?>(null) }
     var isSearching by remember { mutableStateOf(false) }
+    var searchJob by remember { mutableStateOf<Job?>(null) }
+
+    LaunchedEffect(incomingIntentQuery) {
+        incomingIntentQuery?.let { (newQuery, _) ->
+            activeScope = null
+            selectedTab = PixelSearchTab.ALL
+            query = newQuery
+        }
+    }
 
     val prefixSuggestion = remember(query, activeScope, discoveredProviders) {
         if (activeScope == null) {
@@ -468,10 +488,11 @@ fun PixelSearchResultsScreen(
     }
 
     fun performSearch(q: String, currentScope: SearchProvider?) {
+        searchJob?.cancel()
         val trimmed = q.trim()
         if (currentScope != null) {
             isSearching = true
-            scope.launch(Dispatchers.IO) {
+            searchJob = scope.launch(Dispatchers.IO) {
                 when (currentScope.kind) {
                     SearchProviderKind.PHOTOS -> {
                         val photos = if (PermissionUtils.hasMediaPermissions(context)) {
@@ -512,6 +533,15 @@ fun PixelSearchResultsScreen(
                             .take(24)
                         withContext(Dispatchers.Main) {
                             appResults = filteredApps
+                            contactResults = emptyList()
+                            mediaResults = emptyList()
+                            fileResults = emptyList()
+                            systemSettingResults = emptyList()
+                            settingResults = emptyList()
+                            shortcutResults = emptyList()
+                            entityRoutes = emptyList()
+                            internalCommands = emptyList()
+                            appFunctions = emptyList()
                             scopedPhotos = emptyList()
                             isSearching = false
                         }
@@ -528,7 +558,16 @@ fun PixelSearchResultsScreen(
                             emptyList()
                         }
                         withContext(Dispatchers.Main) {
+                            appResults = emptyList()
                             contactResults = contacts
+                            mediaResults = emptyList()
+                            fileResults = emptyList()
+                            systemSettingResults = emptyList()
+                            settingResults = emptyList()
+                            shortcutResults = emptyList()
+                            entityRoutes = emptyList()
+                            internalCommands = emptyList()
+                            appFunctions = emptyList()
                             scopedPhotos = emptyList()
                             isSearching = false
                         }
@@ -543,7 +582,16 @@ fun PixelSearchResultsScreen(
                             emptyList()
                         }
                         withContext(Dispatchers.Main) {
+                            appResults = emptyList()
+                            contactResults = emptyList()
+                            mediaResults = emptyList()
                             fileResults = docs
+                            systemSettingResults = emptyList()
+                            settingResults = emptyList()
+                            shortcutResults = emptyList()
+                            entityRoutes = emptyList()
+                            internalCommands = emptyList()
+                            appFunctions = emptyList()
                             scopedPhotos = emptyList()
                             isSearching = false
                         }
@@ -576,9 +624,16 @@ fun PixelSearchResultsScreen(
                             },
                         )
                         withContext(Dispatchers.Main) {
+                            appResults = emptyList()
+                            contactResults = emptyList()
+                            mediaResults = emptyList()
+                            fileResults = emptyList()
                             systemSettingResults = sys
                             settingResults = mapped
+                            shortcutResults = emptyList()
+                            entityRoutes = emptyList()
                             internalCommands = cmds
+                            appFunctions = emptyList()
                             scopedPhotos = emptyList()
                             isSearching = false
                         }
@@ -591,7 +646,16 @@ fun PixelSearchResultsScreen(
                             packageFilter = currentScope.packageName,
                         )
                         withContext(Dispatchers.Main) {
+                            appResults = emptyList()
+                            contactResults = emptyList()
+                            mediaResults = emptyList()
+                            fileResults = emptyList()
+                            systemSettingResults = emptyList()
+                            settingResults = emptyList()
                             shortcutResults = pkgShortcuts
+                            entityRoutes = emptyList()
+                            internalCommands = emptyList()
+                            appFunctions = emptyList()
                             scopedPhotos = emptyList()
                             isSearching = false
                         }
@@ -601,6 +665,16 @@ fun PixelSearchResultsScreen(
                     SearchProviderKind.EXTENSION,
                     -> {
                         withContext(Dispatchers.Main) {
+                            appResults = emptyList()
+                            contactResults = emptyList()
+                            mediaResults = emptyList()
+                            fileResults = emptyList()
+                            systemSettingResults = emptyList()
+                            settingResults = emptyList()
+                            shortcutResults = emptyList()
+                            entityRoutes = emptyList()
+                            internalCommands = emptyList()
+                            appFunctions = emptyList()
                             scopedPhotos = emptyList()
                             isSearching = false
                         }
@@ -627,7 +701,7 @@ fun PixelSearchResultsScreen(
         }
 
         isSearching = true
-        scope.launch(Dispatchers.IO) {
+        searchJob = scope.launch(Dispatchers.IO) {
             val matchedCommands = SearchProviderDiscovery.matchInternalCommands(
                 context = context,
                 query = trimmed,
@@ -1282,7 +1356,7 @@ fun PixelSearchResultsScreen(
                 // STAGE 1 / SETTINGS SCOPE: INTERNAL COMMANDS
                 if (internalCommands.isNotEmpty()) {
                     item(key = "commands_header") {
-                        SearchSectionHeader("Essentials Commands", Modifier.animateItem())
+                        SearchSectionHeader("Komorebi Commands", Modifier.animateItem())
                     }
                     item(key = "commands_cards") {
                         RoundedCardContainer(modifier = Modifier.animateItem()) {

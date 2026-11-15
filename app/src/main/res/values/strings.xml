@@ -835,7 +835,7 @@
     <string name="cat_system">System</string>
 
     <!-- UI Elements -->
-    <string name="search_placeholder">Search Essentials</string>
+    <string name="search_placeholder">Search Komorebi</string>
     <string name="search_no_results">No results for \"%1$s\"</string>
     <string name="search_results_title">Search Results</string>
     <string name="requires_following_permissions">%1$s requires following permissions</string>
@@ -1232,7 +1232,7 @@
     <string name="sentry_report_mode_title">Crash reporting</string>
     <string name="sentry_mode_off">Off</string>
     <string name="sentry_mode_auto">Auto</string>
-    <string name="sentry_crash_toast">Essentials crashed, report saved and sent</string>
+    <string name="sentry_crash_toast">Komorebi crashed, report saved and sent</string>
     <string name="simulate_crash">Simulate crash</string>
     <string name="crash_logs_title">Crash logs</string>
     <string name="crash_logs_desc">View and share recent crash reports</string>
@@ -1250,7 +1250,7 @@
     <string name="btn_wallpaper_desktop">Desktop</string>
     <string name="btn_wallpaper_both">Both</string>
     <string name="btn_wallpaper_mobile">Mobile</string>
-    <string name="welcome_title">Welcome to Essentials</string>
+    <string name="welcome_title">Welcome to Komorebi</string>
     <string name="welcome_subtitle">A Toolbox for Android Nerds</string>
     <string name="welcome_developer_attribution">by sameerasw.com</string>
     <string name="action_lets_begin">Let\'s Begin</string>
@@ -1276,7 +1276,7 @@
     <string name="desc_auto_check_updates">Check for updates at app launch</string>
     <string name="action_all_set">All Set</string>
     <string name="action_check_whats_new">Check What\'s New?</string>
-    <string name="welcome_back_title">Welcome back to Essentials</string>
+    <string name="welcome_back_title">Welcome back to Komorebi</string>
     <string name="action_see_whats_new">See what\'s new</string>
     <string name="label_mode_default">Default</string>
     <string name="label_mode_glove">Glove mode</string>
@@ -2991,7 +2991,7 @@
     <string name="pixel_search_results_apps_desc">Search and launch installed applications</string>
     <string name="pixel_search_results_contacts_title">Contacts</string>
     <string name="pixel_search_results_contacts_desc">Find contacts with quick call and message actions</string>
-    <string name="pixel_search_results_settings_title">Essentials settings</string>
+    <string name="pixel_search_results_settings_title">Komorebi settings</string>
     <string name="pixel_search_results_settings_desc">Search features and deep-link directly to their settings</string>
     <string name="pixel_search_results_shortcuts_title">Shortcuts</string>
     <string name="pixel_search_results_shortcuts_desc">Search quick actions and launcher shortcuts</string>
@@ -3012,8 +3012,8 @@
     <string name="pixel_search_results_files_title">Files &amp; documents</string>
     <string name="pixel_search_results_files_desc">Search documents, audio, and downloaded files</string>
     <string name="perm_all_files_title">All files access</string>
-    <string name="perm_all_files_desc">Allows Essentials to index and search documents, audio, and downloaded files on your device.</string>
-    <string name="essential_search_label">Essential Search</string>
+    <string name="perm_all_files_desc">Allows Komorebi to index and search documents, audio, and downloaded files on your device.</string>
+    <string name="essential_search_label">Komorebi Search</string>
     <string name="pixel_search_tab_all">All</string>
     <string name="pixel_search_tab_apps">Apps</string>
     <string name="pixel_search_tab_media">Media</string>
@@ -3035,9 +3035,9 @@
     <string name="pixel_search_action_view_contact">View contact</string>
     <string name="pixel_search_action_copy_phone">Copy phone number</string>
     <string name="perm_contacts_title">Contacts permission</string>
-    <string name="perm_contacts_desc">To show contacts in Pixel Search results, Essentials needs permission to read your contacts.</string>
+    <string name="perm_contacts_desc">To show contacts in Pixel Search results, Komorebi needs permission to read your contacts.</string>
     <string name="perm_files_media_title">Files &amp; media permission</string>
-    <string name="perm_files_media_desc">To search and display photos, videos, audio, and documents in Pixel Search results, Essentials needs permission to access files and media.</string>
+    <string name="perm_files_media_desc">To search and display photos, videos, audio, and documents in Pixel Search results, Komorebi needs permission to access files and media.</string>
     <string name="pixel_search_use_bubbles_title">Use bubbles for web search</string>
     <string name="pixel_search_use_bubbles_desc">Open search results and links in floating bubble overlays</string>
     <string name="pixel_search_engine_title">Search engine</string>
