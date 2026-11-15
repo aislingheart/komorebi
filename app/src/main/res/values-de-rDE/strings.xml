@@ -1129,7 +1129,7 @@
     <string name="feature_flashlight_brightness_title">Helligkeit der Taschenlampe</string>
     <!-- QS / Activities -->
     <!-- About Section -->
-    <string name="developed_by_format">Entwickelt von %1$s\nmit ❤\uFE0F in \uD83C\uDDF1\uD83C\uDDF0</string>
+    <string name="developed_by_format">Entwickelt von %1$s\nmit ❤\uFE0F in \uD83C\uDDEE\uD83C\uDDEA</string>
     <string name="action_website">Webseite</string>
     <string name="action_contact">Kontakt</string>
     <string name="action_telegram">Telegram</string>

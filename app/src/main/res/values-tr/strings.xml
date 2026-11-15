@@ -1068,7 +1068,7 @@ Bu özelliği etkinleştirmek için güvenli ayarlar yazma izni, zorla kapatma s
     <string name="feature_flashlight_brightness_title">El Feneri Parlaklığı</string>
     <!-- QS / Activities -->
     <!-- About Section -->
-    <string name="developed_by_format">%1$s tarafından\n❤\uFE0F ile \uD83C\uDDF1\uD83C\uDDF0\'de geliştirildi</string>
+    <string name="developed_by_format">%1$s tarafından\n❤\uFE0F ile \uD83C\uDDEE\uD83C\uDDEA\'de geliştirildi</string>
     <string name="action_website">Web sitesi</string>
     <string name="action_contact">İletişim</string>
     <string name="action_telegram">Telegram</string>

@@ -57,8 +57,32 @@ import java.util.concurrent.ConcurrentHashMap
 object SearchProviderDiscovery {
 
     private const val PHOTOS_PACKAGE = "com.google.android.apps.photos"
+    private const val YOUTUBE_PACKAGE = "com.google.android.youtube"
+    private const val SPOTIFY_PACKAGE = "com.spotify.music"
+    private const val REDDIT_PACKAGE = "com.reddit.frontpage"
+    private const val GITHUB_PACKAGE = "com.github.android"
+    private const val MAPS_PACKAGE = "com.google.android.apps.maps"
+    private const val PLAY_STORE_PACKAGE = "com.android.vending"
+    private const val TWITTER_PACKAGE = "com.twitter.android"
+    private const val DISCORD_PACKAGE = "com.discord"
+    private const val TELEGRAM_PACKAGE = "org.telegram.messenger"
+    private const val INSTAGRAM_PACKAGE = "com.instagram.android"
     private const val ACTION_APP_FUNCTION_SERVICE = "android.app.appfunctions.AppFunctionService"
     private const val SHORTCUT_CACHE_TTL_MS = 60_000L
+
+    private val TELEGRAM_USERNAME_REGEX = Regex("^[a-zA-Z0-9_]{3,32}$")
+    private val CURATED_PACKAGES = setOf(
+        YOUTUBE_PACKAGE,
+        SPOTIFY_PACKAGE,
+        REDDIT_PACKAGE,
+        GITHUB_PACKAGE,
+        MAPS_PACKAGE,
+        PLAY_STORE_PACKAGE,
+        TWITTER_PACKAGE,
+        DISCORD_PACKAGE,
+        TELEGRAM_PACKAGE,
+        INSTAGRAM_PACKAGE,
+    )
 
     private val iconCache = ConcurrentHashMap<String, ImageBitmap>()
 
@@ -80,85 +104,8 @@ object SearchProviderDiscovery {
         cachedProviders?.let { return@withContext it }
 
         val pm = context.packageManager
-        val photosAppInstalled = runCatching { pm.getPackageInfo(PHOTOS_PACKAGE, 0) }.isSuccess
+        val photosAppInstalled = isPackageInstalled(pm, PHOTOS_PACKAGE)
         val photosIcon = if (photosAppInstalled) loadAppIcon(pm, PHOTOS_PACKAGE) else null
-
-        val builtIn = listOf(
-            SearchProvider(
-                id = "provider:photos",
-                title = "Photos",
-                subtitle = if (photosAppInstalled) "Google Photos & Gallery" else "Device Photos",
-                kind = SearchProviderKind.PHOTOS,
-                aliases = listOf("photos", "google photos", "gallery", "images", "pictures", "screenshots"),
-                packageName = if (photosAppInstalled) PHOTOS_PACKAGE else null,
-                appIcon = photosIcon,
-                iconRes = R.drawable.rounded_image_24,
-                priority = 100,
-            ),
-            SearchProvider(
-                id = "provider:apps",
-                title = "Apps",
-                subtitle = "Installed applications",
-                kind = SearchProviderKind.APPS,
-                aliases = listOf("apps", "applications", "launch"),
-                iconRes = R.drawable.rounded_apps_24,
-                priority = 80,
-            ),
-            SearchProvider(
-                id = "provider:contacts",
-                title = "Contacts",
-                subtitle = "People & phone numbers",
-                kind = SearchProviderKind.CONTACTS,
-                aliases = listOf("contacts", "people", "call", "dial"),
-                iconRes = R.drawable.rounded_call_24,
-                priority = 80,
-            ),
-            SearchProvider(
-                id = "provider:files",
-                title = "Files",
-                subtitle = "Local documents & downloads",
-                kind = SearchProviderKind.FILES,
-                aliases = listOf("files", "documents", "docs", "downloads", "pdf"),
-                iconRes = R.drawable.rounded_description_24,
-                priority = 80,
-            ),
-            SearchProvider(
-                id = "provider:settings",
-                title = "Settings",
-                subtitle = "System & Komorebi settings",
-                kind = SearchProviderKind.SETTINGS,
-                aliases = listOf("settings", "preferences", "config"),
-                iconRes = R.drawable.rounded_settings_24,
-                priority = 75,
-            ),
-            SearchProvider(
-                id = "provider:web",
-                title = "Web",
-                subtitle = "Search web or open URL",
-                kind = SearchProviderKind.WEB,
-                aliases = listOf("web", "google", "browser", "search"),
-                iconRes = R.drawable.rounded_language_24,
-                priority = 70,
-            ),
-            SearchProvider(
-                id = "provider:extensions",
-                title = "Extensions",
-                subtitle = "Installed Raycast & Vicinae extensions",
-                kind = SearchProviderKind.EXTENSION,
-                aliases = listOf("extensions", "plugins", "addons", "raycast", "vicinae"),
-                iconRes = R.drawable.rounded_extension_24,
-                priority = 78,
-            ),
-            SearchProvider(
-                id = "provider:store",
-                title = "Extension Store",
-                subtitle = "Browse & install Raycast & Vicinae extensions",
-                kind = SearchProviderKind.EXTENSION,
-                aliases = listOf("store", "extension store", "marketplace"),
-                iconRes = R.drawable.rounded_storefront_24,
-                priority = 74,
-            ),
-        )
 
         val discoveredMap = LinkedHashMap<String, MutableList<IntentSearchTarget>>()
         val labelMap = HashMap<String, String>()
@@ -204,43 +151,404 @@ object SearchProviderDiscovery {
             }
         }
 
-        val appProviders = discoveredMap.entries.map { (pkg, targets) ->
-            val appName = runCatching {
-                pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
-            }.getOrNull()?.takeIf { it.isNotBlank() } ?: labelMap[pkg] ?: pkg
-
-            val targetSummary = targets.joinToString(" • ") { target ->
-                when {
-                    target.scheme == "google.navigation" -> "Navigate"
-                    target.scheme == "geo" -> "Maps"
-                    target.action == MediaStore.INTENT_ACTION_MEDIA_SEARCH -> "Media"
-                    target.action == Intent.ACTION_WEB_SEARCH -> "Web"
-                    else -> "Search"
-                }
-            }
-
-            val aliasSet = linkedSetOf(appName.lowercase(Locale.getDefault()))
-            // Add common compact aliases for multi-word apps (e.g. "YouTube Music", "Google Maps")
-            appName.lowercase(Locale.getDefault())
-                .split(" ", "-", "_")
-                .filter { it.length >= 3 }
-                .forEach { aliasSet.add(it) }
-
+        val builtIn = listOf(
             SearchProvider(
-                id = "app:$pkg",
-                title = appName,
-                subtitle = targetSummary,
-                kind = SearchProviderKind.APP_INTENT,
-                aliases = aliasSet.toList(),
-                packageName = pkg,
-                appIcon = loadAppIcon(pm, pkg),
-                iconRes = R.drawable.rounded_search_24,
-                targets = targets,
-                priority = 60,
-            )
-        }.sortedBy { it.title.lowercase(Locale.getDefault()) }
+                id = "provider:photos",
+                title = "Photos",
+                subtitle = if (photosAppInstalled) "Google Photos & Gallery" else "Device Photos",
+                kind = SearchProviderKind.PHOTOS,
+                aliases = listOf("photos", "google photos", "gallery", "images", "pictures", "screenshots"),
+                packageName = if (photosAppInstalled) PHOTOS_PACKAGE else null,
+                appIcon = photosIcon,
+                iconRes = R.drawable.rounded_image_24,
+                priority = 100,
+                category = "System",
+            ),
+            SearchProvider(
+                id = "provider:apps",
+                title = "Apps",
+                subtitle = "Installed applications",
+                kind = SearchProviderKind.APPS,
+                aliases = listOf("apps", "applications", "launch"),
+                iconRes = R.drawable.rounded_apps_24,
+                priority = 80,
+                category = "System",
+            ),
+            SearchProvider(
+                id = "provider:contacts",
+                title = "Contacts",
+                subtitle = "People & phone numbers",
+                kind = SearchProviderKind.CONTACTS,
+                aliases = listOf("contacts", "people", "call", "dial"),
+                iconRes = R.drawable.rounded_call_24,
+                priority = 80,
+                category = "System",
+            ),
+            SearchProvider(
+                id = "provider:files",
+                title = "Files",
+                subtitle = "Local documents & downloads",
+                kind = SearchProviderKind.FILES,
+                aliases = listOf("files", "documents", "docs", "downloads", "pdf"),
+                iconRes = R.drawable.rounded_description_24,
+                priority = 80,
+                category = "System",
+            ),
+            SearchProvider(
+                id = "provider:settings",
+                title = "Settings",
+                subtitle = "System & Komorebi settings",
+                kind = SearchProviderKind.SETTINGS,
+                aliases = listOf("settings", "preferences", "config"),
+                iconRes = R.drawable.rounded_settings_24,
+                priority = 75,
+                category = "System",
+            ),
+            SearchProvider(
+                id = "provider:web",
+                title = "Web",
+                subtitle = "Search web or open URL",
+                kind = SearchProviderKind.WEB,
+                aliases = listOf("web", "browser", "search"),
+                iconRes = R.drawable.rounded_language_24,
+                priority = 70,
+                category = "Web",
+            ),
+            SearchProvider(
+                id = "provider:extensions",
+                title = "Extensions",
+                subtitle = "Installed Raycast & Vicinae extensions",
+                kind = SearchProviderKind.EXTENSION,
+                aliases = listOf("extensions", "plugins", "addons", "raycast", "vicinae"),
+                iconRes = R.drawable.rounded_extension_24,
+                priority = 78,
+                category = "Extensions",
+            ),
+            SearchProvider(
+                id = "provider:store",
+                title = "Extension Store",
+                subtitle = "Browse & install Raycast & Vicinae extensions",
+                kind = SearchProviderKind.EXTENSION,
+                aliases = listOf("store", "extension store", "marketplace"),
+                iconRes = R.drawable.rounded_storefront_24,
+                priority = 74,
+                category = "Extensions",
+            ),
+        )
 
-        val combined = builtIn + appProviders
+        fun curatedAppProvider(
+            id: String,
+            title: String,
+            subtitleInstalled: String,
+            subtitleFallback: String,
+            aliases: List<String>,
+            packageName: String,
+            iconRes: Int,
+            priority: Int,
+            deepLinkTemplate: String?,
+            webUrlTemplate: String?,
+            category: String,
+            fallbackSchemes: List<String> = emptyList(),
+        ): SearchProvider {
+            val installed = isPackageInstalled(pm, packageName)
+            return SearchProvider(
+                id = id,
+                title = title,
+                subtitle = if (installed) subtitleInstalled else subtitleFallback,
+                kind = SearchProviderKind.APP_INTENT,
+                aliases = aliases,
+                packageName = packageName,
+                appIcon = if (installed) loadAppIcon(pm, packageName) else null,
+                iconRes = iconRes,
+                targets = discoveredMap[packageName].orEmpty(),
+                priority = priority,
+                deepLinkTemplate = deepLinkTemplate,
+                webUrlTemplate = webUrlTemplate,
+                category = category,
+                fallbackSchemes = fallbackSchemes,
+            )
+        }
+
+        val curatedProviders = listOf(
+            curatedAppProvider(
+                id = "provider:youtube",
+                title = "YouTube",
+                subtitleInstalled = "Search videos in YouTube app",
+                subtitleFallback = "Search YouTube on the web",
+                aliases = listOf("yt", "youtube"),
+                packageName = YOUTUBE_PACKAGE,
+                iconRes = R.drawable.rounded_play_arrow_24,
+                priority = 86,
+                deepLinkTemplate = "https://www.youtube.com/results?search_query={query}",
+                webUrlTemplate = "https://www.youtube.com/results?search_query={query}",
+                category = "Media",
+                fallbackSchemes = listOf("youtube://", "vnd.youtube://"),
+            ),
+            curatedAppProvider(
+                id = "provider:spotify",
+                title = "Spotify",
+                subtitleInstalled = "Search tracks & artists in Spotify",
+                subtitleFallback = "Search Spotify on the web",
+                aliases = listOf("sp", "spotify"),
+                packageName = SPOTIFY_PACKAGE,
+                iconRes = R.drawable.rounded_music_note_24,
+                priority = 86,
+                deepLinkTemplate = "spotify:search:{query}",
+                webUrlTemplate = "https://open.spotify.com/search/{query}",
+                category = "Media",
+                fallbackSchemes = listOf("spotify:"),
+            ),
+            curatedAppProvider(
+                id = "provider:maps",
+                title = "Google Maps",
+                subtitleInstalled = "Search places & directions in Maps",
+                subtitleFallback = "Search Google Maps on the web",
+                aliases = listOf("map", "maps", "google maps"),
+                packageName = MAPS_PACKAGE,
+                iconRes = R.drawable.rounded_map_search_24,
+                priority = 85,
+                deepLinkTemplate = "geo:0,0?q={query}",
+                webUrlTemplate = "https://www.google.com/maps/search/?api=1&query={query}",
+                category = "Navigation",
+            ),
+            SearchProvider(
+                id = "provider:wikipedia",
+                title = "Wikipedia",
+                subtitle = "Search Wikipedia encyclopedia",
+                kind = SearchProviderKind.APP_INTENT,
+                aliases = listOf("w", "wiki", "wikipedia"),
+                iconRes = R.drawable.rounded_menu_book_24,
+                priority = 85,
+                webUrlTemplate = "https://en.wikipedia.org/wiki/Special:Search?search={query}",
+                category = "Knowledge",
+            ),
+            curatedAppProvider(
+                id = "provider:github",
+                title = "GitHub",
+                subtitleInstalled = "Search repositories & code in GitHub",
+                subtitleFallback = "Search GitHub on the web",
+                aliases = listOf("gh", "github"),
+                packageName = GITHUB_PACKAGE,
+                iconRes = R.drawable.rounded_code_24,
+                priority = 85,
+                deepLinkTemplate = "https://github.com/search?q={query}",
+                webUrlTemplate = "https://github.com/search?q={query}",
+                category = "Developer",
+                fallbackSchemes = listOf("github://"),
+            ),
+            SearchProvider(
+                id = "provider:google",
+                title = "Google Search",
+                subtitle = "Search Google on the web",
+                kind = SearchProviderKind.APP_INTENT,
+                aliases = listOf("g", "google"),
+                iconRes = R.drawable.rounded_search_24,
+                priority = 85,
+                webUrlTemplate = "https://www.google.com/search?q={query}",
+                category = "Web",
+            ),
+            SearchProvider(
+                id = "provider:duckduckgo",
+                title = "DuckDuckGo",
+                subtitle = "Private web search",
+                kind = SearchProviderKind.APP_INTENT,
+                aliases = listOf("ddg", "duckduckgo"),
+                iconRes = R.drawable.rounded_travel_explore_24,
+                priority = 84,
+                webUrlTemplate = "https://duckduckgo.com/?q={query}",
+                category = "Web",
+            ),
+            SearchProvider(
+                id = "provider:perplexity",
+                title = "Perplexity",
+                subtitle = "AI-powered answer engine",
+                kind = SearchProviderKind.APP_INTENT,
+                aliases = listOf("px", "perplexity"),
+                iconRes = R.drawable.rounded_auto_awesome_24,
+                priority = 84,
+                webUrlTemplate = "https://www.perplexity.ai/search?q={query}",
+                category = "AI",
+            ),
+            curatedAppProvider(
+                id = "provider:reddit",
+                title = "Reddit",
+                subtitleInstalled = "Search posts & communities in Reddit",
+                subtitleFallback = "Search Reddit on the web",
+                aliases = listOf("r", "reddit"),
+                packageName = REDDIT_PACKAGE,
+                iconRes = R.drawable.rounded_forum_24,
+                priority = 85,
+                deepLinkTemplate = "https://www.reddit.com/search/?q={query}",
+                webUrlTemplate = "https://www.reddit.com/search/?q={query}",
+                category = "Social",
+                fallbackSchemes = listOf("reddit://"),
+            ),
+            curatedAppProvider(
+                id = "provider:twitter",
+                title = "X / Twitter",
+                subtitleInstalled = "Search posts in X app",
+                subtitleFallback = "Search X on the web",
+                aliases = listOf("x", "tw", "twitter"),
+                packageName = TWITTER_PACKAGE,
+                iconRes = R.drawable.rounded_chat_bubble_24,
+                priority = 84,
+                deepLinkTemplate = "https://x.com/search?q={query}",
+                webUrlTemplate = "https://x.com/search?q={query}",
+                category = "Social",
+                fallbackSchemes = listOf("twitter://"),
+            ),
+            curatedAppProvider(
+                id = "provider:playstore",
+                title = "Play Store",
+                subtitleInstalled = "Search apps in Google Play",
+                subtitleFallback = "Search Google Play on the web",
+                aliases = listOf("play", "play store", "playstore"),
+                packageName = PLAY_STORE_PACKAGE,
+                iconRes = R.drawable.rounded_storefront_24,
+                priority = 84,
+                deepLinkTemplate = "market://search?q={query}&c=apps",
+                webUrlTemplate = "https://play.google.com/store/search?q={query}&c=apps",
+                category = "Apps",
+            ),
+            curatedAppProvider(
+                id = "provider:discord",
+                title = "Discord",
+                subtitleInstalled = "Open Discord app",
+                subtitleFallback = "Open Discord on the web",
+                aliases = listOf("dc", "discord"),
+                packageName = DISCORD_PACKAGE,
+                iconRes = R.drawable.rounded_forum_24,
+                priority = 84,
+                deepLinkTemplate = "discord://",
+                webUrlTemplate = "https://discord.com/app",
+                category = "Social",
+                fallbackSchemes = listOf("discord://"),
+            ),
+            curatedAppProvider(
+                id = "provider:telegram",
+                title = "Telegram",
+                subtitleInstalled = "Open @username or Telegram",
+                subtitleFallback = "Open @username or Telegram Web",
+                aliases = listOf("tg", "telegram"),
+                packageName = TELEGRAM_PACKAGE,
+                iconRes = R.drawable.rounded_chat_bubble_24,
+                priority = 84,
+                deepLinkTemplate = "tg://resolve?domain={query}",
+                webUrlTemplate = "https://web.telegram.org/",
+                category = "Social",
+                fallbackSchemes = listOf("tg://"),
+            ),
+            curatedAppProvider(
+                id = "provider:instagram",
+                title = "Instagram",
+                subtitleInstalled = "Open @user, #tag, or Explore",
+                subtitleFallback = "Open Instagram on the web",
+                aliases = listOf("ig", "instagram", "insta"),
+                packageName = INSTAGRAM_PACKAGE,
+                iconRes = R.drawable.rounded_photo_camera_24,
+                priority = 84,
+                deepLinkTemplate = "instagram://explore",
+                webUrlTemplate = "https://www.instagram.com/",
+                category = "Social",
+                fallbackSchemes = listOf("instagram://explore"),
+            ),
+            SearchProvider(
+                id = "provider:amazon",
+                title = "Amazon",
+                subtitle = "Search products on Amazon",
+                kind = SearchProviderKind.APP_INTENT,
+                aliases = listOf("az", "amazon"),
+                iconRes = R.drawable.rounded_shopping_cart_24,
+                priority = 83,
+                webUrlTemplate = "https://www.amazon.com/s?k={query}",
+                category = "Shopping",
+            ),
+            SearchProvider(
+                id = "provider:stackoverflow",
+                title = "Stack Overflow",
+                subtitle = "Search programming Q&A",
+                kind = SearchProviderKind.APP_INTENT,
+                aliases = listOf("so", "stack", "stackoverflow"),
+                iconRes = R.drawable.rounded_code_24,
+                priority = 83,
+                webUrlTemplate = "https://stackoverflow.com/search?q={query}",
+                category = "Developer",
+            ),
+            SearchProvider(
+                id = "provider:npm",
+                title = "NPM",
+                subtitle = "Search JavaScript & Node packages",
+                kind = SearchProviderKind.APP_INTENT,
+                aliases = listOf("npm"),
+                iconRes = R.drawable.rounded_mobile_code_24,
+                priority = 83,
+                webUrlTemplate = "https://www.npmjs.com/search?q={query}",
+                category = "Developer",
+            ),
+            SearchProvider(
+                id = "provider:imdb",
+                title = "IMDb",
+                subtitle = "Search movies, TV shows & cast",
+                kind = SearchProviderKind.APP_INTENT,
+                aliases = listOf("imdb"),
+                iconRes = R.drawable.rounded_movie_24,
+                priority = 83,
+                webUrlTemplate = "https://www.imdb.com/find/?q={query}",
+                category = "Media",
+            ),
+            SearchProvider(
+                id = "provider:mdn",
+                title = "MDN Web Docs",
+                subtitle = "Search web APIs, HTML, CSS & JS docs",
+                kind = SearchProviderKind.APP_INTENT,
+                aliases = listOf("mdn"),
+                iconRes = R.drawable.rounded_library_books_24,
+                priority = 83,
+                webUrlTemplate = "https://developer.mozilla.org/en-US/search?q={query}",
+                category = "Developer",
+            ),
+        )
+
+        val appProviders = discoveredMap.entries
+            .filterNot { (pkg, _) -> pkg in CURATED_PACKAGES }
+            .map { (pkg, targets) ->
+                val appName = runCatching {
+                    pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+                }.getOrNull()?.takeIf { it.isNotBlank() } ?: labelMap[pkg] ?: pkg
+
+                val targetSummary = targets.joinToString(" • ") { target ->
+                    when {
+                        target.scheme == "google.navigation" -> "Navigate"
+                        target.scheme == "geo" -> "Maps"
+                        target.action == MediaStore.INTENT_ACTION_MEDIA_SEARCH -> "Media"
+                        target.action == Intent.ACTION_WEB_SEARCH -> "Web"
+                        else -> "Search"
+                    }
+                }
+
+                val aliasSet = linkedSetOf(appName.lowercase(Locale.getDefault()))
+                // Add common compact aliases for multi-word apps (e.g. "YouTube Music", "Google Maps")
+                appName.lowercase(Locale.getDefault())
+                    .split(" ", "-", "_")
+                    .filter { it.length >= 3 }
+                    .forEach { aliasSet.add(it) }
+
+                SearchProvider(
+                    id = "app:$pkg",
+                    title = appName,
+                    subtitle = targetSummary,
+                    kind = SearchProviderKind.APP_INTENT,
+                    aliases = aliasSet.toList(),
+                    packageName = pkg,
+                    appIcon = loadAppIcon(pm, pkg),
+                    iconRes = R.drawable.rounded_search_24,
+                    targets = targets,
+                    priority = 60,
+                    category = "Installed Apps",
+                )
+            }.sortedBy { it.title.lowercase(Locale.getDefault()) }
+
+        val combined = builtIn + curatedProviders + appProviders
         cachedProviders = combined
         combined
     }
@@ -251,13 +559,18 @@ object SearchProviderDiscovery {
     ): PrefixSuggestion? {
         val rawLower = query.lowercase(Locale.getDefault())
         val trimmed = rawLower.trimStart()
-        if (trimmed.length < 2) return null
+        if (trimmed.isEmpty()) return null
 
         var best: PrefixSuggestion? = null
         for (provider in providers) {
             for ((aliasIdx, alias) in provider.aliases.withIndex()) {
                 val lowerAlias = alias.lowercase(Locale.getDefault())
-                if (lowerAlias.startsWith(trimmed)) {
+                val matches = if (trimmed.length == 1) {
+                    lowerAlias == trimmed
+                } else {
+                    lowerAlias.startsWith(trimmed)
+                }
+                if (matches) {
                     val suffix = alias.substring(trimmed.length)
                     val exactBonus = if (lowerAlias == trimmed) 40 else 0
                     val primaryBonus = if (aliasIdx == 0) 20 else 0
@@ -919,60 +1232,210 @@ object SearchProviderDiscovery {
         provider: SearchProvider,
         subQuery: String,
     ): Boolean {
-        val pkg = provider.packageName ?: return false
+        val pm = context.packageManager
+        val pkg = provider.packageName
+        val installedPackage = pkg?.takeIf { isPackageInstalled(pm, it) }
         val trimmed = subQuery.trim()
+        val encoded = Uri.encode(trimmed)
+
+        fun tryStart(intent: Intent?): Boolean {
+            if (intent == null) return false
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            return runCatching {
+                context.startActivity(intent)
+                true
+            }.getOrDefault(false)
+        }
+
+        fun tryViewUri(uriString: String, targetPackage: String? = null, requireResolved: Boolean = false): Boolean {
+            val uri = runCatching { Uri.parse(uriString) }.getOrNull() ?: return false
+            val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                if (targetPackage != null) setPackage(targetPackage)
+            }
+            if (requireResolved && intent.resolveActivity(pm) == null) return false
+            return tryStart(intent)
+        }
+
+        val (specialDeepLink, specialWebFallback) = resolveSpecialProviderUrls(provider, trimmed, encoded)
+
         if (trimmed.isEmpty()) {
-            val launch = context.packageManager.getLaunchIntentForPackage(pkg) ?: return false
-            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(launch)
-            return true
-        }
-
-        // Prioritize explicit search targets discovered from PackageManager
-        val orderedTargets = provider.targets.sortedBy {
-            when {
-                it.action == Intent.ACTION_SEARCH -> 0
-                it.action == MediaStore.INTENT_ACTION_MEDIA_SEARCH -> 1
-                it.scheme == "geo" -> 2
-                it.scheme == "google.navigation" -> 3
-                it.action == Intent.ACTION_WEB_SEARCH -> 4
-                else -> 5
-            }
-        }
-
-        for (target in orderedTargets) {
-            val intent = when (target.scheme) {
-                "geo" -> Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=${Uri.encode(trimmed)}"))
-                "google.navigation" -> Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=${Uri.encode(trimmed)}"))
-                else -> Intent(target.action).apply {
-                    putExtra(SearchManager.QUERY, trimmed)
-                    putExtra("query", trimmed)
+            if (installedPackage != null) {
+                if (specialDeepLink != null && tryViewUri(specialDeepLink, targetPackage = installedPackage)) {
+                    return true
                 }
-            }.apply {
-                setPackage(pkg)
-                target.componentName?.let { component = it }
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                for (scheme in provider.fallbackSchemes) {
+                    if (tryViewUri(scheme, targetPackage = installedPackage)) {
+                        return true
+                    }
+                }
+                if (tryStart(pm.getLaunchIntentForPackage(installedPackage))) {
+                    return true
+                }
+            }
+            if (specialDeepLink != null && tryViewUri(specialDeepLink, requireResolved = true)) {
+                return true
+            }
+            for (scheme in provider.fallbackSchemes) {
+                if (tryViewUri(scheme, requireResolved = true)) {
+                    return true
+                }
+            }
+            val homeUrl = specialWebFallback ?: resolveHomeUrl(provider.webUrlTemplate)
+            if (homeUrl != null && tryViewUri(homeUrl)) {
+                return true
+            }
+            return false
+        }
+
+        // 1) App-specific deep-link / package-targeted ACTION_VIEW
+        val effectiveDeepLink = specialDeepLink ?: provider.deepLinkTemplate?.replace("{query}", encoded)
+        val effectiveWebFallback = specialWebFallback ?: provider.webUrlTemplate?.replace("{query}", encoded)
+
+        if (effectiveDeepLink != null) {
+            val parsed = runCatching { Uri.parse(effectiveDeepLink) }.getOrNull()
+            val isHttp = parsed?.scheme.equals("http", ignoreCase = true) ||
+                parsed?.scheme.equals("https", ignoreCase = true)
+            if (isHttp) {
+                if (installedPackage != null && tryViewUri(effectiveDeepLink, targetPackage = installedPackage)) {
+                    return true
+                }
+            } else {
+                if (installedPackage != null && tryViewUri(effectiveDeepLink, targetPackage = installedPackage)) {
+                    return true
+                }
+                if (tryViewUri(effectiveDeepLink, requireResolved = true)) {
+                    return true
+                }
+            }
+        }
+
+        // 2) Existing ACTION_SEARCH / MEDIA_PLAY_FROM_SEARCH if app is installed
+        if (installedPackage != null) {
+            val orderedTargets = provider.targets.sortedBy {
+                when {
+                    it.action == Intent.ACTION_SEARCH -> 0
+                    it.action == MediaStore.INTENT_ACTION_MEDIA_SEARCH -> 1
+                    it.scheme == "geo" -> 2
+                    it.scheme == "google.navigation" -> 3
+                    it.action == Intent.ACTION_WEB_SEARCH -> 4
+                    else -> 5
+                }
             }
 
-            if (runCatching { context.startActivity(intent); true }.getOrDefault(false)) {
+            for (target in orderedTargets) {
+                val intent = when (target.scheme) {
+                    "geo" -> Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=$encoded"))
+                    "google.navigation" -> Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=$encoded"))
+                    else -> Intent(target.action).apply {
+                        putExtra(SearchManager.QUERY, trimmed)
+                        putExtra("query", trimmed)
+                    }
+                }.apply {
+                    setPackage(installedPackage)
+                    target.componentName?.let { component = it }
+                }
+
+                if (tryStart(intent)) {
+                    return true
+                }
+            }
+
+            val genericPkgSearch = Intent(Intent.ACTION_SEARCH).apply {
+                setPackage(installedPackage)
+                putExtra(SearchManager.QUERY, trimmed)
+            }
+            if (tryStart(genericPkgSearch)) {
                 return true
             }
         }
 
-        // Retry without fixed componentName in case a different exported activity handles it
-        val genericPkgSearch = Intent(Intent.ACTION_SEARCH).apply {
-            setPackage(pkg)
-            putExtra(SearchManager.QUERY, trimmed)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        if (runCatching { context.startActivity(genericPkgSearch); true }.getOrDefault(false)) {
+        // 3) Browser URL fallback (https://...) so tapping any provider never crashes
+        if (effectiveWebFallback != null && tryViewUri(effectiveWebFallback)) {
             return true
         }
 
-        val launch = context.packageManager.getLaunchIntentForPackage(pkg) ?: return false
-        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        context.startActivity(launch)
-        return true
+        // Final fallback for installed apps without web fallback (e.g. Discord or dynamic device apps)
+        if (installedPackage != null) {
+            for (scheme in provider.fallbackSchemes) {
+                if (tryViewUri(scheme, targetPackage = installedPackage)) {
+                    return true
+                }
+            }
+            if (tryStart(pm.getLaunchIntentForPackage(installedPackage))) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun isPackageInstalled(pm: PackageManager, packageName: String): Boolean =
+        runCatching {
+            pm.getPackageInfo(packageName, 0)
+            true
+        }.getOrDefault(false)
+
+    private fun resolveSpecialProviderUrls(
+        provider: SearchProvider,
+        trimmedQuery: String,
+        encodedQuery: String,
+    ): Pair<String?, String?> =
+        when (provider.id) {
+            "provider:telegram" -> {
+                if (trimmedQuery.isNotEmpty()) {
+                    val username = trimmedQuery.removePrefix("@").trim()
+                    if ((trimmedQuery.startsWith("@") && username.isNotEmpty()) ||
+                        TELEGRAM_USERNAME_REGEX.matches(trimmedQuery)
+                    ) {
+                        val encUser = Uri.encode(username)
+                        "tg://resolve?domain=$encUser" to "https://t.me/$encUser"
+                    } else {
+                        "tg://" to "https://web.telegram.org/"
+                    }
+                } else {
+                    "tg://" to "https://web.telegram.org/"
+                }
+            }
+            "provider:instagram" -> {
+                when {
+                    trimmedQuery.startsWith("#") -> {
+                        val tag = trimmedQuery.removePrefix("#").trim()
+                        if (tag.isNotEmpty()) {
+                            val encTag = Uri.encode(tag)
+                            "instagram://tag?name=$encTag" to "https://www.instagram.com/explore/tags/$encTag/"
+                        } else {
+                            "instagram://explore" to "https://www.instagram.com/"
+                        }
+                    }
+                    trimmedQuery.startsWith("@") -> {
+                        val user = trimmedQuery.removePrefix("@").trim()
+                        if (user.isNotEmpty()) {
+                            val encUser = Uri.encode(user)
+                            "instagram://user?username=$encUser" to "https://www.instagram.com/$encUser/"
+                        } else {
+                            "instagram://explore" to "https://www.instagram.com/"
+                        }
+                    }
+                    else -> {
+                        "instagram://explore" to "https://www.instagram.com/"
+                    }
+                }
+            }
+            "provider:twitter" -> {
+                if (trimmedQuery.isNotEmpty()) {
+                    "https://x.com/search?q=$encodedQuery" to "https://x.com/search?q=$encodedQuery"
+                } else {
+                    "twitter://" to "https://x.com/"
+                }
+            }
+            else -> null to null
+        }
+
+    private fun resolveHomeUrl(webUrlTemplate: String?): String? {
+        val raw = webUrlTemplate ?: return null
+        val uri = runCatching { Uri.parse(raw.replace("{query}", "")) }.getOrNull() ?: return null
+        val scheme = uri.scheme ?: return null
+        val authority = uri.authority ?: return null
+        return "$scheme://$authority/"
     }
 
     private fun loadAppIcon(pm: PackageManager, packageName: String): ImageBitmap? {

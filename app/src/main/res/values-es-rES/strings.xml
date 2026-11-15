@@ -1131,7 +1131,7 @@ Cuando llegue un mensaje o alerta de una aplicación seleccionada, la Pantalla s
     <string name="feature_flashlight_brightness_title">Brillo de la linterna</string>
     <!-- QS / Activities -->
     <!-- About Section -->
-    <string name="developed_by_format">Desarrollado por %1$s\ncon ❤\uFE0F de \uD83C\uDDF1\uD83C\uDDF0</string>
+    <string name="developed_by_format">Desarrollado por %1$s\ncon ❤\uFE0F de \uD83C\uDDEE\uD83C\uDDEA</string>
     <string name="action_website">Sitio web</string>
     <string name="action_contact">Contacto</string>
     <string name="action_telegram">Telegram</string>

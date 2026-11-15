@@ -1129,7 +1129,7 @@
     <string name="feature_flashlight_brightness_title">Jasność latarki</string>
     <!-- QS / Activities -->
     <!-- About Section -->
-    <string name="developed_by_format">Opracowany przez %1$s\nz ❤\uFE0F od \uD83C\uDDF1\uD83C\uDDF0</string>
+    <string name="developed_by_format">Opracowany przez %1$s\nz ❤\uFE0F od \uD83C\uDDEE\uD83C\uDDEA</string>
     <string name="action_website">Strona internetowa</string>
     <string name="action_contact">Kontakt</string>
     <string name="action_telegram">Telegram</string>

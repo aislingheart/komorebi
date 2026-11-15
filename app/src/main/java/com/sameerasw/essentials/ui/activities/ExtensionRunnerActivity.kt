@@ -14,23 +14,44 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Error
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -38,19 +59,25 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.sameerasw.essentials.launcher.CompatibilityReportSheet
+import com.sameerasw.essentials.raycast.AndroidCompatLevel
+import com.sameerasw.essentials.raycast.CompatibilityReport
 import com.sameerasw.essentials.raycast.InstalledRaycastExtension
 import com.sameerasw.essentials.raycast.RaycastAlertRequest
 import com.sameerasw.essentials.raycast.RaycastCommandManifest
+import com.sameerasw.essentials.raycast.RaycastCompatibilityAnalyzer
 import com.sameerasw.essentials.raycast.RaycastExtensionRepository
 import com.sameerasw.essentials.raycast.RaycastOAuthManager
 import com.sameerasw.essentials.raycast.RaycastRuntimeEngine
@@ -138,6 +165,18 @@ private fun ExtensionRunnerScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var pendingAlert by remember { mutableStateOf<RaycastAlertRequest?>(null) }
     var showPreferences by remember { mutableStateOf(false) }
+    var prefsVersion by remember { mutableIntStateOf(0) }
+    var inspectingReport by remember { mutableStateOf<CompatibilityReport?>(null) }
+
+    val baseCompatReport = remember(extension.id, extension.manifest) {
+        RaycastCompatibilityAnalyzer.analyzeInstalledExtension(extension)
+    }
+    val hasPreferences = remember(extension, command) {
+        !extension.manifest.preferences.isNullOrEmpty() || !command.preferences.isNullOrEmpty()
+    }
+    val missingRequiredPrefs = remember(extension.id, command.name, prefsVersion) {
+        RaycastExtensionRepository.hasRequiredPreferencesMissing(context, extension, command)
+    }
 
     LaunchedEffect(runtime) {
         runtime.toastEvents.collect { evt ->
@@ -172,47 +211,237 @@ private fun ExtensionRunnerScreen(
     BackHandler(onBack = handleBack)
 
     Box(modifier = Modifier.fillMaxSize()) {
-        val activeScreen = viewStack.lastOrNull()
-        when {
-            errorState != null -> {
-                Column(
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Compact diagnostic & preferences strip above extension host
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                tonalElevation = 1.dp,
+            ) {
+                Row(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(24.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Text(
-                        text = "Extension Error",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = errorState ?: "",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    OutlinedButton(onClick = onExit) { Text("Close") }
+                    val (bg, fg, label, icon) = when (baseCompatReport.level) {
+                        AndroidCompatLevel.COMPATIBLE -> listOf(
+                            MaterialTheme.colorScheme.primaryContainer,
+                            MaterialTheme.colorScheme.onPrimaryContainer,
+                            "Android Ready",
+                            Icons.Rounded.CheckCircle,
+                        )
+                        AndroidCompatLevel.PARTIAL -> listOf(
+                            MaterialTheme.colorScheme.tertiaryContainer,
+                            MaterialTheme.colorScheme.onTertiaryContainer,
+                            "Partial Support",
+                            Icons.Rounded.Warning,
+                        )
+                        AndroidCompatLevel.INCOMPATIBLE -> listOf(
+                            MaterialTheme.colorScheme.errorContainer,
+                            MaterialTheme.colorScheme.onErrorContainer,
+                            "Incompatible",
+                            Icons.Rounded.Error,
+                        )
+                    }
+                    @Suppress("UNCHECKED_CAST")
+                    Surface(
+                        onClick = { inspectingReport = baseCompatReport },
+                        shape = RoundedCornerShape(10.dp),
+                        color = bg as androidx.compose.ui.graphics.Color,
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        ) {
+                            Icon(
+                                imageVector = icon as androidx.compose.ui.graphics.vector.ImageVector,
+                                contentDescription = null,
+                                tint = fg as androidx.compose.ui.graphics.Color,
+                                modifier = Modifier.size(14.dp),
+                            )
+                            Text(
+                                text = label as String,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = fg,
+                            )
+                        }
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        if (missingRequiredPrefs) {
+                            Surface(
+                                onClick = { showPreferences = true },
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.errorContainer,
+                            ) {
+                                Text(
+                                    text = "Configure Preferences",
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                )
+                            }
+                        } else if (hasPreferences) {
+                            Surface(
+                                onClick = { showPreferences = true },
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.Settings,
+                                        contentDescription = "Preferences",
+                                        modifier = Modifier.size(14.dp),
+                                    )
+                                    Text(
+                                        text = "Prefs",
+                                        style = MaterialTheme.typography.labelSmall,
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
-            activeScreen != null -> {
-                RaycastScreenHost(
-                    screen = activeScreen,
-                    extension = extension,
-                    commandTitle = command.title.ifBlank { command.name },
-                    canNavigateBack = viewStack.size > 1,
-                    onBack = handleBack,
-                    onInvokeCallback = { id, args -> runtime.invokeCallback(id, *args) },
-                    onOpenPreferences = { showPreferences = true },
-                )
-            }
-            else -> {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator()
-                        Spacer(Modifier.height(12.dp))
-                        Text("Starting ${command.title.ifBlank { command.name }}…")
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .consumeWindowInsets(WindowInsets.statusBars),
+            ) {
+                val activeScreen = viewStack.lastOrNull()
+                when {
+                    errorState != null -> {
+                        val rawError = errorState ?: ""
+                        val errorReport = remember(rawError, extension.id) {
+                            RaycastCompatibilityAnalyzer.analyzeError(rawError, extension)
+                        }
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                                .padding(20.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Text(
+                                text = "Extension Error",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                            Text(
+                                text = errorReport.summary,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(
+                                    text = rawError,
+                                    modifier = Modifier.padding(14.dp),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+
+                            if (errorReport.issues.isNotEmpty()) {
+                                Text(
+                                    text = "Compatibility Diagnosis",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                                errorReport.issues.forEach { issue ->
+                                    OutlinedCard(
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(12.dp),
+                                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                                        ) {
+                                            Text(
+                                                text = issue.title,
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (issue.severity == AndroidCompatLevel.INCOMPATIBLE) {
+                                                    MaterialTheme.colorScheme.error
+                                                } else {
+                                                    MaterialTheme.colorScheme.primary
+                                                },
+                                            )
+                                            Text(
+                                                text = issue.detail,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                FilledTonalButton(
+                                    onClick = { inspectingReport = errorReport },
+                                    modifier = Modifier.weight(1f),
+                                ) {
+                                    Text("Full Diagnostics")
+                                }
+                                if (hasPreferences) {
+                                    FilledTonalButton(
+                                        onClick = { showPreferences = true },
+                                        modifier = Modifier.weight(1f),
+                                    ) {
+                                        Text("Preferences")
+                                    }
+                                }
+                            }
+                            OutlinedButton(
+                                onClick = onExit,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text("Close")
+                            }
+                        }
+                    }
+                    activeScreen != null -> {
+                        RaycastScreenHost(
+                            screen = activeScreen,
+                            extension = extension,
+                            commandTitle = command.title.ifBlank { command.name },
+                            canNavigateBack = viewStack.size > 1,
+                            onBack = handleBack,
+                            onInvokeCallback = { id, args -> runtime.invokeCallback(id, *args) },
+                            onOpenPreferences = { showPreferences = true },
+                        )
+                    }
+                    else -> {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator()
+                                Spacer(Modifier.height(12.dp))
+                                Text("Starting ${command.title.ifBlank { command.name }}…")
+                            }
+                        }
                     }
                 }
             }
@@ -266,7 +495,18 @@ private fun ExtensionRunnerScreen(
         ExtensionPreferencesBottomSheet(
             extension = extension,
             command = command,
-            onDismissRequest = { showPreferences = false },
+            onDismissRequest = {
+                showPreferences = false
+                prefsVersion++
+            },
+        )
+    }
+
+    inspectingReport?.let { report ->
+        CompatibilityReportSheet(
+            title = extension.displayTitle,
+            report = report,
+            onDismiss = { inspectingReport = null },
         )
     }
 }
@@ -275,15 +515,28 @@ private fun ExtensionRunnerScreen(
 @Composable
 fun ExtensionPreferencesBottomSheet(
     extension: InstalledRaycastExtension,
-    command: RaycastCommandManifest,
+    command: RaycastCommandManifest? = null,
     onDismissRequest: () -> Unit,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val defs = remember(extension, command) {
-        (extension.manifest.preferences.orEmpty()) + (command.preferences.orEmpty())
+        val raw = if (command != null) {
+            extension.manifest.preferences.orEmpty() + command.preferences.orEmpty()
+        } else {
+            extension.manifest.preferences.orEmpty() +
+                extension.manifest.commands.flatMap { it.preferences.orEmpty() }
+        }
+        raw.distinctBy { it.name }
     }
     val initialValues = remember(extension, command) {
-        RaycastExtensionRepository.getPreferenceValuesMap(context, extension, command)
+        buildMap<String, Any> {
+            putAll(RaycastExtensionRepository.getPreferenceValuesMap(context, extension, command))
+            if (command == null) {
+                extension.manifest.commands.forEach { cmd ->
+                    putAll(RaycastExtensionRepository.getPreferenceValuesMap(context, extension, cmd))
+                }
+            }
+        }
     }
     val editedValues = remember(initialValues) {
         mutableStateMapOf<String, Any>().apply { putAll(initialValues) }
@@ -296,6 +549,7 @@ fun ExtensionPreferencesBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 28.dp),
@@ -314,6 +568,10 @@ fun ExtensionPreferencesBottomSheet(
                 )
             } else {
                 defs.forEach { def ->
+                    val labelText = buildString {
+                        append(def.title.ifBlank { def.name })
+                        if (def.required) append(" *")
+                    }
                     when (def.type.lowercase()) {
                         "checkbox" -> {
                             val checked = editedValues[def.name] as? Boolean ?: false
@@ -323,9 +581,13 @@ fun ExtensionPreferencesBottomSheet(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(def.title.ifBlank { def.name }, style = MaterialTheme.typography.bodyLarge)
+                                    Text(labelText, style = MaterialTheme.typography.bodyLarge)
                                     if (def.description.isNotBlank()) {
-                                        Text(def.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(
+                                            def.description,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
                                     }
                                 }
                                 Switch(
@@ -334,12 +596,55 @@ fun ExtensionPreferencesBottomSheet(
                                 )
                             }
                         }
+                        "dropdown" -> {
+                            val options = def.data.orEmpty()
+                            val currentVal = editedValues[def.name]?.toString().orEmpty()
+                            val currentTitle = options.firstOrNull { it.value == currentVal }?.title
+                                ?: currentVal.ifBlank { "Select option" }
+                            var expanded by remember(def.name) { mutableStateOf(false) }
+
+                            ExposedDropdownMenuBox(
+                                expanded = expanded,
+                                onExpandedChange = { expanded = !expanded },
+                            ) {
+                                OutlinedTextField(
+                                    value = currentTitle,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text(labelText) },
+                                    supportingText = if (def.description.isNotBlank()) {
+                                        { Text(def.description) }
+                                    } else null,
+                                    trailingIcon = {
+                                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                                    },
+                                    shape = RoundedCornerShape(16.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = expanded,
+                                    onDismissRequest = { expanded = false },
+                                ) {
+                                    options.forEach { option ->
+                                        DropdownMenuItem(
+                                            text = { Text(option.title.ifBlank { option.value }) },
+                                            onClick = {
+                                                editedValues[def.name] = option.value
+                                                expanded = false
+                                            },
+                                        )
+                                    }
+                                }
+                            }
+                        }
                         else -> {
                             val value = editedValues[def.name]?.toString() ?: ""
                             OutlinedTextField(
                                 value = value,
                                 onValueChange = { editedValues[def.name] = it },
-                                label = { Text(def.title.ifBlank { def.name }) },
+                                label = { Text(labelText) },
                                 placeholder = if (def.placeholder.isNotBlank()) {
                                     { Text(def.placeholder) }
                                 } else null,

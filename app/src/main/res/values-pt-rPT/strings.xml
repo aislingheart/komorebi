@@ -1129,7 +1129,7 @@
     <string name="feature_flashlight_brightness_title">Flashlight Brightness</string>
     <!-- QS / Activities -->
     <!-- About Section -->
-    <string name="developed_by_format">Developed by %1$s\nwith ❤\uFE0F from \uD83C\uDDF1\uD83C\uDDF0</string>
+    <string name="developed_by_format">Developed by %1$s\nwith ❤\uFE0F from \uD83C\uDDEE\uD83C\uDDEA</string>
     <string name="action_website">Website</string>
     <string name="action_contact">Contact</string>
     <string name="action_telegram">Telegram</string>

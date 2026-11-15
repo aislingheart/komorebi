@@ -25,12 +25,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Error
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Storefront
+import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -63,7 +67,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.sameerasw.essentials.launcher.CompatibilityReportSheet
+import com.sameerasw.essentials.raycast.AndroidCompatLevel
+import com.sameerasw.essentials.raycast.CompatibilityReport
 import com.sameerasw.essentials.raycast.InstalledRaycastExtension
+import com.sameerasw.essentials.raycast.RaycastCompatibilityAnalyzer
 import com.sameerasw.essentials.raycast.RaycastExtensionRepository
 import com.sameerasw.essentials.raycast.RaycastStoreClient
 import com.sameerasw.essentials.raycast.StoreExtensionListing
@@ -115,6 +123,9 @@ private fun ExtensionsHubScreen(
     var storeLoading by remember { mutableStateOf(false) }
     var storeError by remember { mutableStateOf<String?>(null) }
     var installingId by remember { mutableStateOf<String?>(null) }
+    var inspectingCompat by remember { mutableStateOf<Pair<String, CompatibilityReport>?>(null) }
+    var preferencesTarget by remember { mutableStateOf<InstalledRaycastExtension?>(null) }
+    var prefsVersion by remember { mutableIntStateOf(0) }
 
     fun refreshInstalled() {
         installed = RaycastExtensionRepository.listInstalledExtensions(context)
@@ -175,9 +186,26 @@ private fun ExtensionsHubScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(installed, key = { it.id }) { ext ->
+                items(installed, key = { "${it.id}_$prefsVersion" }) { ext ->
+                    val report = remember(ext.id, ext.manifest) {
+                        RaycastCompatibilityAnalyzer.analyzeInstalledExtension(ext)
+                    }
+                    val missingRequiredPrefs = remember(ext.id, prefsVersion) {
+                        RaycastExtensionRepository.hasRequiredPreferencesMissing(context, ext, null) ||
+                            ext.manifest.commands.any { cmd ->
+                                RaycastExtensionRepository.hasRequiredPreferencesMissing(context, ext, cmd)
+                            }
+                    }
                     InstalledExtensionCard(
                         extension = ext,
+                        compatReport = report,
+                        missingRequiredPrefs = missingRequiredPrefs,
+                        onInspectCompatibility = {
+                            inspectingCompat = ext.displayTitle to report
+                        },
+                        onOpenPreferences = {
+                            preferencesTarget = ext
+                        },
                         onRunCommand = { cmdName ->
                             context.startActivity(
                                 ExtensionRunnerActivity.createIntent(context, ext.id, cmdName),
@@ -257,9 +285,16 @@ private fun ExtensionsHubScreen(
                             verticalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
                             items(storeListings, key = { "${it.source}_${it.id}_${it.name}" }) { item ->
+                                val report = remember(item.source, item.id, item.name) {
+                                    RaycastCompatibilityAnalyzer.analyzeStoreListing(item)
+                                }
                                 StoreListingCard(
                                     listing = item,
+                                    compatReport = report,
                                     isInstalling = installingId == item.id,
+                                    onInspectCompatibility = {
+                                        inspectingCompat = (item.title.ifBlank { item.name }) to report
+                                    },
                                     onInstall = {
                                         scope.launch {
                                             installingId = item.id
@@ -281,14 +316,50 @@ private fun ExtensionsHubScreen(
             }
         }
     }
+
+    inspectingCompat?.let { (title, report) ->
+        CompatibilityReportSheet(
+            title = title,
+            report = report,
+            onDismiss = { inspectingCompat = null },
+        )
+    }
+
+    preferencesTarget?.let { ext ->
+        ExtensionPreferencesBottomSheet(
+            extension = ext,
+            command = null,
+            onDismissRequest = {
+                preferencesTarget = null
+                prefsVersion++
+            },
+        )
+    }
 }
 
 @Composable
 fun InstalledExtensionCard(
     extension: InstalledRaycastExtension,
+    compatReport: CompatibilityReport? = null,
+    missingRequiredPrefs: Boolean = false,
+    onInspectCompatibility: (() -> Unit)? = null,
+    onOpenPreferences: (() -> Unit)? = null,
     onRunCommand: (String) -> Unit,
     onUninstall: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val resolvedReport = compatReport ?: remember(extension.id, extension.manifest) {
+        RaycastCompatibilityAnalyzer.analyzeInstalledExtension(extension)
+    }
+    var localInspectOpen by remember { mutableStateOf(false) }
+    var localPrefsOpen by remember { mutableStateOf(false) }
+    val hasPreferences = remember(extension) {
+        !extension.manifest.preferences.isNullOrEmpty() ||
+            extension.manifest.commands.any { !it.preferences.isNullOrEmpty() }
+    }
+    val openPrefs = onOpenPreferences ?: { localPrefsOpen = true }
+    val inspectCompat = onInspectCompatibility ?: { localInspectOpen = true }
+
     OutlinedCard(shape = RoundedCornerShape(22.dp)) {
         Column(
             modifier = Modifier
@@ -323,12 +394,52 @@ fun InstalledExtensionCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                if (hasPreferences) {
+                    IconButton(onClick = openPrefs) {
+                        Icon(
+                            imageVector = Icons.Rounded.Settings,
+                            contentDescription = "Extension Preferences",
+                            tint = if (missingRequiredPrefs) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    }
+                }
                 if (!extension.isBuiltInStarter) {
                     IconButton(onClick = onUninstall) {
                         Icon(Icons.Rounded.Delete, contentDescription = "Uninstall", tint = MaterialTheme.colorScheme.error)
                     }
                 }
             }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                CompatibilityBadge(
+                    level = resolvedReport.level,
+                    onClick = inspectCompat,
+                )
+                if (missingRequiredPrefs) {
+                    Surface(
+                        onClick = openPrefs,
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.errorContainer,
+                    ) {
+                        Text(
+                            text = "Setup required",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                    }
+                }
+            }
+
             if (extension.manifest.description.isNotBlank()) {
                 Text(
                     text = extension.manifest.description,
@@ -377,14 +488,37 @@ fun InstalledExtensionCard(
             }
         }
     }
+
+    if (localInspectOpen) {
+        CompatibilityReportSheet(
+            title = extension.displayTitle,
+            report = resolvedReport,
+            onDismiss = { localInspectOpen = false },
+        )
+    }
+    if (localPrefsOpen) {
+        ExtensionPreferencesBottomSheet(
+            extension = extension,
+            command = null,
+            onDismissRequest = { localPrefsOpen = false },
+        )
+    }
 }
 
 @Composable
 fun StoreListingCard(
     listing: StoreExtensionListing,
+    compatReport: CompatibilityReport? = null,
     isInstalling: Boolean,
+    onInspectCompatibility: (() -> Unit)? = null,
     onInstall: () -> Unit,
 ) {
+    val resolvedReport = compatReport ?: remember(listing.source, listing.id, listing.name) {
+        RaycastCompatibilityAnalyzer.analyzeStoreListing(listing)
+    }
+    var localInspectOpen by remember { mutableStateOf(false) }
+    val inspectCompat = onInspectCompatibility ?: { localInspectOpen = true }
+
     OutlinedCard(shape = RoundedCornerShape(22.dp)) {
         Row(
             modifier = Modifier
@@ -414,7 +548,10 @@ fun StoreListingCard(
                     }
                 }
             }
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
                 Text(
                     text = listing.title.ifBlank { listing.name },
                     style = MaterialTheme.typography.titleSmall,
@@ -436,6 +573,10 @@ fun StoreListingCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+                CompatibilityBadge(
+                    level = resolvedReport.level,
+                    onClick = inspectCompat,
+                )
             }
             FilledTonalButton(
                 onClick = onInstall,
@@ -450,6 +591,66 @@ fun StoreListingCard(
                     Text("Get")
                 }
             }
+        }
+    }
+
+    if (localInspectOpen) {
+        CompatibilityReportSheet(
+            title = listing.title.ifBlank { listing.name },
+            report = resolvedReport,
+            onDismiss = { localInspectOpen = false },
+        )
+    }
+}
+
+@Composable
+private fun CompatibilityBadge(
+    level: AndroidCompatLevel,
+    onClick: () -> Unit,
+) {
+    val (bg, fg, label, icon) = when (level) {
+        AndroidCompatLevel.COMPATIBLE -> listOf(
+            MaterialTheme.colorScheme.primaryContainer,
+            MaterialTheme.colorScheme.onPrimaryContainer,
+            "Android Ready",
+            Icons.Rounded.CheckCircle,
+        )
+        AndroidCompatLevel.PARTIAL -> listOf(
+            MaterialTheme.colorScheme.tertiaryContainer,
+            MaterialTheme.colorScheme.onTertiaryContainer,
+            "Partial Support",
+            Icons.Rounded.Warning,
+        )
+        AndroidCompatLevel.INCOMPATIBLE -> listOf(
+            MaterialTheme.colorScheme.errorContainer,
+            MaterialTheme.colorScheme.onErrorContainer,
+            "Incompatible",
+            Icons.Rounded.Error,
+        )
+    }
+    @Suppress("UNCHECKED_CAST")
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(10.dp),
+        color = bg as androidx.compose.ui.graphics.Color,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Icon(
+                imageVector = icon as androidx.compose.ui.graphics.vector.ImageVector,
+                contentDescription = null,
+                tint = fg as androidx.compose.ui.graphics.Color,
+                modifier = Modifier.size(14.dp),
+            )
+            Text(
+                text = label as String,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Medium,
+                color = fg,
+            )
         }
     }
 }

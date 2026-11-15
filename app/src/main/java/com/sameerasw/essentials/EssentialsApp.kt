@@ -67,5 +67,10 @@ class EssentialsApp : Application() {
             com.sameerasw.essentials.appfunctions.AppFunctionAvailabilityManager
                 .updateAvailability(this)
         }.onFailure { android.util.Log.e("EssentialsApp", "App function init failed", it) }
+
+        runCatching {
+            com.sameerasw.essentials.launcher.ClipboardHistoryManager
+                .startObserving(this)
+        }.onFailure { android.util.Log.e("EssentialsApp", "Clipboard observer init failed", it) }
     }
 }

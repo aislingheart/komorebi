@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
@@ -237,6 +238,27 @@ fun AboutSection(
                         )
                     }
                 }
+            }
+
+            FilledTonalButton(
+                onClick = {
+                    HapticUtil.performUIHaptic(view)
+                    val portfolioUrl = "https://aislingheart.github.io/Portfolio/"
+                    val intent = Intent(Intent.ACTION_VIEW, portfolioUrl.toUri())
+                    context.startActivity(intent)
+                },
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp),
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.rounded_language_24),
+                    contentDescription = "Portfolio & Website",
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = "Portfolio & Website")
             }
 
             Spacer(modifier = Modifier.height(2.dp))

@@ -10,6 +10,8 @@
 package com.sameerasw.essentials.ui.activities
 
 import android.app.SearchManager
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -50,6 +52,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -63,7 +67,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -72,6 +75,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Close
@@ -80,8 +84,6 @@ import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.Storefront
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -93,19 +95,19 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
-import androidx.compose.material3.carousel.rememberCarouselState
-import com.sameerasw.essentials.domain.model.PixelSearchTab
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
+import androidx.compose.material3.carousel.rememberCarouselState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -144,6 +146,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -171,11 +174,26 @@ import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.domain.model.PixelSearchResultItem
 import com.sameerasw.essentials.domain.registry.FeatureRegistry
 import com.sameerasw.essentials.domain.registry.SearchRegistry
+import com.sameerasw.essentials.launcher.BuiltInLauncherAction
+import com.sameerasw.essentials.launcher.BuiltInLauncherTools
+import com.sameerasw.essentials.launcher.CalcResult
+import com.sameerasw.essentials.launcher.ClipboardHistoryManager
+import com.sameerasw.essentials.launcher.CompatibilityReportSheet
+import com.sameerasw.essentials.launcher.LauncherCalculator
+import com.sameerasw.essentials.launcher.LauncherToolModal
+import com.sameerasw.essentials.launcher.LauncherToolModalOverlay
+import com.sameerasw.essentials.launcher.Quicklink
+import com.sameerasw.essentials.launcher.QuicklinksRepository
+import com.sameerasw.essentials.launcher.SnippetsRepository
+import com.sameerasw.essentials.launcher.TextSnippet
+import com.sameerasw.essentials.raycast.AndroidCompatLevel
+import com.sameerasw.essentials.raycast.CompatibilityReport
 import com.sameerasw.essentials.raycast.InstalledRaycastExtension
 import com.sameerasw.essentials.raycast.RaycastActionPanelSpec
 import com.sameerasw.essentials.raycast.RaycastActionPanelSheet
 import com.sameerasw.essentials.raycast.RaycastAlertRequest
 import com.sameerasw.essentials.raycast.RaycastCommandManifest
+import com.sameerasw.essentials.raycast.RaycastCompatibilityAnalyzer
 import com.sameerasw.essentials.raycast.RaycastDropdownSpec
 import com.sameerasw.essentials.raycast.RaycastExtensionRepository
 import com.sameerasw.essentials.raycast.RaycastIconView
@@ -307,8 +325,8 @@ fun PixelSearchResultsScreen(
 
     var query by rememberSaveable { mutableStateOf(initialQuery) }
     val focusRequester = remember { FocusRequester() }
-    var selectedTab by rememberSaveable { mutableStateOf(PixelSearchTab.ALL) }
-    val isAllTab = selectedTab == PixelSearchTab.ALL
+    var activeToolModal by remember { mutableStateOf<LauncherToolModal?>(null) }
+    var launcherDataVersion by remember { mutableIntStateOf(0) }
 
     var dragOffsetY by remember { mutableFloatStateOf(0f) }
     val dismissThresholdPx = with(density) { 180.dp.toPx() }
@@ -534,7 +552,7 @@ fun PixelSearchResultsScreen(
             if (newQuery.isNotEmpty()) {
                 overlayMode = InlineOverlayMode.Search
                 activeScope = null
-                selectedTab = PixelSearchTab.ALL
+                activeToolModal = null
                 query = newQuery
             }
         }
@@ -560,9 +578,46 @@ fun PixelSearchResultsScreen(
 
     LaunchedEffect(Unit) {
         discoveredProviders = SearchProviderDiscovery.discoverProviders(context)
+        runCatching { ClipboardHistoryManager.captureCurrent(context) }
+        scope.launch(Dispatchers.IO) {
+            runCatching { LauncherCalculator.refreshRatesIfNeeded(context) }
+        }
     }
 
-    BackHandler(enabled = overlayMode is InlineOverlayMode.ExtensionsHub || (overlayMode is InlineOverlayMode.Search && activeScope != null)) {
+    val calcResult: CalcResult? = remember(query, activeScope) {
+        if (activeScope == null && query.isNotBlank()) LauncherCalculator.evaluate(query, context) else null
+    }
+    val builtInActions = remember { BuiltInLauncherTools.allActions() }
+    val matchingToolActions = remember(query, activeScope) {
+        if (activeScope == null && query.isNotBlank()) BuiltInLauncherTools.search(query).take(6) else emptyList()
+    }
+    val matchingSnippets = remember(query, activeScope, launcherDataVersion) {
+        if (activeScope == null && query.isNotBlank()) SnippetsRepository.search(context, query).take(5) else emptyList()
+    }
+    val matchingQuicklinks = remember(query, activeScope, launcherDataVersion) {
+        if (activeScope == null && query.isNotBlank()) QuicklinksRepository.search(context, query).take(5) else emptyList()
+    }
+    val matchingProviders = remember(query, activeScope, discoveredProviders) {
+        val q = query.trim().lowercase()
+        if (activeScope != null || q.isEmpty()) emptyList()
+        else discoveredProviders.filter { p ->
+            p.title.lowercase().contains(q) ||
+                p.subtitle.lowercase().contains(q) ||
+                p.category.lowercase().contains(q) ||
+                p.aliases.any { it.equals(q, ignoreCase = true) || it.startsWith(q, ignoreCase = true) }
+        }.take(6)
+    }
+
+    BackHandler(
+        enabled = activeToolModal != null ||
+            overlayMode is InlineOverlayMode.ExtensionsHub ||
+            (overlayMode is InlineOverlayMode.Search && activeScope != null),
+    ) {
+        if (activeToolModal != null) {
+            activeToolModal = null
+            launcherDataVersion++
+            return@BackHandler
+        }
         when (overlayMode) {
             is InlineOverlayMode.ExtensionsHub -> {
                 overlayMode = InlineOverlayMode.Search
@@ -576,6 +631,13 @@ fun PixelSearchResultsScreen(
         }
     }
 
+    fun copyPlainText(label: String, value: String, toastMessage: String = "Copied $value") {
+        val cm = ContextCompat.getSystemService(context, ClipboardManager::class.java)
+        cm?.setPrimaryClip(ClipData.newPlainText(label, value))
+        ClipboardHistoryManager.recordCopiedText(context, value)
+        Toast.makeText(context, toastMessage, Toast.LENGTH_SHORT).show()
+    }
+
     fun openExtensionsHub(initialTab: Int) {
         HapticUtil.performVirtualKeyHaptic(view)
         dragOffsetY = 0f
@@ -583,6 +645,22 @@ fun PixelSearchResultsScreen(
         hubQuery = ""
         activeScope = null
         overlayMode = InlineOverlayMode.ExtensionsHub(initialTab = initialTab)
+    }
+
+    fun executeBuiltInAction(action: BuiltInLauncherAction) {
+        HapticUtil.performVirtualKeyHaptic(view)
+        if (action.opensModal != null) {
+            activeToolModal = action.opensModal
+            return
+        }
+        if (action.id == "open_extensions") {
+            openExtensionsHub(initialTab = 1)
+            return
+        }
+        action.onExecute(context)
+        if (action.closesSearch) {
+            onFinish()
+        }
     }
 
     fun openInlineExtension(
@@ -935,14 +1013,9 @@ fun PixelSearchResultsScreen(
         performSearch(query, activeScope)
     }
 
-    LaunchedEffect(selectedTab) {
-        userHasScrolled = false
-        listState.scrollToItem(0)
-    }
-
     LaunchedEffect(
-        selectedTab,
         activeScope,
+        calcResult,
         appResults,
         contactResults,
         mediaResults,
@@ -952,6 +1025,9 @@ fun PixelSearchResultsScreen(
         shortcutResults,
         entityRoutes,
         internalCommands,
+        matchingToolActions,
+        matchingSnippets,
+        matchingQuicklinks,
         scopedPhotos,
     ) {
         if (!userHasScrolled && (listState.firstVisibleItemIndex != 0 || listState.firstVisibleItemScrollOffset != 0)) {
@@ -967,18 +1043,27 @@ fun PixelSearchResultsScreen(
     val navBarHeight = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val statusBarHeightPx = with(LocalDensity.current) { statusBarHeight.toPx() }
     val bottomBlurHeightPx = with(LocalDensity.current) { 140.dp.toPx() }
-    val topBlurHeightPx = with(LocalDensity.current) { (statusBarHeight + 56.dp).toPx() }
+    val topBlurHeightPx = with(LocalDensity.current) { (statusBarHeight + 24.dp).toPx() }
 
     // Identify which section is topmost
-    val hasCommands = activeScope == null && internalCommands.isNotEmpty()
-    val hasRoutes = activeScope == null && !hasCommands && entityRoutes.isNotEmpty()
-    val hasApps = (isAllTab || selectedTab == PixelSearchTab.APPS) && isAppsEnabled && appResults.isNotEmpty()
-    val hasContacts = !hasCommands && !hasRoutes && !hasApps && (isAllTab || selectedTab == PixelSearchTab.CONTACTS) && isContactsEnabled && contactResults.isNotEmpty()
-    val hasMedia = !hasCommands && !hasRoutes && !hasApps && !hasContacts && (isAllTab || selectedTab == PixelSearchTab.MEDIA) && isMediaEnabled && mediaResults.isNotEmpty()
-    val hasFiles = !hasCommands && !hasRoutes && !hasApps && !hasContacts && !hasMedia && (isAllTab || selectedTab == PixelSearchTab.FILES) && isFilesEnabled && fileResults.isNotEmpty()
-    val hasSystemSettings = !hasCommands && !hasRoutes && !hasApps && !hasContacts && !hasMedia && !hasFiles && (isAllTab || selectedTab == PixelSearchTab.SETTINGS) && isSettingsEnabled && systemSettingResults.isNotEmpty()
-    val hasEssentials = !hasCommands && !hasRoutes && !hasApps && !hasContacts && !hasMedia && !hasFiles && !hasSystemSettings && (isAllTab || selectedTab == PixelSearchTab.SETTINGS) && isSettingsEnabled && settingResults.isNotEmpty()
-    val hasShortcuts = !hasCommands && !hasRoutes && !hasApps && !hasContacts && !hasMedia && !hasFiles && !hasSystemSettings && !hasEssentials && (isAllTab || selectedTab == PixelSearchTab.SETTINGS) && isShortcutsEnabled && shortcutResults.isNotEmpty()
+    val trimmedQuery = query.trim()
+    val hasCalc = activeScope == null && calcResult != null
+    val hasCommands = activeScope == null && !hasCalc && internalCommands.isNotEmpty()
+    val hasTools = activeScope == null && !hasCalc && !hasCommands && matchingToolActions.isNotEmpty()
+    val hasSnippets = activeScope == null && !hasCalc && !hasCommands && !hasTools && matchingSnippets.isNotEmpty()
+    val hasExactQuicklink = activeScope == null && !hasCalc && !hasCommands && !hasTools && !hasSnippets &&
+        matchingQuicklinks.firstOrNull()?.let {
+            it.keyword.isNotBlank() && trimmedQuery.split(Regex("\\s+"), limit = 2)[0].equals(it.keyword, ignoreCase = true)
+        } == true
+    val hasRoutes = activeScope == null && !hasCalc && !hasCommands && !hasTools && !hasSnippets && !hasExactQuicklink && entityRoutes.isNotEmpty()
+    val hasApps = !hasCalc && !hasCommands && !hasTools && !hasSnippets && !hasExactQuicklink && !hasRoutes && isAppsEnabled && appResults.isNotEmpty()
+    val hasQuicklinks = activeScope == null && !hasCalc && !hasCommands && !hasTools && !hasSnippets && !hasExactQuicklink && !hasRoutes && !hasApps && matchingQuicklinks.isNotEmpty()
+    val hasContacts = !hasCalc && !hasCommands && !hasTools && !hasSnippets && !hasExactQuicklink && !hasRoutes && !hasApps && !hasQuicklinks && isContactsEnabled && contactResults.isNotEmpty()
+    val hasMedia = !hasCalc && !hasCommands && !hasTools && !hasSnippets && !hasExactQuicklink && !hasRoutes && !hasApps && !hasQuicklinks && !hasContacts && isMediaEnabled && mediaResults.isNotEmpty()
+    val hasFiles = !hasCalc && !hasCommands && !hasTools && !hasSnippets && !hasExactQuicklink && !hasRoutes && !hasApps && !hasQuicklinks && !hasContacts && !hasMedia && isFilesEnabled && fileResults.isNotEmpty()
+    val hasSystemSettings = !hasCalc && !hasCommands && !hasTools && !hasSnippets && !hasExactQuicklink && !hasRoutes && !hasApps && !hasQuicklinks && !hasContacts && !hasMedia && !hasFiles && isSettingsEnabled && systemSettingResults.isNotEmpty()
+    val hasEssentials = !hasCalc && !hasCommands && !hasTools && !hasSnippets && !hasExactQuicklink && !hasRoutes && !hasApps && !hasQuicklinks && !hasContacts && !hasMedia && !hasFiles && !hasSystemSettings && isSettingsEnabled && settingResults.isNotEmpty()
+    val hasShortcuts = !hasCalc && !hasCommands && !hasTools && !hasSnippets && !hasExactQuicklink && !hasRoutes && !hasApps && !hasQuicklinks && !hasContacts && !hasMedia && !hasFiles && !hasSystemSettings && !hasEssentials && isShortcutsEnabled && shortcutResults.isNotEmpty()
 
     val highlightColor = MaterialTheme.colorScheme.secondaryContainer
     val normalCardColor = MaterialTheme.colorScheme.surfaceBright
@@ -1057,10 +1142,28 @@ fun PixelSearchResultsScreen(
         }
 
         when {
+            hasCalc && calcResult != null -> {
+                copyPlainText("Calculator Result", calcResult.copyValue, "Copied ${calcResult.formattedResult}")
+                onFinish()
+            }
             hasCommands -> {
                 val cmd = internalCommands.first()
                 cmd.onExecute(context)
                 if (cmd.closesSearchUi) onFinish()
+            }
+            hasTools -> {
+                executeBuiltInAction(matchingToolActions.first())
+            }
+            hasSnippets -> {
+                val expanded = SnippetsRepository.expandAndCopy(context, matchingSnippets.first())
+                Toast.makeText(context, "Copied snippet: ${expanded.take(40)}", Toast.LENGTH_SHORT).show()
+                onFinish()
+            }
+            hasExactQuicklink -> {
+                val parts = trimmedQuery.split(Regex("\\s+"), limit = 2)
+                val arg = parts.getOrNull(1).orEmpty()
+                QuicklinksRepository.launch(context, matchingQuicklinks.first(), arg)
+                onFinish()
             }
             hasRoutes -> {
                 runCatching { context.startActivity(entityRoutes.first().navigationIntent) }
@@ -1069,6 +1172,12 @@ fun PixelSearchResultsScreen(
             }
             hasApps -> {
                 launchApp(context, appResults.first().packageName)
+                onFinish()
+            }
+            hasQuicklinks -> {
+                val parts = trimmedQuery.split(Regex("\\s+"), limit = 2)
+                val arg = if (parts.size > 1) parts[1] else ""
+                QuicklinksRepository.launch(context, matchingQuicklinks.first(), arg)
                 onFinish()
             }
             hasContacts -> {
@@ -1200,93 +1309,6 @@ fun PixelSearchResultsScreen(
                 }
 
                 is InlineOverlayMode.Search -> {
-            // Pinned top category filter tabs
-            val tabs = remember(isAppsEnabled, isContactsEnabled, isMediaEnabled, isFilesEnabled, isSettingsEnabled, isWebEnabled) {
-                PixelSearchTab.entries.filter { tab ->
-                    when (tab) {
-                        PixelSearchTab.ALL -> true
-                        PixelSearchTab.APPS -> isAppsEnabled
-                        PixelSearchTab.CONTACTS -> isContactsEnabled
-                        PixelSearchTab.MEDIA -> isMediaEnabled
-                        PixelSearchTab.FILES -> isFilesEnabled
-                        PixelSearchTab.SETTINGS -> isSettingsEnabled
-                        PixelSearchTab.WEB -> isWebEnabled
-                    }
-                }
-            }
-            val carouselState = rememberCarouselState { tabs.size }
-
-            Box(
-                modifier =
-                    Modifier
-                        .align(Alignment.TopCenter)
-                        .fillMaxWidth()
-                        .zIndex(20f)
-                        .padding(top = statusBarHeight),
-            ) {
-                HorizontalMultiBrowseCarousel(
-                    state = carouselState,
-                    preferredItemWidth = 112.dp,
-                    itemSpacing = 8.dp,
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 6.dp)
-                            .height(44.dp),
-                ) { index ->
-                    val tab = tabs[index]
-                    val isSelected = selectedTab == tab
-                    val containerColor =
-                        if (isSelected) {
-                            MaterialTheme.colorScheme.primaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.surfaceContainerHigh
-                        }
-                    val contentColor =
-                        if (isSelected) {
-                            MaterialTheme.colorScheme.onPrimaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        }
-
-                    Box(
-                        modifier =
-                            Modifier
-                                .fillMaxSize()
-                                .maskClip(CircleShape)
-                                .background(containerColor)
-                                .clickable {
-                                    HapticUtil.performVirtualKeyHaptic(view)
-                                    selectedTab = tab
-                                }
-                                .padding(horizontal = 12.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            tab.iconRes?.let { iconRes ->
-                                Icon(
-                                    painter = painterResource(iconRes),
-                                    contentDescription = null,
-                                    tint = contentColor,
-                                    modifier = Modifier.size(16.dp),
-                                )
-                            }
-                            TranslatableText(
-                                stringResId = tab.labelRes,
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = contentColor,
-                                maxLines = 1,
-                            )
-                        }
-                    }
-                }
-            }
-
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -1309,7 +1331,7 @@ fun PixelSearchResultsScreen(
                         .nestedScroll(overscrollNestedScrollConnection)
                         .padding(horizontal = 16.dp),
                     contentPadding = PaddingValues(
-                        top = statusBarHeight + 56.dp,
+                        top = statusBarHeight + 14.dp,
                         bottom = 120.dp,
                     ),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -1473,48 +1495,232 @@ fun PixelSearchResultsScreen(
                     }
                 }
 
-                // STAGE 1: EMPTY QUERY QUICK PROVIDERS
-                if (activeScope == null && query.isBlank() && discoveredProviders.isNotEmpty()) {
-                    item(key = "quick_providers_header") {
-                        SearchSectionHeader("Search Providers", Modifier.animateItem())
+                // STAGE 1: EMPTY QUERY — RAYCAST / VICINAE VERTICAL COMMAND LIST
+                if (activeScope == null && query.isBlank()) {
+                    item(key = "core_tools_header") {
+                        SearchSectionHeader("Core Tools & Commands", Modifier.animateItem())
                     }
-                    item(key = "quick_providers_row") {
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.animateItem(),
-                        ) {
-                            items(
-                                items = discoveredProviders.take(12),
-                                key = { it.id },
-                            ) { provider ->
-                                AssistChip(
-                                    onClick = { enterScope(provider) },
-                                    label = {
-                                        Text(
-                                            text = provider.title,
-                                            maxLines = 1,
+                    item(key = "core_tools_list") {
+                        RoundedCardContainer(modifier = Modifier.animateItem()) {
+                            builtInActions.forEach { action ->
+                                RaycastCommandRow(
+                                    title = action.title,
+                                    subtitle = action.subtitle,
+                                    badge = action.badge,
+                                    iconRes = action.iconRes,
+                                    containerColor = normalCardColor,
+                                    onClick = { executeBuiltInAction(action) },
+                                )
+                            }
+                        }
+                    }
+
+                    if (installedExtensions.isNotEmpty()) {
+                        item(key = "installed_ext_header") {
+                            SearchSectionHeader("Installed Extensions", Modifier.animateItem())
+                        }
+                        item(key = "installed_ext_list") {
+                            RoundedCardContainer(modifier = Modifier.animateItem()) {
+                                installedExtensions.forEach { ext ->
+                                    val report = remember(ext.id, ext.manifest) {
+                                        RaycastCompatibilityAnalyzer.analyzeInstalledExtension(ext)
+                                    }
+                                    ext.manifest.commands.forEach { cmd ->
+                                        RaycastCommandRow(
+                                            title = cmd.title.ifBlank { cmd.name },
+                                            subtitle = "${ext.displayTitle}${if (cmd.description.isNotBlank()) " • ${cmd.description}" else ""}",
+                                            badge = when (report.level) {
+                                                AndroidCompatLevel.COMPATIBLE -> "Extension"
+                                                AndroidCompatLevel.PARTIAL -> "Partial"
+                                                AndroidCompatLevel.INCOMPATIBLE -> "Desktop API"
+                                            },
+                                            iconRes = R.drawable.rounded_extension_24,
+                                            containerColor = normalCardColor,
+                                            onClick = { openInlineExtension(ext, cmd, returnToHub = false) },
                                         )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (discoveredProviders.isNotEmpty()) {
+                        item(key = "providers_vertical_header") {
+                            SearchSectionHeader("Search Providers & App Links", Modifier.animateItem())
+                        }
+                        item(key = "providers_vertical_list") {
+                            RoundedCardContainer(modifier = Modifier.animateItem()) {
+                                discoveredProviders.forEach { provider ->
+                                    val aliasHint = provider.aliases.firstOrNull()?.let { "Alias: $it" }
+                                    val subtitleText = listOfNotNull(provider.subtitle.takeIf { it.isNotBlank() }, aliasHint).joinToString(" • ")
+                                    RaycastCommandRow(
+                                        title = provider.title,
+                                        subtitle = subtitleText,
+                                        badge = provider.category,
+                                        iconRes = provider.iconRes,
+                                        iconBitmap = provider.appIcon,
+                                        containerColor = normalCardColor,
+                                        onClick = { enterScope(provider) },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // STAGE 1: LIVE CALCULATOR / CONVERTER / TIMEZONE
+                if (activeScope == null && calcResult != null) {
+                    item(key = "calc_header") {
+                        SearchSectionHeader(calcResult.category, Modifier.animateItem())
+                    }
+                    item(key = "calc_card") {
+                        RoundedCardContainer(modifier = Modifier.animateItem()) {
+                            Surface(
+                                color = highlightColor,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        HapticUtil.performVirtualKeyHaptic(view)
+                                        copyPlainText("Calculator Result", calcResult.copyValue, "Copied ${calcResult.formattedResult}")
+                                        onFinish()
                                     },
-                                    leadingIcon = {
-                                        if (provider.appIcon != null) {
-                                            Image(
-                                                painter = BitmapPainter(provider.appIcon),
-                                                contentDescription = null,
-                                                modifier = Modifier
-                                                    .size(18.dp)
-                                                    .clip(CircleShape),
-                                            )
-                                        } else {
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                                        modifier = Modifier.size(40.dp),
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
                                             Icon(
-                                                painter = painterResource(provider.iconRes),
+                                                painter = painterResource(R.drawable.rounded_calculate_24),
                                                 contentDescription = null,
-                                                modifier = Modifier.size(18.dp),
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(22.dp),
                                             )
                                         }
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = calcResult.formattedResult,
+                                            style = MaterialTheme.typography.titleLarge,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        Text(
+                                            text = "${calcResult.expression} • ${calcResult.subtitle}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                    ) {
+                                        Text(
+                                            text = "Copy",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // STAGE 1: MATCHING BUILT-IN LAUNCHER TOOLS
+                if (activeScope == null && matchingToolActions.isNotEmpty()) {
+                    item(key = "tools_header") {
+                        SearchSectionHeader("Launcher Tools", Modifier.animateItem())
+                    }
+                    item(key = "tools_cards") {
+                        RoundedCardContainer(modifier = Modifier.animateItem()) {
+                            matchingToolActions.forEachIndexed { index, action ->
+                                val isTopmost = index == 0 && hasTools
+                                RaycastCommandRow(
+                                    title = action.title,
+                                    subtitle = action.subtitle,
+                                    badge = action.badge,
+                                    iconRes = action.iconRes,
+                                    containerColor = if (isTopmost) highlightColor else normalCardColor,
+                                    onClick = { executeBuiltInAction(action) },
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // STAGE 1: MATCHING TEXT SNIPPETS
+                if (activeScope == null && matchingSnippets.isNotEmpty()) {
+                    item(key = "snippets_header") {
+                        SearchSectionHeader("Snippets", Modifier.animateItem())
+                    }
+                    item(key = "snippets_cards") {
+                        RoundedCardContainer(modifier = Modifier.animateItem()) {
+                            matchingSnippets.forEachIndexed { index, snippet ->
+                                val isTopmost = index == 0 && hasSnippets
+                                val preview = remember(snippet.id, snippet.content) {
+                                    SnippetsRepository.expandContent(snippet.content).replace("\n", " ")
+                                }
+                                RaycastCommandRow(
+                                    title = snippet.name,
+                                    subtitle = preview,
+                                    badge = snippet.keyword.ifBlank { "Snippet" },
+                                    iconRes = R.drawable.rounded_edit_note_24,
+                                    containerColor = if (isTopmost) highlightColor else normalCardColor,
+                                    onClick = {
+                                        HapticUtil.performVirtualKeyHaptic(view)
+                                        val expanded = SnippetsRepository.expandAndCopy(context, snippet)
+                                        Toast.makeText(context, "Copied snippet: ${expanded.take(40)}", Toast.LENGTH_SHORT).show()
+                                        onFinish()
                                     },
-                                    colors = AssistChipDefaults.assistChipColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceBright,
-                                    ),
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // STAGE 1: MATCHING QUICKLINKS
+                if (activeScope == null && matchingQuicklinks.isNotEmpty()) {
+                    item(key = "quicklinks_header") {
+                        SearchSectionHeader("Quicklinks", Modifier.animateItem())
+                    }
+                    item(key = "quicklinks_cards") {
+                        RoundedCardContainer(modifier = Modifier.animateItem()) {
+                            matchingQuicklinks.forEachIndexed { index, link ->
+                                val isTopmost = index == 0 && (hasExactQuicklink || hasQuicklinks)
+                                val arg = remember(trimmedQuery, link.keyword) {
+                                    val parts = trimmedQuery.split(Regex("\\s+"), limit = 2)
+                                    if (link.keyword.isNotBlank() && parts[0].equals(link.keyword, ignoreCase = true) && parts.size > 1) {
+                                        parts[1]
+                                    } else {
+                                        ""
+                                    }
+                                }
+                                RaycastCommandRow(
+                                    title = if (arg.isNotBlank()) "${link.name}: $arg" else link.name,
+                                    subtitle = link.urlTemplate,
+                                    badge = link.keyword.ifBlank { "Link" },
+                                    iconRes = R.drawable.rounded_link_24,
+                                    containerColor = if (isTopmost) highlightColor else normalCardColor,
+                                    onClick = {
+                                        HapticUtil.performVirtualKeyHaptic(view)
+                                        QuicklinksRepository.launch(context, link, arg)
+                                        onFinish()
+                                    },
                                 )
                             }
                         }
@@ -1667,7 +1873,7 @@ fun PixelSearchResultsScreen(
                 }
 
                 // APPS
-                if ((isAllTab || selectedTab == PixelSearchTab.APPS) && isAppsEnabled && appResults.isNotEmpty()) {
+                if (isAppsEnabled && appResults.isNotEmpty()) {
                     item(key = "apps_header") {
                         SearchSectionHeader(stringResource(R.string.pixel_search_section_apps), Modifier.animateItem())
                     }
@@ -1700,7 +1906,7 @@ fun PixelSearchResultsScreen(
                 }
 
                 // CONTACTS
-                if ((isAllTab || selectedTab == PixelSearchTab.CONTACTS) && isContactsEnabled && contactResults.isNotEmpty()) {
+                if (isContactsEnabled && contactResults.isNotEmpty()) {
                     item(key = "contacts_header") {
                         SearchSectionHeader(
                             stringResource(R.string.pixel_search_section_contacts),
@@ -1806,7 +2012,7 @@ fun PixelSearchResultsScreen(
                     }
                 }
 
-                if ((isAllTab || selectedTab == PixelSearchTab.MEDIA) && isMediaEnabled && mediaResults.isNotEmpty()) {
+                if (isMediaEnabled && mediaResults.isNotEmpty()) {
                     item(key = "media_header") {
                         SearchSectionHeader(
                             stringResource(R.string.pixel_search_section_media),
@@ -1934,7 +2140,7 @@ fun PixelSearchResultsScreen(
                 }
 
                 // FILES
-                if ((isAllTab || selectedTab == PixelSearchTab.FILES) && isFilesEnabled && fileResults.isNotEmpty()) {
+                if (isFilesEnabled && fileResults.isNotEmpty()) {
                     item(key = "files_header") {
                         SearchSectionHeader(
                             stringResource(R.string.pixel_search_section_files),
@@ -2007,7 +2213,7 @@ fun PixelSearchResultsScreen(
                 }
 
                 // SETTINGS (System Settings)
-                if ((isAllTab || selectedTab == PixelSearchTab.SETTINGS) && isSettingsEnabled && systemSettingResults.isNotEmpty()) {
+                if (isSettingsEnabled && systemSettingResults.isNotEmpty()) {
                     item(key = "system_settings_header") {
                         SearchSectionHeader(
                             stringResource(R.string.pixel_search_section_system_settings),
@@ -2039,7 +2245,7 @@ fun PixelSearchResultsScreen(
                 }
 
                 // ESSENTIALS
-                if ((isAllTab || selectedTab == PixelSearchTab.SETTINGS) && isSettingsEnabled && settingResults.isNotEmpty()) {
+                if (isSettingsEnabled && settingResults.isNotEmpty()) {
                     item(key = "essentials_header") {
                         SearchSectionHeader(
                             stringResource(R.string.app_name),
@@ -2109,7 +2315,6 @@ fun PixelSearchResultsScreen(
 
                 // SHORTCUTS
                 if ((activeScope == null || activeScope?.kind == SearchProviderKind.APP_INTENT) &&
-                    (isAllTab || selectedTab == PixelSearchTab.SETTINGS) &&
                     isShortcutsEnabled &&
                     shortcutResults.isNotEmpty()
                 ) {
@@ -2178,13 +2383,42 @@ fun PixelSearchResultsScreen(
                     }
                 }
 
+                // MATCHING SEARCH PROVIDERS & APP LINKS
+                if (activeScope == null && matchingProviders.isNotEmpty()) {
+                    item(key = "matching_providers_header") {
+                        SearchSectionHeader("Search Providers & App Links", modifier = Modifier.animateItem())
+                    }
+                    item(key = "matching_providers_cards") {
+                        RoundedCardContainer(modifier = Modifier.animateItem()) {
+                            matchingProviders.forEach { provider ->
+                                RaycastCommandRow(
+                                    title = provider.title,
+                                    subtitle = "Search \"${query.trim()}\" in ${provider.title}",
+                                    badge = provider.category,
+                                    iconRes = provider.iconRes,
+                                    iconBitmap = provider.appIcon,
+                                    containerColor = normalCardColor,
+                                    onClick = {
+                                        HapticUtil.performVirtualKeyHaptic(view)
+                                        if (provider.kind == SearchProviderKind.APP_INTENT || provider.kind == SearchProviderKind.WEB) {
+                                            SearchProviderDiscovery.launchScopedProviderSearch(context, provider, query)
+                                            onFinish()
+                                        } else {
+                                            enterScope(provider)
+                                        }
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // WEB SEARCH
                 if ((activeScope == null || activeScope?.kind == SearchProviderKind.WEB) &&
-                    (isAllTab || selectedTab == PixelSearchTab.WEB) &&
                     isWebEnabled &&
                     query.isNotBlank()
                 ) {
-                    val isTopmost = !hasCommands && !hasRoutes && !hasApps && !hasContacts && !hasMedia && !hasFiles && !hasSystemSettings && !hasEssentials && !hasShortcuts
+                    val isTopmost = !hasCalc && !hasCommands && !hasTools && !hasSnippets && !hasExactQuicklink && !hasRoutes && !hasApps && !hasQuicklinks && !hasContacts && !hasMedia && !hasFiles && !hasSystemSettings && !hasEssentials && !hasShortcuts
                     item(key = "web_header") {
                         SearchSectionHeader(
                             stringResource(R.string.pixel_search_section_web),
@@ -2472,6 +2706,22 @@ fun PixelSearchResultsScreen(
                 },
             )
         }
+
+        activeToolModal?.let { modal ->
+            LauncherToolModalOverlay(
+                modal = modal,
+                initialQuery = query,
+                onDismiss = {
+                    activeToolModal = null
+                    launcherDataVersion++
+                },
+                onCopiedAndClose = {
+                    activeToolModal = null
+                    launcherDataVersion++
+                    onFinish()
+                },
+            )
+        }
     }
 }
 }
@@ -2501,8 +2751,12 @@ private fun BoxScope.InlineExtensionsHubOverlay(
     onRunCommand: (InstalledRaycastExtension, RaycastCommandManifest) -> Unit,
     onBack: () -> Unit,
 ) {
+    val context = LocalContext.current
     val view = LocalView.current
     val keyboardController = LocalSoftwareKeyboardController.current
+    var prefsVersion by remember { mutableIntStateOf(0) }
+    var inspectingCompat by remember { mutableStateOf<Pair<String, CompatibilityReport>?>(null) }
+    var preferencesTarget by remember { mutableStateOf<InstalledRaycastExtension?>(null) }
     val filteredInstalled = remember(installedExtensions, hubQuery) {
         val q = hubQuery.trim().lowercase()
         if (q.isEmpty()) installedExtensions
@@ -2694,9 +2948,22 @@ private fun BoxScope.InlineExtensionsHubOverlay(
                     ),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    items(filteredInstalled, key = { it.id }) { ext ->
+                    items(filteredInstalled, key = { "${it.id}_$prefsVersion" }) { ext ->
+                        val report = remember(ext.id, ext.manifest) {
+                            RaycastCompatibilityAnalyzer.analyzeInstalledExtension(ext)
+                        }
+                        val missingRequiredPrefs = remember(ext.id, prefsVersion) {
+                            RaycastExtensionRepository.hasRequiredPreferencesMissing(context, ext, null) ||
+                                ext.manifest.commands.any { cmd ->
+                                    RaycastExtensionRepository.hasRequiredPreferencesMissing(context, ext, cmd)
+                                }
+                        }
                         InstalledExtensionCard(
                             extension = ext,
+                            compatReport = report,
+                            missingRequiredPrefs = missingRequiredPrefs,
+                            onInspectCompatibility = { inspectingCompat = ext.displayTitle to report },
+                            onOpenPreferences = { preferencesTarget = ext },
                             onRunCommand = { cmdName ->
                                 val cmd = ext.manifest.commands.firstOrNull { it.name == cmdName }
                                     ?: return@InstalledExtensionCard
@@ -2768,10 +3035,17 @@ private fun BoxScope.InlineExtensionsHubOverlay(
                         ),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        items(storeListings, key = { it.id }) { item ->
+                        items(storeListings, key = { "${it.source}_${it.id}_${it.name}" }) { item ->
+                            val report = remember(item.source, item.id, item.name) {
+                                RaycastCompatibilityAnalyzer.analyzeStoreListing(item)
+                            }
                             StoreListingCard(
                                 listing = item,
+                                compatReport = report,
                                 isInstalling = installingId == item.id,
+                                onInspectCompatibility = {
+                                    inspectingCompat = (item.title.ifBlank { item.name }) to report
+                                },
                                 onInstall = { onInstallStoreItem(item) },
                             )
                         }
@@ -2915,9 +3189,28 @@ private fun BoxScope.InlineExtensionsHubOverlay(
             }
         }
     }
+
+    inspectingCompat?.let { (title, report) ->
+        CompatibilityReportSheet(
+            title = title,
+            report = report,
+            onDismiss = { inspectingCompat = null },
+        )
+    }
+
+    preferencesTarget?.let { ext ->
+        ExtensionPreferencesBottomSheet(
+            extension = ext,
+            command = null,
+            onDismissRequest = {
+                preferencesTarget = null
+                prefsVersion++
+            },
+        )
+    }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun BoxScope.InlineExtensionRunnerOverlay(
     extension: InstalledRaycastExtension,
@@ -2947,6 +3240,10 @@ private fun BoxScope.InlineExtensionRunnerOverlay(
     val snackbarHostState = remember { SnackbarHostState() }
     var pendingAlert by remember { mutableStateOf<RaycastAlertRequest?>(null) }
     var showPreferences by remember { mutableStateOf(false) }
+    var inspectingReport by remember { mutableStateOf<CompatibilityReport?>(null) }
+    val hasPreferences = remember(extension, command) {
+        !extension.manifest.preferences.isNullOrEmpty() || !command.preferences.isNullOrEmpty()
+    }
 
     LaunchedEffect(runtime) {
         runtime.toastEvents.collect { evt ->
@@ -3042,30 +3339,109 @@ private fun BoxScope.InlineExtensionRunnerOverlay(
             modifier = Modifier
                 .fillMaxSize()
                 .imePadding()
-                .padding(top = statusBarHeight + 70.dp, bottom = 128.dp, start = 24.dp, end = 24.dp),
+                .padding(top = statusBarHeight + 70.dp, bottom = 128.dp, start = 20.dp, end = 20.dp),
             contentAlignment = Alignment.Center,
         ) {
             if (errorState != null) {
+                val rawError = errorState ?: ""
+                val errorReport = remember(rawError, extension.id) {
+                    RaycastCompatibilityAnalyzer.analyzeError(rawError, extension)
+                }
                 Card(
                     shape = RoundedCornerShape(24.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
                     Column(
-                        modifier = Modifier.padding(20.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                            .padding(20.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         Text(
                             text = "Extension Error",
                             style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.error,
                         )
                         Text(
-                            text = errorState ?: "",
+                            text = errorReport.summary,
                             style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
                         )
-                        FilledTonalButton(onClick = handleBack) {
-                            Text("Back")
+                        Surface(
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                text = rawError,
+                                modifier = Modifier.padding(12.dp),
+                                style = MaterialTheme.typography.bodySmall,
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        if (errorReport.issues.isNotEmpty()) {
+                            Text(
+                                text = "Compatibility Diagnosis",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            errorReport.issues.forEach { issue ->
+                                OutlinedCard(
+                                    shape = RoundedCornerShape(14.dp),
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(10.dp),
+                                        verticalArrangement = Arrangement.spacedBy(3.dp),
+                                    ) {
+                                        Text(
+                                            text = issue.title,
+                                            style = MaterialTheme.typography.labelLarge,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = if (issue.severity == AndroidCompatLevel.INCOMPATIBLE) {
+                                                MaterialTheme.colorScheme.error
+                                            } else {
+                                                MaterialTheme.colorScheme.primary
+                                            },
+                                        )
+                                        Text(
+                                            text = issue.detail,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            FilledTonalButton(onClick = { inspectingReport = errorReport }) {
+                                Text("Full Diagnostics")
+                            }
+                            if (hasPreferences) {
+                                FilledTonalButton(onClick = { showPreferences = true }) {
+                                    Text("Preferences")
+                                }
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    cm.setPrimaryClip(ClipData.newPlainText("Extension Error", rawError))
+                                    Toast.makeText(context, "Error copied", Toast.LENGTH_SHORT).show()
+                                },
+                            ) {
+                                Text("Copy Error")
+                            }
+                            OutlinedButton(onClick = handleBack) {
+                                Text("Back")
+                            }
                         }
                     }
                 }
@@ -3173,6 +3549,14 @@ private fun BoxScope.InlineExtensionRunnerOverlay(
             extension = extension,
             command = command,
             onDismissRequest = { showPreferences = false },
+        )
+    }
+
+    inspectingReport?.let { report ->
+        CompatibilityReportSheet(
+            title = extension.displayTitle,
+            report = report,
+            onDismiss = { inspectingReport = null },
         )
     }
 }
@@ -3560,6 +3944,88 @@ private fun launchFile(context: Context, item: PixelSearchResultItem.FileItem) {
         } catch (_: Exception) {
             android.widget.Toast.makeText(context, item.displayName, android.widget.Toast.LENGTH_SHORT).show()
         }
+    }
+}
+
+@Composable
+private fun RaycastCommandRow(
+    title: String,
+    subtitle: String,
+    badge: String,
+    iconRes: Int,
+    containerColor: Color,
+    onClick: () -> Unit,
+    iconBitmap: ImageBitmap? = null,
+) {
+    ListItem(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        leadingContent = {
+            if (iconBitmap != null) {
+                Image(
+                    painter = remember(iconBitmap) { BitmapPainter(iconBitmap) },
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(10.dp)),
+                    contentScale = ContentScale.Crop,
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.secondaryContainer),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(iconRes),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+        },
+        supportingContent = if (subtitle.isNotBlank()) {
+            {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        } else null,
+        trailingContent = if (badge.isNotBlank()) {
+            {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ) {
+                    Text(
+                        text = badge,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
+                }
+            }
+        } else null,
+        colors = ListItemDefaults.colors(containerColor = containerColor),
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

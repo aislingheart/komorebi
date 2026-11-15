@@ -67,6 +67,8 @@
 # Komorebi Raycast / Vicinae runtime & store DTOs (Gson + QuickJS JNI)
 -keep class com.sameerasw.essentials.raycast.** { *; }
 -keepclassmembers class com.sameerasw.essentials.raycast.** { *; }
+-keep class com.sameerasw.essentials.launcher.** { *; }
+-keepclassmembers class com.sameerasw.essentials.launcher.** { *; }
 -keep class com.dokar.quickjs.** { *; }
 -keepclassmembers class com.dokar.quickjs.** { *; }
 

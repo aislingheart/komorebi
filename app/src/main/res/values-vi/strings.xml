@@ -1064,7 +1064,7 @@ Cần có quyền ghi cài đặt bảo mật để bật hoặc tắt tính nă
     <string name="feature_flashlight_brightness_title">Độ sáng của đèn pin</string>
     <!-- QS / Activities -->
     <!-- About Section -->
-    <string name="developed_by_format">Được phát triển bởi %1$s\nvới ❤\uFE0F từ \uD83C\uDDF1\uD83C\uDDF0</string>
+    <string name="developed_by_format">Được phát triển bởi %1$s\nvới ❤\uFE0F từ \uD83C\uDDEE\uD83C\uDDEA</string>
     <string name="action_website">Trang web</string>
     <string name="action_contact">Liên hệ</string>
     <string name="action_telegram">điện tín</string>

@@ -18,6 +18,8 @@ data class RaycastImageSpec(
     val mask: String? = null,
     val tintColor: RaycastColorLike? = null,
     val colorFill: RaycastColorLike? = null,
+    val fileIcon: String? = null,
+    val fallbackSource: String? = null,
 )
 
 data class RaycastActionSpec(
@@ -55,6 +57,7 @@ data class RaycastAccessorySpec(
     val tagText: String? = null,
     val tagColor: RaycastColorLike? = null,
     val icon: RaycastImageSpec? = null,
+    val textColor: RaycastColorLike? = null,
 )
 
 data class RaycastMetadataEntry(
@@ -64,6 +67,7 @@ data class RaycastMetadataEntry(
     val target: String? = null,
     val icon: RaycastImageSpec? = null,
     val tags: List<Pair<String, RaycastColorLike?>> = emptyList(),
+    val textColor: RaycastColorLike? = null,
 )
 
 data class RaycastDropdownOption(
@@ -134,6 +138,9 @@ data class RaycastFormFieldSpec(
     val boolValue: Boolean? = null,
     val onChangeId: String? = null,
     val options: List<RaycastDropdownOption> = emptyList(),
+    val hasControlledValue: Boolean = false,
+    val tagValues: List<String> = emptyList(),
+    val isFullDay: Boolean = false,
 )
 
 sealed interface RaycastViewScreen {
@@ -156,6 +163,7 @@ sealed interface RaycastViewScreen {
         val dropdown: RaycastDropdownSpec?,
         val emptyView: RaycastEmptyViewSpec?,
         val sections: List<RaycastListSectionSpec>,
+        val selectedItemId: String? = null,
     ) : RaycastViewScreen
 
     data class GridScreen(
@@ -172,6 +180,7 @@ sealed interface RaycastViewScreen {
         val dropdown: RaycastDropdownSpec?,
         val emptyView: RaycastEmptyViewSpec?,
         val sections: List<RaycastGridSectionSpec>,
+        val itemSize: String? = null,
     ) : RaycastViewScreen
 
     data class DetailScreen(
@@ -267,6 +276,7 @@ object RaycastTreeParser {
             dropdown = dropdown,
             emptyView = emptyView,
             sections = sections,
+            selectedItemId = obj.str("selectedItemId"),
         )
     }
 
@@ -286,13 +296,15 @@ object RaycastTreeParser {
         }
         val accessories = obj.getAsJsonArray("accessories")?.mapNotNull { el ->
             val a = el.asJsonObjectOrNull() ?: return@mapNotNull null
-            val textVal = a.get("text")?.asJsonObjectOrNull()?.str("value") ?: a.str("text")
+            val textObj = a.get("text")?.asJsonObjectOrNull()
+            val textVal = textObj?.str("value") ?: a.str("text") ?: a.str("date")
             val tagObj = a.get("tag")?.asJsonObjectOrNull()
             RaycastAccessorySpec(
                 text = textVal,
                 tagText = tagObj?.str("value") ?: a.str("tag"),
                 tagColor = parseColorLike(tagObj?.get("color")),
                 icon = parseImageSpec(a.get("icon")),
+                textColor = parseColorLike(textObj?.get("color")),
             )
         } ?: emptyList()
 
@@ -341,11 +353,18 @@ object RaycastTreeParser {
             sections.add(0, RaycastGridSectionSpec(items = looseItems))
         }
 
+        val itemSize = obj.str("itemSize")
+        val defaultColumns = when (itemSize?.lowercase()) {
+            "small" -> 4
+            "large" -> 2
+            else -> 3
+        }
+
         return RaycastViewScreen.GridScreen(
             navigationTitle = obj.str("navigationTitle"),
             isLoading = obj.bool("isLoading", false),
             actions = actions,
-            columns = obj.int("columns") ?: 3,
+            columns = obj.int("columns") ?: defaultColumns,
             aspectRatio = obj.str("aspectRatio") ?: "1",
             fit = obj.str("fit") ?: "contain",
             searchText = obj.str("searchText"),
@@ -355,6 +374,7 @@ object RaycastTreeParser {
             dropdown = dropdown,
             emptyView = emptyView,
             sections = sections,
+            itemSize = itemSize,
         )
     }
 
@@ -398,6 +418,8 @@ object RaycastTreeParser {
                 continue
             }
             val kind = tag.removePrefix("form-")
+            val hasControlled = child.bool("hasControlledValue", false) ||
+                (child.has("value") && !child.get("value").isJsonNull)
             fields.add(
                 RaycastFormFieldSpec(
                     kind = kind,
@@ -411,6 +433,9 @@ object RaycastTreeParser {
                     boolValue = child.nullableBool("value") ?: child.nullableBool("defaultValue"),
                     onChangeId = child.str("onChange"),
                     options = parseDropdownOptions(child),
+                    hasControlledValue = hasControlled,
+                    tagValues = child.strList("value").ifEmpty { child.strList("defaultValue") },
+                    isFullDay = child.bool("isFullDay", false),
                 ),
             )
         }
@@ -425,12 +450,16 @@ object RaycastTreeParser {
     private fun parseMetadata(obj: JsonObject): List<RaycastMetadataEntry> {
         return obj.children().mapNotNull { child ->
             when (child.str("\$t")) {
-                "list-item-detail-metadata-label" -> RaycastMetadataEntry(
-                    type = "label",
-                    title = child.str("title"),
-                    text = child.str("text"),
-                    icon = parseImageSpec(child.get("icon")),
-                )
+                "list-item-detail-metadata-label" -> {
+                    val textObj = child.get("text")?.asJsonObjectOrNull()
+                    RaycastMetadataEntry(
+                        type = "label",
+                        title = child.str("title"),
+                        text = textObj?.str("value") ?: child.str("text"),
+                        icon = parseImageSpec(child.get("icon")),
+                        textColor = parseColorLike(child.get("textColor") ?: textObj?.get("color")),
+                    )
+                }
                 "list-item-detail-metadata-link" -> RaycastMetadataEntry(
                     type = "link",
                     title = child.str("title"),
@@ -553,19 +582,36 @@ object RaycastTreeParser {
     }
 
     private fun parseImageSpec(el: JsonElement?): RaycastImageSpec? {
+        if (el == null || el.isJsonNull) return null
+        if (el.isJsonPrimitive) {
+            return RaycastImageSpec(rawSource = el.asString)
+        }
         val obj = el.asJsonObjectOrNull() ?: return null
         val colorObj = obj.get("color")?.asJsonObjectOrNull()
         if (colorObj != null) {
             return RaycastImageSpec(colorFill = parseColorLike(colorObj))
         }
+        val fileIcon = obj.str("fileIcon") ?: obj.get("fileIcon")?.asJsonObjectOrNull()?.str("path")
+        if (!fileIcon.isNullOrBlank()) {
+            return RaycastImageSpec(
+                fileIcon = fileIcon,
+                mask = obj.str("mask"),
+                tintColor = parseColorLike(obj.get("tintColor")),
+            )
+        }
         val sourceObj = obj.get("source")?.asJsonObjectOrNull()
         val themed = sourceObj?.get("themed")?.asJsonObjectOrNull()
+        val fallbackObj = obj.get("fallback")?.asJsonObjectOrNull()
+        val fallbackRaw = fallbackObj?.str("raw")
+            ?: fallbackObj?.get("themed")?.asJsonObjectOrNull()?.str("dark")
+            ?: obj.str("fallback")
         return RaycastImageSpec(
-            rawSource = sourceObj?.str("raw"),
+            rawSource = sourceObj?.str("raw") ?: obj.str("source"),
             lightSource = themed?.str("light"),
             darkSource = themed?.str("dark"),
             mask = obj.str("mask"),
             tintColor = parseColorLike(obj.get("tintColor")),
+            fallbackSource = fallbackRaw,
         )
     }
 

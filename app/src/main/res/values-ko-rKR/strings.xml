@@ -1129,7 +1129,7 @@
     <string name="feature_flashlight_brightness_title">손전등 밝기</string>
     <!-- QS / Activities -->
     <!-- About Section -->
-    <string name="developed_by_format">❤ %1$s\nfrom과 함께\uFE0F 에 의해 개발됨 \uD83C\uDDF1\uD83C\uDDF0</string>
+    <string name="developed_by_format">❤ %1$s\nfrom과 함께\uFE0F 에 의해 개발됨 \uD83C\uDDEE\uD83C\uDDEA</string>
     <string name="action_website">웹사이트</string>
     <string name="action_contact">연락하다</string>
     <string name="action_telegram">전보</string>

@@ -43,6 +43,10 @@ data class SearchProvider(
     @DrawableRes val iconRes: Int,
     val targets: List<IntentSearchTarget> = emptyList(),
     val priority: Int = 0,
+    val deepLinkTemplate: String? = null,
+    val webUrlTemplate: String? = null,
+    val category: String = "Provider",
+    val fallbackSchemes: List<String> = emptyList(),
 )
 
 data class PrefixSuggestion(

@@ -1052,7 +1052,7 @@ Tu peux personnaliser le style de l\'animation, les couleurs et le comportement.
     <string name="feature_flashlight_brightness_title">Luminosité de la lampe-torche</string>
     <!-- QS / Activities -->
     <!-- About Section -->
-    <string name="developed_by_format">Développé par %1$s\n avec ❤\uFE0F du \uD83C\uDDF1\uD83C\uDDF0</string>
+    <string name="developed_by_format">Développé par %1$s\n avec ❤\uFE0F du \uD83C\uDDEE\uD83C\uDDEA</string>
     <string name="action_website">Site web</string>
     <string name="action_contact">Contact</string>
     <string name="action_telegram">Telegram</string>

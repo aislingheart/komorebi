@@ -1129,7 +1129,7 @@
     <string name="feature_flashlight_brightness_title">Яркость фонарика</string>
     <!-- QS / Activities -->
     <!-- About Section -->
-    <string name="developed_by_format">Разработано %1$s\nс ❤\uFE0F из \uD83C\uDDF1\uD83C\uDDF0</string>
+    <string name="developed_by_format">Разработано %1$s\nс ❤\uFE0F из \uD83C\uDDEE\uD83C\uDDEA</string>
     <string name="action_website">Веб-сайт</string>
     <string name="action_contact">Контакт</string>
     <string name="action_telegram">Телеграм</string>

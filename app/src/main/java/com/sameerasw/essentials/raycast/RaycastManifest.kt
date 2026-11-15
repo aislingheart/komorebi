@@ -54,6 +54,11 @@ data class RaycastPackageManifest(
     val categories: List<String>? = null,
     val commands: List<RaycastCommandManifest> = emptyList(),
     val preferences: List<RaycastPreferenceDef>? = null,
+    val platforms: List<String>? = null,
+    val main: String? = null,
+    val dependencies: Map<String, String>? = null,
+    val tools: List<JsonElement>? = null,
+    val ai: JsonElement? = null,
 )
 
 data class InstalledRaycastExtension(
@@ -70,14 +75,25 @@ data class InstalledRaycastExtension(
 
     fun entryFileForCommand(commandName: String): File? {
         val dir = File(dirPath)
-        val candidates = listOf(
-            File(dir, "$commandName.js"),
-            File(dir, "dist/$commandName.js"),
-            File(dir, "src/$commandName.js"),
-            File(dir, "$commandName/index.js"),
-            File(dir, "index.js"),
-        )
-        return candidates.firstOrNull { it.exists() && it.isFile }
+        val relPaths = buildList {
+            add("$commandName.js")
+            add("$commandName.cjs")
+            add("dist/$commandName.js")
+            add("dist/$commandName.cjs")
+            add("build/$commandName.js")
+            add("out/$commandName.js")
+            add("src/$commandName.js")
+            add("$commandName/index.js")
+            add("dist/$commandName/index.js")
+            manifest.main?.trim()?.takeIf { it.isNotBlank() }?.let { mainPath ->
+                add(mainPath.removePrefix("./").removePrefix("/"))
+            }
+            add("index.js")
+            add("dist/index.js")
+        }
+        return relPaths
+            .map { File(dir, it) }
+            .firstOrNull { it.exists() && it.isFile }
     }
 }
 
@@ -191,12 +207,31 @@ object RaycastExtensionRepository {
             } else if (def.defaultValue != null && !def.defaultValue.isJsonNull) {
                 if (def.type.lowercase() == "checkbox" && def.defaultValue.isJsonPrimitive) {
                     result[def.name] = def.defaultValue.asBoolean
-                } else {
+                } else if (def.defaultValue.isJsonPrimitive) {
                     result[def.name] = def.defaultValue.asString
                 }
             }
         }
         return result
+    }
+
+    fun hasRequiredPreferencesMissing(
+        context: Context,
+        extension: InstalledRaycastExtension,
+        command: RaycastCommandManifest? = null,
+    ): Boolean {
+        val allDefs = (extension.manifest.preferences.orEmpty()) + (command?.preferences.orEmpty())
+        val requiredDefs = allDefs.filter { it.required }
+        if (requiredDefs.isEmpty()) return false
+        val values = getPreferenceValuesMap(context, extension, command)
+        return requiredDefs.any { def ->
+            val v = values[def.name]
+            if (def.type.equals("checkbox", ignoreCase = true)) {
+                v == null
+            } else {
+                v == null || v.toString().isBlank()
+            }
+        }
     }
 
     fun setPreferenceValue(context: Context, extensionId: String, def: RaycastPreferenceDef, value: Any) {

@@ -1129,7 +1129,7 @@
     <string name="feature_flashlight_brightness_title">Осветљеност лампе</string>
     <!-- QS / Activities -->
     <!-- About Section -->
-    <string name="developed_by_format">Девелопед би %1$s\nса ❤\uFE0F из \uD83C\uDDF1\uD83C\uDDF0</string>
+    <string name="developed_by_format">Девелопед би %1$s\nса ❤\uFE0F из \uD83C\uDDEE\uD83C\uDDEA</string>
     <string name="action_website">Вебсите</string>
     <string name="action_contact">Контакт</string>
     <string name="action_telegram">Телеграм</string>

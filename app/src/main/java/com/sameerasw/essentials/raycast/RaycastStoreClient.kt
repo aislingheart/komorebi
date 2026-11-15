@@ -2,11 +2,13 @@ package com.sameerasw.essentials.raycast
 
 import android.content.Context
 import com.google.gson.Gson
+import com.google.gson.JsonElement
 import com.google.gson.annotations.SerializedName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.ResponseBody
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import java.io.BufferedInputStream
@@ -20,6 +22,7 @@ data class StoreListingAuthor(
     val name: String = "",
     val handle: String = "",
     val avatar: String? = null,
+    val profileUrl: String? = null,
 )
 
 data class StoreListingIcons(
@@ -34,6 +37,9 @@ data class StoreListingCommand(
     val subtitle: String? = null,
     val description: String = "",
     val mode: String = "view",
+    val keywords: List<String> = emptyList(),
+    val disabledByDefault: Boolean = false,
+    val beta: Boolean = false,
 )
 
 data class StoreExtensionListing(
@@ -50,35 +56,115 @@ data class StoreExtensionListing(
     val categories: List<String> = emptyList(),
     val commands: List<StoreListingCommand> = emptyList(),
     val source: String = "raycast",
+    val platforms: List<String> = emptyList(),
+    @SerializedName("api_version")
+    val apiVersion: String? = null,
 ) {
     val iconUrl: String?
         get() = icons.dark?.takeIf { it.isNotBlank() } ?: icons.light?.takeIf { it.isNotBlank() }
 }
 
+private data class RaycastStoreAuthorDto(
+    val name: String? = null,
+    val handle: String? = null,
+    val avatar: String? = null,
+    @SerializedName(value = "profileUrl", alternate = ["profile_url"])
+    val profileUrl: String? = null,
+)
+
+private data class RaycastStoreIconsDto(
+    val light: String? = null,
+    val dark: String? = null,
+)
+
+private data class RaycastStoreCommandDto(
+    val id: String? = null,
+    val name: String? = null,
+    val title: String? = null,
+    val subtitle: String? = null,
+    val description: String? = null,
+    val mode: String? = null,
+    val keywords: List<String?>? = null,
+    @SerializedName(value = "disabledByDefault", alternate = ["disabled_by_default"])
+    val disabledByDefault: Boolean? = null,
+    val beta: Boolean? = null,
+)
+
+private data class RaycastStoreExtensionDto(
+    val id: String? = null,
+    val name: String? = null,
+    val title: String? = null,
+    val description: String? = null,
+    val author: RaycastStoreAuthorDto? = null,
+    val icons: RaycastStoreIconsDto? = null,
+    @SerializedName(value = "download_count", alternate = ["downloadCount"])
+    val downloadCount: Int? = null,
+    @SerializedName(value = "download_url", alternate = ["downloadUrl"])
+    val downloadUrl: String? = null,
+    val categories: JsonElement? = null,
+    val commands: List<RaycastStoreCommandDto>? = null,
+    val platforms: JsonElement? = null,
+    @SerializedName(value = "api_version", alternate = ["apiVersion"])
+    val apiVersion: String? = null,
+)
+
 private data class RaycastStoreResponse(
-    val data: List<StoreExtensionListing> = emptyList(),
+    val data: List<RaycastStoreExtensionDto>? = null,
+)
+
+data class VicinaeCategoryDto(
+    val id: String = "",
+    val name: String = "",
 )
 
 private data class VicinaeStoreResponse(
-    val extensions: List<VicinaeStoreExtensionDto> = emptyList(),
+    val extensions: List<VicinaeStoreExtensionDto>? = null,
+    val data: List<VicinaeStoreExtensionDto>? = null,
 )
 
 private data class VicinaeStoreAuthorDto(
-    val name: String = "",
-    val handle: String = "",
+    val name: String? = null,
+    val handle: String? = null,
+    @SerializedName(value = "avatarUrl", alternate = ["avatar_url", "avatar"])
+    val avatarUrl: String? = null,
+    @SerializedName(value = "profileUrl", alternate = ["profile_url"])
+    val profileUrl: String? = null,
+)
+
+private data class VicinaeStoreIconsDto(
+    val light: String? = null,
+    val dark: String? = null,
+)
+
+private data class VicinaeStoreCommandDto(
+    val id: String? = null,
+    val name: String? = null,
+    val title: String? = null,
+    val subtitle: String? = null,
+    val description: String? = null,
+    val mode: String? = null,
+    val keywords: List<String?>? = null,
+    @SerializedName(value = "disabledByDefault", alternate = ["disabled_by_default"])
+    val disabledByDefault: Boolean? = null,
+    val beta: Boolean? = null,
 )
 
 private data class VicinaeStoreExtensionDto(
-    val id: String = "",
-    val name: String = "",
-    val title: String = "",
-    val description: String = "",
-    val downloadUrl: String = "",
-    val downloadCount: Int = 0,
-    val author: VicinaeStoreAuthorDto = VicinaeStoreAuthorDto(),
-    val icons: StoreListingIcons = StoreListingIcons(),
-    val categories: List<String> = emptyList(),
-    val commands: List<StoreListingCommand> = emptyList(),
+    val id: String? = null,
+    val name: String? = null,
+    val title: String? = null,
+    val description: String? = null,
+    @SerializedName(value = "downloadUrl", alternate = ["download_url"])
+    val downloadUrl: String? = null,
+    @SerializedName(value = "downloadCount", alternate = ["download_count"])
+    val downloadCount: Int? = null,
+    val author: VicinaeStoreAuthorDto? = null,
+    val icons: VicinaeStoreIconsDto? = null,
+    val categories: JsonElement? = null,
+    val platforms: JsonElement? = null,
+    val commands: List<VicinaeStoreCommandDto>? = null,
+    @SerializedName(value = "apiVersion", alternate = ["api_version"])
+    val apiVersion: String? = null,
 )
 
 object RaycastStoreClient {
@@ -98,7 +184,7 @@ object RaycastStoreClient {
     ): Result<List<StoreExtensionListing>> = withContext(Dispatchers.IO) {
         runCatching {
             val url = if (query.isBlank()) {
-                "$RAYCAST_BASE_URL/store_listings?page=$page&per_page=$perPage"
+                "$RAYCAST_BASE_URL/store_listings?page=${page.coerceAtLeast(1)}&per_page=${perPage.coerceAtLeast(1)}"
             } else {
                 val enc = URLEncoder.encode(query.trim(), "UTF-8")
                 "$RAYCAST_BASE_URL/store_listings/search?q=$enc"
@@ -109,11 +195,15 @@ object RaycastStoreClient {
                 .header("User-Agent", "Komorebi-RaycastCompat/1.0")
                 .build()
             httpClient.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) error("Raycast Store HTTP ${resp.code}")
-                val body = resp.body.string()
-                gson.fromJson(body, RaycastStoreResponse::class.java).data.map {
-                    it.copy(source = "raycast")
+                if (!resp.isSuccessful) {
+                    val errBody = readErrorBodySnippet(resp.body)
+                    error(
+                        if (errBody.isNotBlank()) "Raycast Store HTTP ${resp.code}: $errBody"
+                        else "Raycast Store HTTP ${resp.code}",
+                    )
                 }
+                val body = resp.body.string()
+                parseRaycastListingsResponse(body)
             }
         }
     }
@@ -125,7 +215,7 @@ object RaycastStoreClient {
     ): Result<List<StoreExtensionListing>> = withContext(Dispatchers.IO) {
         runCatching {
             val url = if (query.isBlank()) {
-                "$VICINAE_BASE_URL/store/list?page=$page&limit=$limit"
+                "$VICINAE_BASE_URL/store/list?page=${page.coerceAtLeast(1)}&limit=${limit.coerceAtLeast(1)}"
             } else {
                 val enc = URLEncoder.encode(query.trim(), "UTF-8")
                 "$VICINAE_BASE_URL/store/search?q=$enc"
@@ -136,26 +226,156 @@ object RaycastStoreClient {
                 .header("User-Agent", "Komorebi-RaycastCompat/1.0")
                 .build()
             httpClient.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) error("Vicinae Store HTTP ${resp.code}")
-                val body = resp.body.string()
-                val dto = gson.fromJson(body, VicinaeStoreResponse::class.java)
-                dto.extensions.map { ext ->
-                    StoreExtensionListing(
-                        id = ext.id.ifBlank { ext.name },
-                        name = ext.name,
-                        title = ext.title.ifBlank { ext.name },
-                        description = ext.description,
-                        author = StoreListingAuthor(name = ext.author.name, handle = ext.author.handle),
-                        icons = ext.icons,
-                        downloadCount = ext.downloadCount,
-                        downloadUrl = ext.downloadUrl,
-                        categories = ext.categories,
-                        commands = ext.commands,
-                        source = "vicinae",
+                if (!resp.isSuccessful) {
+                    val errBody = readErrorBodySnippet(resp.body)
+                    error(
+                        if (errBody.isNotBlank()) "Vicinae Store HTTP ${resp.code}: $errBody"
+                        else "Vicinae Store HTTP ${resp.code}",
                     )
                 }
+                val body = resp.body.string()
+                parseVicinaeListingsResponse(body)
             }
         }
+    }
+
+    internal fun parseRaycastListingsResponse(body: String): List<StoreExtensionListing> {
+        val dto = gson.fromJson(body, RaycastStoreResponse::class.java)
+            ?: return emptyList()
+        return dto.data.orEmpty().map { ext ->
+            val safeName = ext.name.orEmpty()
+            StoreExtensionListing(
+                id = ext.id?.takeIf { it.isNotBlank() } ?: safeName,
+                name = safeName,
+                title = ext.title?.takeIf { it.isNotBlank() } ?: safeName,
+                description = ext.description.orEmpty(),
+                author = StoreListingAuthor(
+                    name = ext.author?.name.orEmpty(),
+                    handle = ext.author?.handle.orEmpty(),
+                    avatar = ext.author?.avatar?.takeIf { it.isNotBlank() },
+                    profileUrl = ext.author?.profileUrl?.takeIf { it.isNotBlank() },
+                ),
+                icons = StoreListingIcons(
+                    light = ext.icons?.light?.takeIf { it.isNotBlank() },
+                    dark = ext.icons?.dark?.takeIf { it.isNotBlank() },
+                ),
+                downloadCount = ext.downloadCount ?: 0,
+                downloadUrl = ext.downloadUrl?.takeIf { it.isNotBlank() },
+                categories = parseFlexibleCategories(ext.categories),
+                commands = ext.commands.orEmpty().map { cmd ->
+                    val cmdName = cmd.name.orEmpty()
+                    StoreListingCommand(
+                        id = cmd.id?.takeIf { it.isNotBlank() } ?: cmdName,
+                        name = cmdName,
+                        title = cmd.title?.takeIf { it.isNotBlank() } ?: cmdName,
+                        subtitle = cmd.subtitle?.takeIf { it.isNotBlank() },
+                        description = cmd.description.orEmpty(),
+                        mode = cmd.mode?.takeIf { it.isNotBlank() } ?: "view",
+                        keywords = cmd.keywords.orEmpty().filterNotNull().filter { it.isNotBlank() },
+                        disabledByDefault = cmd.disabledByDefault ?: false,
+                        beta = cmd.beta ?: false,
+                    )
+                },
+                source = "raycast",
+                platforms = parseStringList(ext.platforms),
+                apiVersion = ext.apiVersion?.takeIf { it.isNotBlank() },
+            )
+        }
+    }
+
+    internal fun parseVicinaeListingsResponse(body: String): List<StoreExtensionListing> {
+        val dto = gson.fromJson(body, VicinaeStoreResponse::class.java)
+            ?: return emptyList()
+        val list = dto.extensions ?: dto.data ?: emptyList()
+        return list.map { ext ->
+            val safeName = ext.name.orEmpty()
+            StoreExtensionListing(
+                id = ext.id?.takeIf { it.isNotBlank() } ?: safeName,
+                name = safeName,
+                title = ext.title?.takeIf { it.isNotBlank() } ?: safeName,
+                description = ext.description.orEmpty(),
+                author = StoreListingAuthor(
+                    name = ext.author?.name.orEmpty(),
+                    handle = ext.author?.handle.orEmpty(),
+                    avatar = ext.author?.avatarUrl?.takeIf { it.isNotBlank() },
+                    profileUrl = ext.author?.profileUrl?.takeIf { it.isNotBlank() },
+                ),
+                icons = StoreListingIcons(
+                    light = ext.icons?.light?.takeIf { it.isNotBlank() },
+                    dark = ext.icons?.dark?.takeIf { it.isNotBlank() },
+                ),
+                downloadCount = ext.downloadCount ?: 0,
+                downloadUrl = ext.downloadUrl?.takeIf { it.isNotBlank() },
+                categories = parseFlexibleCategories(ext.categories),
+                commands = ext.commands.orEmpty().map { cmd ->
+                    val cmdName = cmd.name.orEmpty()
+                    StoreListingCommand(
+                        id = cmd.id?.takeIf { it.isNotBlank() } ?: cmdName,
+                        name = cmdName,
+                        title = cmd.title?.takeIf { it.isNotBlank() } ?: cmdName,
+                        subtitle = cmd.subtitle?.takeIf { it.isNotBlank() },
+                        description = cmd.description.orEmpty(),
+                        mode = cmd.mode?.takeIf { it.isNotBlank() } ?: "view",
+                        keywords = cmd.keywords.orEmpty().filterNotNull().filter { it.isNotBlank() },
+                        disabledByDefault = cmd.disabledByDefault ?: false,
+                        beta = cmd.beta ?: false,
+                    )
+                },
+                source = "vicinae",
+                platforms = parseStringList(ext.platforms),
+                apiVersion = ext.apiVersion?.takeIf { it.isNotBlank() },
+            )
+        }
+    }
+
+    internal fun parseFlexibleCategories(element: JsonElement?): List<String> {
+        if (element == null || element.isJsonNull) return emptyList()
+        return when {
+            element.isJsonArray -> element.asJsonArray.mapNotNull { item ->
+                extractCategoryLabel(item)
+            }
+            else -> listOfNotNull(extractCategoryLabel(element))
+        }
+    }
+
+    private fun extractCategoryLabel(item: JsonElement?): String? {
+        if (item == null || item.isJsonNull) return null
+        if (item.isJsonPrimitive) {
+            return item.asString.trim().takeIf { it.isNotBlank() }
+        }
+        if (item.isJsonObject) {
+            val cat = runCatching { gson.fromJson(item, VicinaeCategoryDto::class.java) }.getOrNull()
+            val fromName = cat?.name?.trim()?.takeIf { it.isNotBlank() }
+            val fromId = cat?.id?.trim()?.takeIf { it.isNotBlank() }
+            if (fromName != null || fromId != null) return fromName ?: fromId
+            val obj = item.asJsonObject
+            val rawName = obj.get("name")?.takeIf { it.isJsonPrimitive }?.asString?.trim()
+            val rawId = obj.get("id")?.takeIf { it.isJsonPrimitive }?.asString?.trim()
+            return rawName?.takeIf { it.isNotBlank() } ?: rawId?.takeIf { it.isNotBlank() }
+        }
+        return null
+    }
+
+    private fun parseStringList(element: JsonElement?): List<String> {
+        if (element == null || element.isJsonNull) return emptyList()
+        return when {
+            element.isJsonArray -> element.asJsonArray.mapNotNull { item ->
+                if (item != null && item.isJsonPrimitive) item.asString.trim().takeIf { it.isNotBlank() }
+                else null
+            }
+            element.isJsonPrimitive -> listOfNotNull(element.asString.trim().takeIf { it.isNotBlank() })
+            else -> emptyList()
+        }
+    }
+
+    private fun readErrorBodySnippet(body: ResponseBody?): String {
+        if (body == null) return ""
+        return runCatching {
+            body.string()
+                .replace(Regex("\\s+"), " ")
+                .trim()
+                .take(280)
+        }.getOrDefault("")
     }
 
     suspend fun installExtension(
@@ -170,7 +390,13 @@ object RaycastStoreClient {
                 .header("User-Agent", "Komorebi-RaycastCompat/1.0")
                 .build()
             val bytes = httpClient.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) error("Download failed (HTTP ${resp.code})")
+                if (!resp.isSuccessful) {
+                    val errBody = readErrorBodySnippet(resp.body)
+                    error(
+                        if (errBody.isNotBlank()) "Download failed (HTTP ${resp.code}): $errBody"
+                        else "Download failed (HTTP ${resp.code})",
+                    )
+                }
                 resp.body.bytes()
             }
 
@@ -190,7 +416,8 @@ object RaycastStoreClient {
                     title = listing.title.ifBlank { listing.name },
                     description = listing.description,
                     author = listing.author.name.ifBlank { listing.author.handle },
-                    categories = listing.categories,
+                    categories = listing.categories.takeIf { it.isNotEmpty() },
+                    platforms = listing.platforms.takeIf { it.isNotEmpty() },
                     commands = listing.commands.map {
                         RaycastCommandManifest(
                             name = it.name,
@@ -198,6 +425,8 @@ object RaycastStoreClient {
                             subtitle = it.subtitle,
                             description = it.description,
                             mode = it.mode.ifBlank { "view" },
+                            keywords = it.keywords.takeIf { k -> k.isNotEmpty() },
+                            disabledByDefault = it.disabledByDefault.takeIf { d -> d },
                         )
                     },
                 )
