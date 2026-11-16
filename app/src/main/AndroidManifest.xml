@@ -370,6 +370,20 @@
         </service>
 
         <service
+            android:name=".services.SearchGestureAccessibilityService"
+            android:exported="true"
+            android:icon="@drawable/rounded_search_24"
+            android:label="@string/search_gesture_service_name"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/search_gesture_service_config" />
+        </service>
+
+        <service
             android:name=".services.SplitScreenShortcutService"
             android:exported="true"
             android:icon="@drawable/rounded_splitscreen_24"
@@ -465,6 +479,18 @@
             <intent-filter>
                 <action android:name="com.sameerasw.essentials.ACTION_DOWNLOAD_UPDATE" />
             </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".services.widgets.KomorebiSearchWidgetReceiver"
+            android:exported="true"
+            android:label="@string/search_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/komorebi_search_widget_info" />
         </receiver>
 
         <provider

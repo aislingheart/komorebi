@@ -2986,6 +2986,21 @@
     <string name="perm_storage_title">All files access</string>
     <string name="perm_storage_desc">To read your current wallpaper which is not accessible with regular privileges, Komorebi needs external storage permissions.</string>
 
+    <!-- Search widget and universal gesture -->
+    <string name="search_widget_label">Komorebi Search</string>
+    <string name="search_widget_description">Search apps, contacts, files, settings, and the web with Komorebi.</string>
+    <string name="search_widget_placeholder">Search anything…</string>
+    <string name="search_widget_add_title">Add search widget</string>
+    <string name="search_widget_add_desc">Pin the Komorebi search bar to your home screen</string>
+    <string name="search_widget_add_unavailable">Your launcher does not support pinning widgets. Add it from the launcher\'s widget picker.</string>
+    <string name="search_gesture_title">Universal search gesture</string>
+    <string name="search_gesture_desc">Open Komorebi search from any app using Android\'s accessibility shortcut. Enable “Komorebi Search Gesture”, then assign it to the two-finger swipe or volume-key shortcut.</string>
+    <string name="search_gesture_enable_desc">Enable the accessibility service, then choose the gesture in Accessibility settings.</string>
+    <string name="search_gesture_service_name">Komorebi Search Gesture</string>
+    <string name="search_gesture_service_desc">Open Komorebi search from the system accessibility shortcut or by double-pressing a hardware Home/Search key.</string>
+    <string name="search_gesture_double_key_title">Hardware key double-press</string>
+    <string name="search_gesture_double_key_desc">Also open search when a physical Home or Search key is pressed twice quickly.</string>
+
     <!-- Pixel Search Results -->
     <string name="pixel_search_results_title">Search results</string>
     <string name="pixel_search_results_desc">Configure which content appears when searching from the Pixel Launcher search bar.</string>

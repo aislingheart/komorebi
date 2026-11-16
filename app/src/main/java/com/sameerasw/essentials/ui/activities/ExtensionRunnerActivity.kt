@@ -88,13 +88,33 @@ class ExtensionRunnerActivity : ComponentActivity() {
     companion object {
         const val EXTRA_EXTENSION_ID = "extension_id"
         const val EXTRA_COMMAND_NAME = "command_name"
+        const val EXTRA_ARGUMENTS_JSON = "arguments_json"
+        const val EXTRA_LAUNCH_TYPE = "launch_type"
 
-        fun createIntent(context: Context, extensionId: String, commandName: String): Intent {
+        fun createIntent(
+            context: Context,
+            extensionId: String,
+            commandName: String,
+            arguments: Map<String, String> = emptyMap(),
+            launchType: String? = null,
+        ): Intent {
             return Intent(context, ExtensionRunnerActivity::class.java).apply {
                 putExtra(EXTRA_EXTENSION_ID, extensionId)
                 putExtra(EXTRA_COMMAND_NAME, commandName)
+                if (arguments.isNotEmpty()) {
+                    putExtra(EXTRA_ARGUMENTS_JSON, com.google.gson.Gson().toJson(arguments))
+                }
+                if (!launchType.isNullOrBlank()) {
+                    putExtra(EXTRA_LAUNCH_TYPE, launchType)
+                }
             }
         }
+
+        private fun parseArguments(raw: String?): Map<String, String> =
+            runCatching {
+                val json = org.json.JSONObject(raw ?: return emptyMap())
+                json.keys().asSequence().associateWith { key -> json.optString(key) }
+            }.getOrDefault(emptyMap())
     }
 
     private var engine: RaycastRuntimeEngine? = null
@@ -122,12 +142,19 @@ class ExtensionRunnerActivity : ComponentActivity() {
 
         val runtime = RaycastRuntimeEngine(applicationContext, extension, command)
         engine = runtime
+        val launchArguments =
+            parseArguments(intent.getStringExtra(EXTRA_ARGUMENTS_JSON))
+        val launchType = intent.getStringExtra(EXTRA_LAUNCH_TYPE)
 
         setContent {
             val isDark = isSystemInDarkTheme()
             EssentialsTheme(darkTheme = isDark) {
                 LaunchedEffect(Unit) {
-                    runtime.start(isDarkTheme = isDark)
+                    runtime.start(
+                        arguments = launchArguments,
+                        isDarkTheme = isDark,
+                        launchType = launchType,
+                    )
                 }
                 ExtensionRunnerScreen(
                     runtime = runtime,

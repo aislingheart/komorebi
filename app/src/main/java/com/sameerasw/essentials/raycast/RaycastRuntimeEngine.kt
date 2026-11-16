@@ -105,6 +105,7 @@ class RaycastRuntimeEngine(
     fun start(
         arguments: Map<String, String> = emptyMap(),
         isDarkTheme: Boolean = true,
+        launchType: String? = null,
     ) {
         scope.launch {
             try {
@@ -138,6 +139,7 @@ class RaycastRuntimeEngine(
                     "appearance" to if (isDarkTheme) "dark" else "light",
                     "preferences" to prefsMap,
                     "arguments" to arguments,
+                    "launchType" to (launchType ?: "User"),
                     "entryPath" to "/" + entryFile.relativeTo(File(extension.dirPath)).path.replace('\\', '/'),
                 )
 
@@ -388,6 +390,38 @@ class RaycastRuntimeEngine(
                 editor.apply()
                 "true"
             }
+            "storage.getItem" -> {
+                val key = obj.get("key")?.asString ?: return null
+                RaycastExtensionRepository.localStoragePrefs(context, extension.id)
+                    .getString(key, null)
+            }
+            "storage.setItem" -> {
+                val key = obj.get("key")?.asString ?: return "false"
+                val valEl = obj.get("value")
+                RaycastExtensionRepository.localStoragePrefs(context, extension.id)
+                    .edit().putString(key, gson.toJson(valEl)).apply()
+                "true"
+            }
+            "storage.removeItem" -> {
+                val key = obj.get("key")?.asString ?: return "false"
+                RaycastExtensionRepository.localStoragePrefs(context, extension.id)
+                    .edit().remove(key).apply()
+                "true"
+            }
+            "storage.clear" -> {
+                RaycastExtensionRepository.localStoragePrefs(context, extension.id)
+                    .edit().clear().apply()
+                "true"
+            }
+            "storage.allItems" -> {
+                val all = RaycastExtensionRepository.localStoragePrefs(context, extension.id).all
+                val out = linkedMapOf<String, Any?>()
+                for ((k, v) in all) {
+                    val str = v as? String ?: continue
+                    out[k] = runCatching { gson.fromJson(str, Any::class.java) }.getOrDefault(str)
+                }
+                gson.toJson(out)
+            }
             "crypto.randomUuid" -> gson.toJson(UUID.randomUUID().toString())
             "crypto.randomBytes" -> {
                 val len = (obj.get("length")?.asInt ?: 16).coerceIn(1, 256)
@@ -627,6 +661,15 @@ class RaycastRuntimeEngine(
                     }
                     cm.setPrimaryClip(clip)
                 }
+                if (method == "clipboard.paste" && com.sameerasw.essentials.utils.ShellUtils.hasPermission(context)) {
+                    withContext(Dispatchers.IO) {
+                        com.sameerasw.essentials.utils.ShellUtils.runCommandWithOutput(
+                            context,
+                            "input keyevent ${android.view.KeyEvent.KEYCODE_PASTE}",
+                            notifyOnError = false,
+                        )
+                    }
+                }
                 "true"
             }
             "clipboard.readText" -> {
@@ -748,16 +791,69 @@ class RaycastRuntimeEngine(
                 allOk.toString()
             }
             "system.launchCommand" -> {
-                val targetName = obj.get("name")?.asString ?: "command"
-                _toastEvents.emit(
-                    RaycastToastEvent(
-                        id = "launch_${System.currentTimeMillis()}",
-                        title = "launchCommand('$targetName') unavailable",
-                        message = "Cross-command launch is not supported in the Android runner yet.",
-                        style = "Failure",
-                    ),
-                )
-                "false"
+                val commandName = obj.get("name")?.takeIf { !it.isJsonNull }?.asString.orEmpty()
+                val requestedExtension =
+                    obj.get("extensionName")?.takeIf { !it.isJsonNull }?.asString
+                val targetExtension =
+                    if (requestedExtension.isNullOrBlank()) {
+                        extension
+                    } else {
+                        RaycastExtensionRepository.listInstalledExtensions(context).firstOrNull {
+                            it.manifest.name.equals(requestedExtension, ignoreCase = true) ||
+                                it.displayTitle.equals(requestedExtension, ignoreCase = true)
+                        }
+                    }
+                val targetCommand =
+                    targetExtension?.manifest?.commands?.firstOrNull { it.name == commandName }
+                        ?: targetExtension?.manifest?.commands?.firstOrNull {
+                            it.name.equals(commandName, ignoreCase = true)
+                        }
+
+                if (targetExtension == null || targetCommand == null) {
+                    _toastEvents.emit(
+                        RaycastToastEvent(
+                            id = "launch_${System.currentTimeMillis()}",
+                            title = "launchCommand('$commandName') unavailable",
+                            message =
+                                if (targetExtension == null) {
+                                    "Command could not find extension '${requestedExtension ?: extension.manifest.name}'."
+                                } else {
+                                    "Extension '${targetExtension.displayTitle}' has no command named '$commandName'."
+                                },
+                            style = "Failure",
+                        ),
+                    )
+                    return "false"
+                }
+
+                val arguments =
+                    targetCommand.arguments.orEmpty().associate { arg ->
+                        val provided =
+                            obj.getAsJsonObject("arguments")
+                                ?.get(arg.name)
+                                ?.takeIf { !it.isJsonNull }
+                                ?.let { element ->
+                                    if (element.isJsonPrimitive) element.asString else element.toString()
+                                }
+                        arg.name to (provided ?: "")
+                    }.filterValues { it.isNotEmpty() }
+                val launchType =
+                    obj.get("launchType")?.takeIf { !it.isJsonNull }?.asString
+
+                withContext(Dispatchers.Main) {
+                    val intent =
+                        com.sameerasw.essentials.ui.activities.ExtensionRunnerActivity.createIntent(
+                            context = context,
+                            extensionId = targetExtension.id,
+                            commandName = targetCommand.name,
+                            arguments = arguments,
+                            launchType = launchType,
+                        ).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                    context.startActivity(intent)
+                }
+                "true"
             }
             "oauth.authorize" -> {
                 val url = obj.get("url")?.asString ?: return "{}"

@@ -1785,19 +1785,23 @@
   };
 
   const LocalStorage = {
-    getItem: function (key) { return hostCall("storage.getItem", { key: String(key) }); },
-    setItem: function (key, value) { return hostCall("storage.setItem", { key: String(key), value: value }); },
-    removeItem: function (key) { return hostCall("storage.removeItem", { key: String(key) }); },
-    clear: function () { return hostCall("storage.clear", {}); },
-    allItems: function () { return hostCall("storage.allItems", {}).then((r) => r || {}); },
+    getItem: function (key) { return hostCallSync("storage.getItem", { key: String(key) }); },
+    setItem: function (key, value) { hostCallSync("storage.setItem", { key: String(key), value: value }); },
+    removeItem: function (key) { hostCallSync("storage.removeItem", { key: String(key) }); },
+    clear: function () { hostCallSync("storage.clear", {}); },
+    allItems: function () { return hostCallSync("storage.allItems", {}) || {}; },
   };
 
   class Cache {
     constructor(opts) {
       this._ns = (opts && opts.namespace) || "default";
     }
-    get(key) { return hostCallSync("cache.get", { ns: this._ns, key: String(key) }); }
-    set(key, data) { hostCallSync("cache.set", { ns: this._ns, key: String(key), value: String(data) }); }
+    get(key) {
+      const raw = hostCallSync("cache.get", { ns: this._ns, key: String(key) });
+      if (typeof raw !== "string") return raw;
+      try { return JSON.parse(raw); } catch (e) { return raw; }
+    }
+    set(key, data) { hostCallSync("cache.set", { ns: this._ns, key: String(key), value: JSON.stringify(data) }); }
     has(key) { return this.get(key) !== null && this.get(key) !== undefined; }
     remove(key) { return Boolean(hostCallSync("cache.remove", { ns: this._ns, key: String(key) })); }
     clear() { hostCallSync("cache.clear", { ns: this._ns }); }

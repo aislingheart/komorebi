@@ -337,6 +337,59 @@ fun PixelSearchbarSettingsUI(
             )
         }
 
+        RoundedCardContainer {
+            IconToggleItem(
+                iconRes = R.drawable.rounded_widgets_24,
+                title = stringResource(R.string.search_widget_add_title),
+                description = stringResource(R.string.search_widget_add_desc),
+                showToggle = false,
+                onClick = {
+                    val manager = android.appwidget.AppWidgetManager.getInstance(context)
+                    val provider =
+                        android.content.ComponentName(
+                            context,
+                            com.sameerasw.essentials.services.widgets.KomorebiSearchWidgetReceiver::class.java,
+                        )
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                        manager.isRequestPinAppWidgetSupported
+                    ) {
+                        manager.requestPinAppWidget(provider, null, null)
+                    } else {
+                        android.widget.Toast
+                            .makeText(
+                                context,
+                                context.getString(R.string.search_widget_add_unavailable),
+                                android.widget.Toast.LENGTH_LONG,
+                            ).show()
+                    }
+                },
+            )
+            IconToggleItem(
+                iconRes = R.drawable.rounded_touch_app_24,
+                title = stringResource(R.string.search_gesture_title),
+                description = stringResource(R.string.search_gesture_desc),
+                showToggle = false,
+                onClick = {
+                    runCatching {
+                        val intent =
+                            android.content.Intent("android.settings.ACCESSIBILITY_DETAILS_SETTINGS").apply {
+                                putExtra(
+                                    "android.provider.extra.ACCESSIBILITY_COMPONENT_NAME",
+                                    android.content.ComponentName(
+                                        context,
+                                        com.sameerasw.essentials.services.SearchGestureAccessibilityService::class.java,
+                                    ).flattenToString(),
+                                )
+                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                        context.startActivity(intent)
+                    }.onFailure {
+                        com.sameerasw.essentials.utils.PermissionUtils.openAccessibilitySettings(context)
+                    }
+                },
+            )
+        }
+
         AnimatedVisibility(
             visible = isEnabled,
             modifier = Modifier.fillMaxWidth(),
