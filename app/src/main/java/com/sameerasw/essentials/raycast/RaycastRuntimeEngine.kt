@@ -316,6 +316,21 @@ class RaycastRuntimeEngine(
     private fun handleSyncHostCall(method: String, payloadJson: String): String? {
         val obj = runCatching { gson.fromJson(payloadJson, JsonObject::class.java) }.getOrNull() ?: JsonObject()
         return when (method) {
+            "cli.exec" -> {
+                val command = obj.get("command")?.asString
+                    ?: return gson.toJson(CliResult("", "No command provided", 1))
+                val cwd = obj.get("cwd")?.asString
+                val timeout = obj.get("timeoutMs")?.asLong ?: 15_000L
+                val result = CliBridge.execute(
+                    context = context,
+                    supportDir = RaycastExtensionRepository.supportDir(context, extension.id),
+                    extRoot = File(extension.dirPath),
+                    command = command,
+                    cwd = cwd,
+                    timeoutMs = timeout,
+                )
+                gson.toJson(result)
+            }
             "runtime.reportError" -> {
                 val message = obj.get("message")?.asString ?: "Unknown JavaScript error"
                 val phase = obj.get("phase")?.asString ?: "runtime"
@@ -549,6 +564,23 @@ class RaycastRuntimeEngine(
     private suspend fun handleAsyncHostCall(method: String, payloadJson: String): String? {
         val obj = runCatching { gson.fromJson(payloadJson, JsonObject::class.java) }.getOrNull() ?: JsonObject()
         return when (method) {
+            "cli.exec" -> {
+                val command = obj.get("command")?.asString
+                    ?: return gson.toJson(CliResult("", "No command provided", 1))
+                val cwd = obj.get("cwd")?.asString
+                val timeout = obj.get("timeoutMs")?.asLong ?: 15_000L
+                val result = withContext(Dispatchers.IO) {
+                    CliBridge.execute(
+                        context = context,
+                        supportDir = RaycastExtensionRepository.supportDir(context, extension.id),
+                        extRoot = File(extension.dirPath),
+                        command = command,
+                        cwd = cwd,
+                        timeoutMs = timeout,
+                    )
+                }
+                gson.toJson(result)
+            }
             "storage.getItem" -> {
                 val key = obj.get("key")?.asString ?: return null
                 val prefs = RaycastExtensionRepository.localStoragePrefs(context, extension.id)

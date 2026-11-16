@@ -161,6 +161,12 @@
         <package android:name="com.reddit.frontpage" />
         <package android:name="com.github.android" />
         <package android:name="com.google.android.apps.maps" />
+        <package android:name="com.waze" />
+        <package android:name="com.citymapper.app.release" />
+        <package android:name="com.thetransitapp.droid" />
+        <package android:name="com.tranzmate" />
+        <package android:name="app.organicmaps" />
+        <package android:name="net.osmand" />
         <package android:name="com.android.vending" />
         <package android:name="com.twitter.android" />
         <package android:name="com.discord" />

@@ -56,6 +56,12 @@ data class PrefixSuggestion(
     val score: Int,
 )
 
+data class EntityNavigationOption(
+    val id: String,
+    val label: String,
+    val intent: Intent,
+)
+
 data class EntityRouteItem(
     val id: String,
     val label: String,
@@ -63,6 +69,7 @@ data class EntityRouteItem(
     val sourceLabel: String,
     val navigationIntent: Intent,
     val mapIntent: Intent,
+    val navigationOptions: List<EntityNavigationOption> = emptyList(),
     val score: Int = 0,
 )
 

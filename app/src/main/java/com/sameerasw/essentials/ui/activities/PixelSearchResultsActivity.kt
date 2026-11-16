@@ -237,6 +237,10 @@ import kotlinx.coroutines.withContext
 
 class PixelSearchResultsActivity : ComponentActivity() {
 
+    companion object {
+        const val EXTRA_OPEN_TOOL = "open_tool"
+    }
+
     private var incomingIntentQuery by mutableStateOf<Pair<String, Int>?>(null)
     private var intentNonce = 0
 
@@ -277,6 +281,9 @@ class PixelSearchResultsActivity : ComponentActivity() {
         }
 
         val initialQuery = extractQuery(intent)
+        val initialTool = intent?.getStringExtra(EXTRA_OPEN_TOOL)?.let { name ->
+            runCatching { LauncherToolModal.valueOf(name) }.getOrNull()
+        }
 
         setContent {
             val repository = remember { SettingsRepository(this) }
@@ -286,6 +293,7 @@ class PixelSearchResultsActivity : ComponentActivity() {
                 PixelSearchResultsScreen(
                     initialQuery = initialQuery,
                     incomingIntentQuery = incomingIntentQuery,
+                    initialToolModal = initialTool,
                     onFinish = { finish() },
                 )
             }
@@ -316,6 +324,7 @@ private sealed interface InlineOverlayMode {
 fun PixelSearchResultsScreen(
     initialQuery: String,
     incomingIntentQuery: Pair<String, Int>? = null,
+    initialToolModal: LauncherToolModal? = null,
     onFinish: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -327,8 +336,14 @@ fun PixelSearchResultsScreen(
 
     var query by rememberSaveable { mutableStateOf(initialQuery) }
     val focusRequester = remember { FocusRequester() }
-    var activeToolModal by remember { mutableStateOf<LauncherToolModal?>(null) }
+    var activeToolModal by remember { mutableStateOf(initialToolModal) }
     var launcherDataVersion by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(initialToolModal) {
+        if (initialToolModal != null) {
+            activeToolModal = initialToolModal
+        }
+    }
 
     var dragOffsetY by remember { mutableFloatStateOf(0f) }
     val dismissThresholdPx = with(density) { 180.dp.toPx() }
@@ -1123,7 +1138,7 @@ fun PixelSearchResultsScreen(
     val hasFiles = !hasCalc && !hasCommands && !hasTools && !hasSnippets && !hasExactQuicklink && !hasRoutes && !hasApps && !hasQuicklinks && !hasContacts && !hasMedia && isFilesEnabled && fileResults.isNotEmpty()
     val hasSystemSettings = !hasCalc && !hasCommands && !hasTools && !hasSnippets && !hasExactQuicklink && !hasRoutes && !hasApps && !hasQuicklinks && !hasContacts && !hasMedia && !hasFiles && isSettingsEnabled && systemSettingResults.isNotEmpty()
     val hasEssentials = !hasCalc && !hasCommands && !hasTools && !hasSnippets && !hasExactQuicklink && !hasRoutes && !hasApps && !hasQuicklinks && !hasContacts && !hasMedia && !hasFiles && !hasSystemSettings && isSettingsEnabled && settingResults.isNotEmpty()
-    val hasShortcuts = !hasCalc && !hasCommands && !hasTools && !hasSnippets && !hasExactQuicklink && !hasRoutes && !hasApps && !hasQuicklinks && !hasContacts && !hasMedia && !hasFiles && !hasSystemSettings && !hasEssentials && isShortcutsEnabled && shortcutResults.isNotEmpty()
+    val hasShortcuts = activeScope == null && !hasCalc && !hasCommands && !hasTools && !hasSnippets && !hasExactQuicklink && !hasRoutes && !hasApps && !hasQuicklinks && !hasContacts && !hasMedia && !hasFiles && !hasSystemSettings && !hasEssentials && isShortcutsEnabled && shortcutResults.isNotEmpty()
 
     val highlightColor = MaterialTheme.colorScheme.secondaryContainer
     val normalCardColor = MaterialTheme.colorScheme.surfaceBright
@@ -1334,6 +1349,7 @@ fun PixelSearchResultsScreen(
                         topBlurHeightPx = topBlurHeightPx,
                         bottomBlurHeightPx = bottomBlurHeightPx,
                         overscrollNestedScrollConnection = overscrollNestedScrollConnection,
+                        reachabilityLayout = reachabilityLayout,
                         hubTab = hubTab,
                         onTabChange = { hubTab = it },
                         hubQuery = hubQuery,
@@ -1934,24 +1950,36 @@ fun PixelSearchResultsScreen(
                                             }
                                         }
                                         Row(
+                                            modifier = Modifier.horizontalScroll(rememberScrollState()),
                                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         ) {
-                                            FilledTonalButton(
-                                                onClick = {
-                                                    HapticUtil.performVirtualKeyHaptic(view)
-                                                    runCatching { context.startActivity(route.navigationIntent) }
-                                                        .onFailure { runCatching { context.startActivity(route.mapIntent) } }
-                                                    onFinish()
-                                                },
-                                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-                                            ) {
-                                                Icon(
-                                                    painter = painterResource(R.drawable.rounded_navigation_24),
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(16.dp),
+                                            val options = route.navigationOptions.ifEmpty {
+                                                listOf(
+                                                    com.sameerasw.essentials.search.EntityNavigationOption(
+                                                        id = "default",
+                                                        label = "Navigate",
+                                                        intent = route.navigationIntent,
+                                                    ),
                                                 )
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text("Navigate", style = MaterialTheme.typography.labelMedium)
+                                            }
+                                            options.forEach { option ->
+                                                FilledTonalButton(
+                                                    onClick = {
+                                                        HapticUtil.performVirtualKeyHaptic(view)
+                                                        runCatching { context.startActivity(option.intent) }
+                                                            .onFailure { runCatching { context.startActivity(route.mapIntent) } }
+                                                        onFinish()
+                                                    },
+                                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                                                ) {
+                                                    Icon(
+                                                        painter = painterResource(R.drawable.rounded_navigation_24),
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(16.dp),
+                                                    )
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Text(option.label, style = MaterialTheme.typography.labelMedium)
+                                                }
                                             }
                                             OutlinedButton(
                                                 onClick = {
@@ -2821,6 +2849,7 @@ fun PixelSearchResultsScreen(
             LauncherToolModalOverlay(
                 modal = modal,
                 initialQuery = query,
+                reachabilityLayout = reachabilityLayout,
                 onDismiss = {
                     activeToolModal = null
                     launcherDataVersion++
@@ -2844,6 +2873,7 @@ private fun BoxScope.InlineExtensionsHubOverlay(
     topBlurHeightPx: Float,
     bottomBlurHeightPx: Float,
     overscrollNestedScrollConnection: NestedScrollConnection,
+    reachabilityLayout: Boolean,
     hubTab: Int,
     onTabChange: (Int) -> Unit,
     hubQuery: String,
@@ -3053,10 +3083,11 @@ private fun BoxScope.InlineExtensionsHubOverlay(
                     contentPadding = PaddingValues(
                         start = 16.dp,
                         end = 16.dp,
-                        top = topContentPadding,
-                        bottom = 128.dp,
+                        top = if (reachabilityLayout) 128.dp else topContentPadding,
+                        bottom = if (reachabilityLayout) topContentPadding else 128.dp,
                     ),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
+                    reverseLayout = reachabilityLayout,
                 ) {
                     items(filteredInstalled, key = { "${it.id}_$prefsVersion" }) { ext ->
                         val report = remember(ext.id, ext.manifest) {
@@ -3140,10 +3171,11 @@ private fun BoxScope.InlineExtensionsHubOverlay(
                         contentPadding = PaddingValues(
                             start = 16.dp,
                             end = 16.dp,
-                            top = topContentPadding,
-                            bottom = 128.dp,
+                            top = if (reachabilityLayout) 128.dp else topContentPadding,
+                            bottom = if (reachabilityLayout) topContentPadding else 128.dp,
                         ),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
+                        reverseLayout = reachabilityLayout,
                     ) {
                         items(storeListings, key = { "${it.source}_${it.id}_${it.name}" }) { item ->
                             val report = remember(item.source, item.id, item.name) {

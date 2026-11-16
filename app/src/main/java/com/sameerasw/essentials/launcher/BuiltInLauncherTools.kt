@@ -25,6 +25,7 @@ enum class LauncherToolModal {
     QUICKLINKS,
     SNIPPETS,
     SPEED_TEST,
+    BUS_TIMES,
 }
 
 data class BuiltInLauncherAction(
@@ -115,6 +116,17 @@ object BuiltInLauncherTools {
             iconRes = R.drawable.rounded_speed_24,
             keywords = listOf("speed", "speedtest", "internet", "network", "ping", "bandwidth", "ookla"),
             opensModal = LauncherToolModal.SPEED_TEST,
+            closesSearch = false,
+            onExecute = {},
+        ),
+        BuiltInLauncherAction(
+            id = "bus_times",
+            title = "Nearby Bus Times",
+            subtitle = "Find nearby stops and live departures using your location",
+            badge = "Tool",
+            iconRes = R.drawable.rounded_directions_bus_24,
+            keywords = listOf("bus", "buses", "bus stop", "departures", "transit", "timetable", "nearby"),
+            opensModal = LauncherToolModal.BUS_TIMES,
             closesSearch = false,
             onExecute = {},
         ),

@@ -3,7 +3,11 @@ package com.sameerasw.essentials.launcher
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -114,6 +118,7 @@ import kotlin.math.abs
 fun LauncherToolModalOverlay(
     modal: LauncherToolModal,
     initialQuery: String = "",
+    reachabilityLayout: Boolean = false,
     onDismiss: () -> Unit,
     onCopiedAndClose: () -> Unit,
 ) {
@@ -133,19 +138,26 @@ fun LauncherToolModalOverlay(
             when (modal) {
                 LauncherToolModal.CLIPBOARD_HISTORY -> ClipboardHistoryOverlay(
                     initialQuery = initialQuery,
+                    reachabilityLayout = reachabilityLayout,
                     onCopiedAndClose = onCopiedAndClose,
                 )
                 LauncherToolModal.EMOJI_PICKER -> EmojiPickerOverlay(
                     initialQuery = initialQuery,
+                    reachabilityLayout = reachabilityLayout,
                     onCopiedAndClose = onCopiedAndClose,
                 )
                 LauncherToolModal.QUICKLINKS -> QuicklinksOverlay(
                     initialQuery = initialQuery,
+                    reachabilityLayout = reachabilityLayout,
                     onLaunchedAndClose = onCopiedAndClose,
                 )
                 LauncherToolModal.SNIPPETS -> SnippetsOverlay(
                     initialQuery = initialQuery,
+                    reachabilityLayout = reachabilityLayout,
                     onCopiedAndClose = onCopiedAndClose,
+                )
+                LauncherToolModal.BUS_TIMES -> BusTimesOverlay(
+                    reachabilityLayout = reachabilityLayout,
                 )
                 LauncherToolModal.SPEED_TEST -> SpeedTestOverlay(
                     onDismiss = onDismiss,
@@ -158,6 +170,7 @@ fun LauncherToolModalOverlay(
 @Composable
 private fun ClipboardHistoryOverlay(
     initialQuery: String,
+    reachabilityLayout: Boolean,
     onCopiedAndClose: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -233,6 +246,7 @@ private fun ClipboardHistoryOverlay(
             LazyColumn(
                 modifier = Modifier.weight(1f, fill = false),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
+                reverseLayout = reachabilityLayout,
             ) {
                 items(entries, key = { it.id }) { entry ->
                     OutlinedCard(
@@ -347,6 +361,7 @@ private fun ClipboardHistoryOverlay(
 @Composable
 private fun EmojiPickerOverlay(
     initialQuery: String,
+    reachabilityLayout: Boolean,
     onCopiedAndClose: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -443,6 +458,7 @@ private fun EmojiPickerOverlay(
                 modifier = Modifier.weight(1f, fill = false),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
+                reverseLayout = reachabilityLayout,
             ) {
                 items(filtered, key = { "${it.category}_${it.emoji}_${it.name}" }) { entry ->
                     Surface(
@@ -477,6 +493,7 @@ private fun EmojiPickerOverlay(
 @Composable
 private fun QuicklinksOverlay(
     initialQuery: String,
+    reachabilityLayout: Boolean,
     onLaunchedAndClose: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -558,6 +575,7 @@ private fun QuicklinksOverlay(
             LazyColumn(
                 modifier = Modifier.weight(1f, fill = false),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
+                reverseLayout = reachabilityLayout,
             ) {
                 items(links, key = { it.id }) { link ->
                     val previewUrl = QuicklinksRepository.resolveUrl(link.urlTemplate, argumentText)
@@ -740,8 +758,279 @@ private fun QuicklinkEditorDialog(
 }
 
 @Composable
+private fun BusTimesOverlay(reachabilityLayout: Boolean) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var hasPermission by remember { mutableStateOf(hasLocationPermission(context)) }
+    var stops by remember { mutableStateOf<List<NearbyBusStop>>(emptyList()) }
+    var selectedStop by remember { mutableStateOf<NearbyBusStop?>(null) }
+    var departures by remember { mutableStateOf<List<BusDeparture>>(emptyList()) }
+    var loading by remember { mutableStateOf(false) }
+    var departuresLoading by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var refreshKey by remember { mutableIntStateOf(0) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { result ->
+        hasPermission = result.values.any { it } || hasLocationPermission(context)
+        if (hasPermission) refreshKey++
+    }
+
+    LaunchedEffect(hasPermission, refreshKey) {
+        if (!hasPermission) return@LaunchedEffect
+        loading = true
+        error = null
+        selectedStop = null
+        departures = emptyList()
+        val location = getCurrentLocation(context)
+        if (location == null) {
+            loading = false
+            error = "Could not get your location. Check that location is enabled."
+            return@LaunchedEffect
+        }
+        stops = runCatching {
+            BusTimesRepository.findNearbyStops(location.latitude, location.longitude)
+        }.getOrElse {
+            error = "Could not load nearby stops. Check your connection."
+            emptyList()
+        }
+        loading = false
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = selectedStop?.name ?: "Nearby bus times",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = selectedStop?.let { "${it.distanceMeters} m away" }
+                        ?: "Live departures from stops around you",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (selectedStop != null) {
+                TextButton(
+                    onClick = {
+                        selectedStop = null
+                        departures = emptyList()
+                        error = null
+                    },
+                ) { Text("Back") }
+            }
+            IconButton(
+                onClick = { refreshKey++ },
+                enabled = hasPermission && !loading,
+            ) {
+                Icon(Icons.Rounded.Refresh, contentDescription = "Refresh")
+            }
+        }
+
+        when {
+            !hasPermission -> {
+                EmptyToolState(
+                    title = "Location permission needed",
+                    subtitle = "Komorebi uses your approximate location to find nearby bus stops. No accessibility service is used.",
+                )
+                Button(
+                    onClick = {
+                        permissionLauncher.launch(
+                            arrayOf(
+                                android.Manifest.permission.ACCESS_COARSE_LOCATION,
+                                android.Manifest.permission.ACCESS_FINE_LOCATION,
+                            ),
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Allow location") }
+            }
+
+            loading -> {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Text("Finding nearby stops…", style = MaterialTheme.typography.bodySmall)
+            }
+
+            selectedStop != null -> {
+                val stop = selectedStop!!
+                if (departuresLoading) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+                if (stop.stopCode == null) {
+                    EmptyToolState(
+                        title = "Live times unavailable",
+                        subtitle = "This stop does not expose a stop code. You can still open it in bustimes.org or your maps app.",
+                    )
+                } else if (!departuresLoading && error != null) {
+                    EmptyToolState(title = "Could not load live times", subtitle = error!!)
+                } else if (!departuresLoading && departures.isEmpty()) {
+                    EmptyToolState(
+                        title = "No departures found",
+                        subtitle = "There are no upcoming departures listed for this stop right now.",
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 430.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        reverseLayout = reachabilityLayout,
+                    ) {
+                        items(departures, key = { "${it.route}:${it.scheduled}:${it.destination}" }) { departure ->
+                            OutlinedCard(shape = RoundedCornerShape(18.dp)) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                    ) {
+                                        Text(
+                                            text = departure.route,
+                                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                                            style = MaterialTheme.typography.labelLarge,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = departure.destination.ifBlank { "Unknown destination" },
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        Text(
+                                            text = if (departure.isLive) {
+                                                "Scheduled ${departure.scheduled}"
+                                            } else {
+                                                "Scheduled"
+                                            },
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    Text(
+                                        text = departure.expected.ifBlank { departure.scheduled },
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (departure.isLive) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurface,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                val fallbackUrl = stop.website
+                    ?: "https://bustimes.org/search?q=${Uri.encode(stop.name)}"
+                OutlinedButton(
+                    onClick = {
+                        runCatching {
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse(fallbackUrl)).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                },
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(if (stop.website != null) "Open live departures" else "Search on bustimes.org") }
+            }
+
+            error != null -> {
+                EmptyToolState(title = "Could not load bus times", subtitle = error!!)
+                Button(onClick = { refreshKey++ }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Try again")
+                }
+            }
+
+            stops.isEmpty() -> {
+                EmptyToolState(
+                    title = "No bus stops nearby",
+                    subtitle = "No bus stops were found within about 900 m of your location.",
+                )
+            }
+
+            else -> {
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 430.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    reverseLayout = reachabilityLayout,
+                ) {
+                    items(stops, key = { it.id }) { stop ->
+                        OutlinedCard(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(18.dp))
+                                .clickable {
+                                    selectedStop = stop
+                                    departures = emptyList()
+                                    error = null
+                                    val stopCode = stop.stopCode
+                                    if (stopCode != null) {
+                                        departuresLoading = true
+                                        scope.launch {
+                                            departures = runCatching {
+                                                BusTimesRepository.departures(stopCode)
+                                            }.getOrElse {
+                                                error = "Could not load live departures."
+                                                emptyList()
+                                            }
+                                            departuresLoading = false
+                                        }
+                                    }
+                                },
+                            shape = RoundedCornerShape(18.dp),
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Search,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = stop.name,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        text = buildString {
+                                            append("${stop.distanceMeters} m")
+                                            if (stop.stopCode != null) append(" • live times")
+                                            else append(" • no live stop code")
+                                        },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun SnippetsOverlay(
     initialQuery: String,
+    reachabilityLayout: Boolean,
     onCopiedAndClose: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -812,6 +1101,7 @@ private fun SnippetsOverlay(
             LazyColumn(
                 modifier = Modifier.weight(1f, fill = false),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
+                reverseLayout = reachabilityLayout,
             ) {
                 items(snippets, key = { it.id }) { snippet ->
                     val preview = remember(snippet.content) {

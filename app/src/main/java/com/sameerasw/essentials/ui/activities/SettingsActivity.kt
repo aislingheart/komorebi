@@ -552,19 +552,46 @@ fun SettingsContent(
             )
         }
 
-        // Extensions & Semantic Search
+        // Preferences
         var indexedPhotosCount by remember { mutableStateOf(0) }
         var isIndexingPhotos by remember { mutableStateOf(false) }
         LaunchedEffect(Unit) {
             indexedPhotosCount = com.sameerasw.essentials.search.semantic.PhotoSemanticEngine.getIndexedCount(context)
         }
         Text(
-            text = "Extensions & Semantic Search",
+            text = "Preferences",
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         RoundedCardContainer {
+            IconToggleItem(
+                iconRes = R.drawable.rounded_search_24,
+                title = "Search & Launcher",
+                description = "Search providers, appearance, web engine, and result types",
+                showToggle = false,
+                onClick = {
+                    context.startActivity(
+                        Intent(context, com.sameerasw.essentials.ui.activities.PixelSearchbarSettingsActivity::class.java),
+                    )
+                },
+            )
+            IconToggleItem(
+                iconRes = R.drawable.rounded_link_24,
+                title = "Quicklinks",
+                description = "Manage web shortcuts and launch them from the search overlay",
+                showToggle = false,
+                onClick = {
+                    context.startActivity(
+                        Intent(context, com.sameerasw.essentials.ui.activities.PixelSearchResultsActivity::class.java).apply {
+                            putExtra(
+                                com.sameerasw.essentials.ui.activities.PixelSearchResultsActivity.EXTRA_OPEN_TOOL,
+                                com.sameerasw.essentials.launcher.LauncherToolModal.QUICKLINKS.name,
+                            )
+                        },
+                    )
+                },
+            )
             IconToggleItem(
                 iconRes = R.drawable.rounded_extension_24,
                 title = "Extensions & Store",

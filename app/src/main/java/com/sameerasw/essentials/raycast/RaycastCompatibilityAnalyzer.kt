@@ -431,10 +431,10 @@ object RaycastCompatibilityAnalyzer {
             addOrUpgradeIssue(
                 issues,
                 CompatibilityIssue(
-                    severity = AndroidCompatLevel.INCOMPATIBLE,
+                    severity = AndroidCompatLevel.PARTIAL,
                     code = "NATIVE_PROCESS",
-                    title = "Spawns native OS CLI processes",
-                    detail = "Spawns native OS CLI processes via child_process.",
+                    title = "Uses shell commands via child_process",
+                    detail = "Commands run through a sandboxed Android shell. Desktop-only binaries may not be available.",
                 ),
             )
             detectedApis += "node:child_process"
@@ -648,10 +648,10 @@ object RaycastCompatibilityAnalyzer {
 
         if (lower.contains("child_process") || lower.contains("spawn") || lower.contains("execsync")) {
             found += CompatibilityIssue(
-                severity = AndroidCompatLevel.INCOMPATIBLE,
+                severity = AndroidCompatLevel.PARTIAL,
                 code = "NATIVE_PROCESS",
-                title = "Native process execution failed",
-                detail = "Spawning external desktop CLI binaries via child_process is not supported on Android.",
+                title = "Native CLI command failed",
+                detail = "The extension uses child_process. Komorebi provides a sandboxed Android shell, but desktop binaries are unavailable.",
             )
         }
 

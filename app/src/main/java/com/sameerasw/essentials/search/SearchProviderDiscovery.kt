@@ -1016,9 +1016,11 @@ object SearchProviderDiscovery {
         fun addRoute(id: String, label: String, address: String, sourceLabel: String, score: Int) {
             val clean = address.trim()
             if (clean.isEmpty() || !seenAddresses.add(clean.lowercase(Locale.getDefault()))) return
-            val navIntent = Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=${Uri.encode(clean)}")).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
+            val navOptions = NavigationApps.routeOptions(context, clean)
+            val navIntent = navOptions.firstOrNull()?.intent
+                ?: Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=${Uri.encode(clean)}")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
             val mapIntent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=${Uri.encode(clean)}")).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
@@ -1031,6 +1033,7 @@ object SearchProviderDiscovery {
                     sourceLabel = sourceLabel,
                     navigationIntent = navIntent,
                     mapIntent = mapIntent,
+                    navigationOptions = navOptions,
                     score = finalScore,
                 ),
             )

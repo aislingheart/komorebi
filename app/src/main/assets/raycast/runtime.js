@@ -3215,34 +3215,134 @@
     },
   };
 
+  function shellQuote(value) {
+    return "'" + String(value).replace(/'/g, "'\\''") + "'";
+  }
+
+  function cliCommandFromFile(file, args) {
+    const parts = [shellQuote(file)];
+    if (Array.isArray(args)) {
+      for (const arg of args) parts.push(shellQuote(arg));
+    }
+    return parts.join(" ");
+  }
+
+  function cliOptions(opts) {
+    const o = opts && typeof opts === "object" ? opts : {};
+    return {
+      cwd: o.cwd ? String(o.cwd) : undefined,
+      timeoutMs: Number(o.timeout || o.timeoutMs || 15000),
+    };
+  }
+
+  function cliErrorFromResult(cmd, result) {
+    if (!result || result.exitCode === 0) return null;
+    const err = new Error(
+      (result.stderr && String(result.stderr).trim()) ||
+        "Command failed with exit code " + String(result && result.exitCode)
+    );
+    err.code = result ? result.exitCode : 1;
+    err.status = result ? result.exitCode : 1;
+    err.stdout = result ? result.stdout || "" : "";
+    err.stderr = result ? result.stderr || "" : "";
+    err.cmd = cmd;
+    return err;
+  }
+
+  function cliHostCall(cmd, opts) {
+    const options = cliOptions(opts);
+    return hostCall("cli.exec", {
+      command: String(cmd),
+      cwd: options.cwd,
+      timeoutMs: options.timeoutMs,
+    }).then(function (result) {
+      return result || { stdout: "", stderr: "CLI bridge returned no result", exitCode: 1 };
+    });
+  }
+
+  function cliHostCallSync(cmd, opts) {
+    const options = cliOptions(opts);
+    const result = hostCallSync("cli.exec", {
+      command: String(cmd),
+      cwd: options.cwd,
+      timeoutMs: options.timeoutMs,
+    });
+    return result || { stdout: "", stderr: "CLI bridge returned no result", exitCode: 1 };
+  }
+
   const nodeChildProcess = {
     exec: function (cmd, opts, cb) {
       const callback = typeof opts === "function" ? opts : cb;
-      const err = new Error("child_process.exec('" + String(cmd).split(" ")[0] + "') is not supported on Android.");
-      if (typeof callback === "function") queueMicrotask(() => callback(err, "", err.message));
-      return new EventEmitter();
+      const child = new EventEmitter();
+      child.stdout = new Readable();
+      child.stderr = new Readable();
+      child.stdin = new Writable();
+      child.kill = function () { return true; };
+      cliHostCall(cmd, opts).then(function (result) {
+        const err = cliErrorFromResult(cmd, result);
+        if (result.stdout) child.stdout.emit("data", String(result.stdout));
+        if (result.stderr) child.stderr.emit("data", String(result.stderr));
+        child.stdout.emit("end");
+        child.stderr.emit("end");
+        if (typeof callback === "function") callback(err, result.stdout || "", result.stderr || "");
+        child.emit("close", result.exitCode || 0);
+        if (err) child.emit("error", err);
+      }).catch(function (err) {
+        if (typeof callback === "function") callback(err, "", String(err && err.message || err));
+        child.emit("error", err);
+      });
+      return child;
     },
     execFile: function (file, args, opts, cb) {
       const callback = typeof args === "function" ? args : (typeof opts === "function" ? opts : cb);
-      const err = new Error("child_process.execFile('" + file + "') is not supported on Android.");
-      if (typeof callback === "function") queueMicrotask(() => callback(err, "", err.message));
-      return new EventEmitter();
+      const realArgs = Array.isArray(args) ? args : [];
+      const realOpts = typeof args === "function" ? undefined : (typeof opts === "function" ? undefined : opts);
+      return nodeChildProcess.exec(cliCommandFromFile(file, realArgs), realOpts, callback);
     },
-    execSync: function (cmd) {
-      throw new Error("child_process.execSync('" + String(cmd).split(" ")[0] + "') is not supported on Android.");
+    execSync: function (cmd, opts) {
+      const result = cliHostCallSync(cmd, opts);
+      const err = cliErrorFromResult(cmd, result);
+      if (err) throw err;
+      return result.stdout || "";
     },
-    execFileSync: function (file) {
-      throw new Error("child_process.execFileSync('" + file + "') is not supported on Android.");
+    execFileSync: function (file, args, opts) {
+      return nodeChildProcess.execSync(cliCommandFromFile(file, args), opts);
     },
-    spawn: function (cmd) {
-      const ee = new EventEmitter();
-      ee.stdout = new Readable();
-      ee.stderr = new Readable();
-      ee.stdin = new Writable();
-      queueMicrotask(() => ee.emit("error", new Error("child_process.spawn('" + cmd + "') is not supported on Android.")));
-      return ee;
+    spawnSync: function (file, args, opts) {
+      const command = Array.isArray(args) ? cliCommandFromFile(file, args) : String(file);
+      const result = cliHostCallSync(command, opts);
+      const err = cliErrorFromResult(command, result);
+      return {
+        pid: 0,
+        status: result.exitCode || 0,
+        signal: null,
+        stdout: result.stdout || "",
+        stderr: result.stderr || "",
+        output: [null, result.stdout || "", result.stderr || ""],
+        error: err || undefined,
+      };
+    },
+    spawn: function (cmd, args, opts) {
+      const command = Array.isArray(args) ? cliCommandFromFile(cmd, args) : String(cmd);
+      const child = new EventEmitter();
+      child.stdout = new Readable();
+      child.stderr = new Readable();
+      child.stdin = new Writable();
+      child.pid = 0;
+      child.kill = function () { return true; };
+      cliHostCall(command, opts).then(function (result) {
+        if (result.stdout) child.stdout.emit("data", String(result.stdout));
+        if (result.stderr) child.stderr.emit("data", String(result.stderr));
+        child.stdout.emit("end");
+        child.stderr.emit("end");
+        child.emit("close", result.exitCode || 0);
+      }).catch(function (err) {
+        child.emit("error", err);
+      });
+      return child;
     },
   };
+  nodeChildProcess.spawnSync = nodeChildProcess.spawnSync.bind(nodeChildProcess);
 
   const nodeProcess = {
     env: {},
