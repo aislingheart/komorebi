@@ -3000,6 +3000,8 @@
     <string name="search_gesture_service_desc">Open Komorebi search from the system accessibility shortcut or by double-pressing a hardware Home/Search key.</string>
     <string name="search_gesture_double_key_title">Hardware key double-press</string>
     <string name="search_gesture_double_key_desc">Also open search when a physical Home or Search key is pressed twice quickly.</string>
+    <string name="search_overlay_title">Show search in an overlay</string>
+    <string name="search_overlay_desc">Keep the current app visible behind search. Tap outside the search bar to close the overlay and return to the app.</string>
 
     <!-- Pixel Search Results -->
     <string name="pixel_search_results_title">Search results</string>

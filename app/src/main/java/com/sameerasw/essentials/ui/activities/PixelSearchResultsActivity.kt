@@ -75,6 +75,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -325,6 +326,7 @@ fun PixelSearchResultsScreen(
     initialQuery: String,
     incomingIntentQuery: Pair<String, Int>? = null,
     initialToolModal: LauncherToolModal? = null,
+    asOverlay: Boolean = false,
     onFinish: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -1334,7 +1336,18 @@ fun PixelSearchResultsScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(scrimColor),
+            .background(scrimColor)
+            .then(
+                if (asOverlay) {
+                    Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onFinish,
+                    )
+                } else {
+                    Modifier
+                },
+            ),
     ) {
         Box(
             modifier = Modifier
@@ -1504,7 +1517,9 @@ fun PixelSearchResultsScreen(
                             }
                         }
                     } else {
-                        val rows = scopedPhotos.chunked(3)
+                        val rows = scopedPhotos.chunked(3).let { chunks ->
+                            if (reachabilityLayout) chunks.asReversed() else chunks
+                        }
                         items(
                             items = rows,
                             key = { row -> "photo_row_${row.first().id}" },
@@ -1614,7 +1629,7 @@ fun PixelSearchResultsScreen(
                     }
                     item(key = "core_tools_list") {
                         RoundedCardContainer(modifier = Modifier.animateItem()) {
-                            builtInActions.forEach { action ->
+                            builtInActions.inReachabilityOrder(reachabilityLayout).forEach { action ->
                                 RaycastCommandRow(
                                     title = action.title,
                                     subtitle = action.subtitle,
@@ -1633,11 +1648,11 @@ fun PixelSearchResultsScreen(
                         }
                         item(key = "installed_ext_list") {
                             RoundedCardContainer(modifier = Modifier.animateItem()) {
-                                installedExtensions.forEach { ext ->
+                                installedExtensions.inReachabilityOrder(reachabilityLayout).forEach { ext ->
                                     val report = remember(ext.id, ext.manifest) {
                                         RaycastCompatibilityAnalyzer.analyzeInstalledExtension(ext)
                                     }
-                                    ext.manifest.commands.forEach { cmd ->
+                                    ext.manifest.commands.inReachabilityOrder(reachabilityLayout).forEach { cmd ->
                                         RaycastCommandRow(
                                             title = cmd.title.ifBlank { cmd.name },
                                             subtitle = "${ext.displayTitle}${if (cmd.description.isNotBlank()) " • ${cmd.description}" else ""}",
@@ -1662,7 +1677,7 @@ fun PixelSearchResultsScreen(
                         }
                         item(key = "providers_vertical_list") {
                             RoundedCardContainer(modifier = Modifier.animateItem()) {
-                                discoveredProviders.forEach { provider ->
+                                discoveredProviders.inReachabilityOrder(reachabilityLayout).forEach { provider ->
                                     val aliasHint = provider.aliases.firstOrNull()?.let { "Alias: $it" }
                                     val subtitleText = listOfNotNull(provider.subtitle.takeIf { it.isNotBlank() }, aliasHint).joinToString(" • ")
                                     RaycastCommandRow(
@@ -1760,8 +1775,8 @@ fun PixelSearchResultsScreen(
                     }
                     item(key = "tools_cards") {
                         RoundedCardContainer(modifier = Modifier.animateItem()) {
-                            matchingToolActions.forEachIndexed { index, action ->
-                                val isTopmost = index == 0 && hasTools
+                            matchingToolActions.inReachabilityOrder(reachabilityLayout).forEachIndexed { index, action ->
+                                val isTopmost = isReachabilityPriority(index, matchingToolActions.size, reachabilityLayout) && hasTools
                                 RaycastCommandRow(
                                     title = action.title,
                                     subtitle = action.subtitle,
@@ -1782,8 +1797,8 @@ fun PixelSearchResultsScreen(
                     }
                     item(key = "snippets_cards") {
                         RoundedCardContainer(modifier = Modifier.animateItem()) {
-                            matchingSnippets.forEachIndexed { index, snippet ->
-                                val isTopmost = index == 0 && hasSnippets
+                            matchingSnippets.inReachabilityOrder(reachabilityLayout).forEachIndexed { index, snippet ->
+                                val isTopmost = isReachabilityPriority(index, matchingSnippets.size, reachabilityLayout) && hasSnippets
                                 val preview = remember(snippet.id, snippet.content) {
                                     SnippetsRepository.expandContent(snippet.content).replace("\n", " ")
                                 }
@@ -1813,8 +1828,8 @@ fun PixelSearchResultsScreen(
                     }
                     item(key = "quicklinks_cards") {
                         RoundedCardContainer(modifier = Modifier.animateItem()) {
-                            matchingQuicklinks.forEachIndexed { index, link ->
-                                val isTopmost = index == 0 && (hasExactQuicklink || hasQuicklinks)
+                            matchingQuicklinks.inReachabilityOrder(reachabilityLayout).forEachIndexed { index, link ->
+                                val isTopmost = isReachabilityPriority(index, matchingQuicklinks.size, reachabilityLayout) && (hasExactQuicklink || hasQuicklinks)
                                 val arg = remember(trimmedQuery, link.keyword) {
                                     val parts = trimmedQuery.split(Regex("\\s+"), limit = 2)
                                     if (link.keyword.isNotBlank() && parts[0].equals(link.keyword, ignoreCase = true) && parts.size > 1) {
@@ -1873,8 +1888,8 @@ fun PixelSearchResultsScreen(
                     }
                     item(key = "commands_cards") {
                         RoundedCardContainer(modifier = Modifier.animateItem()) {
-                            internalCommands.forEachIndexed { index, cmd ->
-                                val isTopmost = index == 0 && hasCommands
+                            internalCommands.inReachabilityOrder(reachabilityLayout).forEachIndexed { index, cmd ->
+                                val isTopmost = isReachabilityPriority(index, internalCommands.size, reachabilityLayout) && hasCommands
                                 FeatureCard(
                                     title = cmd.title,
                                     description = cmd.description,
@@ -1903,8 +1918,8 @@ fun PixelSearchResultsScreen(
                     }
                     item(key = "routes_cards") {
                         RoundedCardContainer(modifier = Modifier.animateItem()) {
-                            entityRoutes.forEachIndexed { index, route ->
-                                val isTopmost = index == 0 && hasRoutes
+                            entityRoutes.inReachabilityOrder(reachabilityLayout).forEachIndexed { index, route ->
+                                val isTopmost = isReachabilityPriority(index, entityRoutes.size, reachabilityLayout) && hasRoutes
                                 Surface(
                                     color = if (isTopmost) highlightColor else normalCardColor,
                                     modifier = Modifier
@@ -2006,8 +2021,8 @@ fun PixelSearchResultsScreen(
                     }
                     item(key = "apps_cards") {
                         RoundedCardContainer(modifier = Modifier.animateItem()) {
-                            appResults.forEachIndexed { index, app ->
-                                val isTopmost = index == 0 && hasApps
+                            appResults.inReachabilityOrder(reachabilityLayout).forEachIndexed { index, app ->
+                                val isTopmost = isReachabilityPriority(index, appResults.size, reachabilityLayout) && hasApps
                                 FeatureCard(
                                     title = app.appName,
                                     isEnabled = true,
@@ -2042,8 +2057,8 @@ fun PixelSearchResultsScreen(
                     }
                     item(key = "contacts_cards") {
                         RoundedCardContainer(modifier = Modifier.animateItem()) {
-                            contactResults.forEachIndexed { index, contact ->
-                                val isTopmost = index == 0 && hasContacts
+                            contactResults.inReachabilityOrder(reachabilityLayout).forEachIndexed { index, contact ->
+                                val isTopmost = isReachabilityPriority(index, contactResults.size, reachabilityLayout) && hasContacts
                                 ListItem(
                                     onClick = {
                                         HapticUtil.performVirtualKeyHaptic(view)
@@ -2276,8 +2291,8 @@ fun PixelSearchResultsScreen(
                     }
                     item(key = "files_cards") {
                         RoundedCardContainer(modifier = Modifier.animateItem()) {
-                            fileResults.forEachIndexed { index, file ->
-                                val isTopmost = index == 0 && hasFiles
+                            fileResults.inReachabilityOrder(reachabilityLayout).forEachIndexed { index, file ->
+                                val isTopmost = isReachabilityPriority(index, fileResults.size, reachabilityLayout) && hasFiles
                                 ListItem(
                                     onClick = {
                                         HapticUtil.performVirtualKeyHaptic(view)
@@ -2349,8 +2364,8 @@ fun PixelSearchResultsScreen(
                     }
                     item(key = "system_settings_cards") {
                         RoundedCardContainer(modifier = Modifier.animateItem()) {
-                            systemSettingResults.forEachIndexed { index, setting ->
-                                val isTopmost = index == 0 && hasSystemSettings
+                            systemSettingResults.inReachabilityOrder(reachabilityLayout).forEachIndexed { index, setting ->
+                                val isTopmost = isReachabilityPriority(index, systemSettingResults.size, reachabilityLayout) && hasSystemSettings
                                 FeatureCard(
                                     title = setting.title,
                                     isEnabled = true,
@@ -2385,8 +2400,8 @@ fun PixelSearchResultsScreen(
                     }
                     item(key = "essentials_cards") {
                         RoundedCardContainer(modifier = Modifier.animateItem()) {
-                            settingResults.forEachIndexed { index, item ->
-                                val isTopmost = index == 0 && hasEssentials
+                            settingResults.inReachabilityOrder(reachabilityLayout).forEachIndexed { index, item ->
+                                val isTopmost = isReachabilityPriority(index, settingResults.size, reachabilityLayout) && hasEssentials
                                 val setting = item.searchableItem
                                 FeatureCard(
                                     title = setting.title,
@@ -2461,8 +2476,8 @@ fun PixelSearchResultsScreen(
                     }
                     item(key = "shortcuts_cards") {
                         RoundedCardContainer(modifier = Modifier.animateItem()) {
-                            shortcutResults.forEachIndexed { index, shortcut ->
-                                val isTopmost = index == 0 && hasShortcuts
+                            shortcutResults.inReachabilityOrder(reachabilityLayout).forEachIndexed { index, shortcut ->
+                                val isTopmost = isReachabilityPriority(index, shortcutResults.size, reachabilityLayout) && hasShortcuts
                                 FeatureCard(
                                     title = shortcut.shortLabel,
                                     isEnabled = true,
@@ -2493,7 +2508,7 @@ fun PixelSearchResultsScreen(
                     }
                     item(key = "app_functions_cards") {
                         RoundedCardContainer(modifier = Modifier.animateItem()) {
-                            appFunctions.forEach { fn ->
+                            appFunctions.inReachabilityOrder(reachabilityLayout).forEach { fn ->
                                 FeatureCard(
                                     title = fn.functionLabel,
                                     description = "${fn.appName} • App Function",
@@ -2526,7 +2541,7 @@ fun PixelSearchResultsScreen(
                     }
                     item(key = "matching_providers_cards") {
                         RoundedCardContainer(modifier = Modifier.animateItem()) {
-                            matchingProviders.forEach { provider ->
+                            matchingProviders.inReachabilityOrder(reachabilityLayout).forEach { provider ->
                                 RaycastCommandRow(
                                     title = provider.title,
                                     subtitle = "Search \"${query.trim()}\" in ${provider.title}",
@@ -2605,7 +2620,18 @@ fun PixelSearchResultsScreen(
                 .zIndex(20f)
                 .imePadding()
                 .padding(horizontal = 16.dp)
-                .padding(bottom = navBarHeight.coerceAtLeast(16.dp)),
+                .padding(bottom = navBarHeight.coerceAtLeast(16.dp))
+                .then(
+                    if (asOverlay) {
+                        Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = {},
+                        )
+                    } else {
+                        Modifier
+                    },
+                ),
         ) {
             Card(
                 shape = RoundedCornerShape(28.dp),
@@ -4199,6 +4225,12 @@ private fun applyGrayscaleFilter(bitmap: ImageBitmap): ImageBitmap {
     canvas.drawBitmap(src, 0f, 0f, paint)
     return output.asImageBitmap()
 }
+
+private fun <T> List<T>.inReachabilityOrder(reachability: Boolean): List<T> =
+    if (reachability) asReversed() else this
+
+private fun isReachabilityPriority(index: Int, size: Int, reachability: Boolean): Boolean =
+    if (reachability) index == size - 1 else index == 0
 
 private fun launchApp(context: Context, packageName: String) {
     SearchUsageTracker.record(context, SearchUsageTracker.appKey(packageName))

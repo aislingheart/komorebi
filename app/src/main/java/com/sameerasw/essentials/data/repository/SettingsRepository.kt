@@ -894,6 +894,7 @@ class SettingsRepository(
         const val KEY_PIXEL_SEARCHBAR_WIDGET_PADDING_H = "pixel_searchbar_widget_padding_h"
         const val KEY_PIXEL_SEARCHBAR_WIDGET_PADDING_V = "pixel_searchbar_widget_padding_v"
         const val KEY_PIXEL_SEARCHBAR_TAP_ACTION_ENABLED = "pixel_searchbar_tap_action_enabled"
+        const val KEY_PIXEL_SEARCH_OVERLAY_ENABLED = "pixel_search_overlay_enabled"
         const val KEY_PIXEL_SEARCHBAR_WIDGET_REVISION = "pixel_searchbar_widget_revision"
         const val KEY_PIXEL_SEARCHBAR_MUSIC_TITLE = "pixel_searchbar_music_title"
         const val KEY_PIXEL_SEARCHBAR_MUSIC_ARTIST = "pixel_searchbar_music_artist"
@@ -2539,6 +2540,19 @@ class SettingsRepository(
      * @param enabled [Boolean] Target enabled.
      */
     fun setPixelSearchbarTapActionEnabled(enabled: Boolean) = putBoolean(KEY_PIXEL_SEARCHBAR_TAP_ACTION_ENABLED, enabled)
+
+    /**
+     * Executes the get pixel search overlay enabled operation.
+     * @return The resulting Boolean data.
+     */
+    fun getPixelSearchOverlayEnabled(): Boolean = getBoolean(KEY_PIXEL_SEARCH_OVERLAY_ENABLED, true)
+
+    /**
+     * Executes the set pixel search overlay enabled operation.
+     *
+     * @param enabled [Boolean] Target enabled.
+     */
+    fun setPixelSearchOverlayEnabled(enabled: Boolean) = putBoolean(KEY_PIXEL_SEARCH_OVERLAY_ENABLED, enabled)
 
     /**
      * Executes the get pixel searchbar widget revision operation.

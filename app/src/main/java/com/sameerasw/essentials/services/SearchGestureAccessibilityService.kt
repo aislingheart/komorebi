@@ -16,6 +16,7 @@ import android.os.Build
 import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
+import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.ui.activities.PixelSearchResultsActivity
 
 class SearchGestureAccessibilityService : AccessibilityService() {
@@ -50,7 +51,9 @@ class SearchGestureAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit
 
-    override fun onInterrupt() = Unit
+    override fun onInterrupt() {
+        SearchOverlayController.hide()
+    }
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
         val isHomeOrSearch =
@@ -75,6 +78,15 @@ class SearchGestureAccessibilityService : AccessibilityService() {
     }
 
     private fun openSearch() {
+        if (SearchOverlayController.isShowing) {
+            SearchOverlayController.hide()
+            return
+        }
+        if (SettingsRepository(this).getPixelSearchOverlayEnabled() &&
+            SearchOverlayController.show(this)
+        ) {
+            return
+        }
         val intent =
             Intent(this, PixelSearchResultsActivity::class.java).apply {
                 addFlags(
@@ -87,6 +99,7 @@ class SearchGestureAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        SearchOverlayController.hide()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && buttonCallback != null) {
             accessibilityButtonController?.unregisterAccessibilityButtonCallback(buttonCallback!!)
         }

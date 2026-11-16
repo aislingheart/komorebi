@@ -90,10 +90,10 @@ android {
         applicationId = "com.aislingheart.komorebi"
         minSdk = 26
         targetSdk = 37
-        versionCode = 83
-        versionName = "0.4"
+        versionCode = 84
+        versionName = "0.5"
 
-        val whatsNewCounter = 9
+        val whatsNewCounter = 10
         buildConfigField("int", "WHATS_NEW_COUNTER", whatsNewCounter.toString())
         buildConfigField("int", "REQUIRED_WEAR_VERSION_CODE", "8")
 

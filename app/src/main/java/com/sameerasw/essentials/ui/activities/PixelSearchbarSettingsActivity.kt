@@ -68,6 +68,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sameerasw.essentials.R
+import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.domain.model.Feature
 import com.sameerasw.essentials.ui.components.animations.LottieFeatureAnimation
 import com.sameerasw.essentials.ui.components.menus.SegmentedDropdownMenuItem
@@ -282,6 +283,10 @@ fun PixelSearchbarSettingsUI(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val overlayRepository = remember(context) { SettingsRepository(context) }
+    var searchOverlayEnabled by remember {
+        mutableStateOf(overlayRepository.getPixelSearchOverlayEnabled())
+    }
     val view = LocalView.current
     val isEnabled = viewModel.isPixelSearchbarEnabled.value
     var showPermissionSheet by remember { mutableStateOf(false) }
@@ -386,6 +391,16 @@ fun PixelSearchbarSettingsUI(
                     }.onFailure {
                         com.sameerasw.essentials.utils.PermissionUtils.openAccessibilitySettings(context)
                     }
+                },
+            )
+            IconToggleItem(
+                iconRes = R.drawable.rounded_window_open_24,
+                title = stringResource(R.string.search_overlay_title),
+                description = stringResource(R.string.search_overlay_desc),
+                isChecked = searchOverlayEnabled,
+                onCheckedChange = { enabled ->
+                    searchOverlayEnabled = enabled
+                    overlayRepository.setPixelSearchOverlayEnabled(enabled)
                 },
             )
         }
