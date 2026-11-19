@@ -2503,7 +2503,7 @@
     <string name="label_reset_battery_stats_title">Reset Battery Statistics</string>
     <string name="label_reset_battery_stats_desc">Resets system battery statistics (dumpsys batterystats --reset). This clears historical battery usage and app drain data so it starts tracking fresh from the current charge.</string>
     <string name="label_auto_reset_battery_stats_title">Auto reset</string>
-    <string name="label_auto_reset_battery_stats_desc">Automatically reset battery statistics when the device is unplugged above 90% charge.</string>
+    <string name="label_auto_reset_battery_stats_desc" formatted="false">Automatically reset battery statistics when the device is unplugged above 90% charge.</string>
     <string name="label_battery_graph_title">Battery Drain &amp; Prediction</string>
     <string name="label_battery_graph_actual">Actual drain</string>
     <string name="label_battery_graph_predicted">Predicted</string>
@@ -2660,7 +2660,7 @@
     <string name="feat_prefer_gpu_composing_title">Prefer GPU for screen composing</string>
     <string name="feat_prefer_gpu_composing_desc">Disable hardware overlays to force GPU screen compositing. Resets on device reboot.</string>
     <string name="feat_pixel_searchbar_title">Replace searchbar</string>
-    <string name="feat_pixel_searchbar_desc">Replace Pixel Launcher default searchbar.</string>
+    <string name="feat_pixel_searchbar_desc">Search, results, overlay, widget, and AI assistant settings.</string>
     <string name="shut_up_toast_active">App got shut up</string>
     <string name="shut_up_toast_restored">Shut up features returned</string>
     <string name="shut_up_auto_archive_notif_title">Auto Freeze</string>
@@ -4005,4 +4005,16 @@
     <string name="label_feature_settings">Feature Settings</string>
     <string name="label_open_link">Open Link</string>
     <string name="dream_ambience_label">Ambience</string>
+    <string name="shortcut_search_short">Search</string>
+    <string name="shortcut_search_long">Search with Komorebi</string>
+    <string name="shortcut_quicklinks_short">Quicklinks</string>
+    <string name="shortcut_quicklinks_long">Open Quicklinks</string>
+    <string name="shortcut_snippets_short">Snippets</string>
+    <string name="shortcut_snippets_long">Open Snippets</string>
+    <string name="shortcut_clipboard_short">Clipboard</string>
+    <string name="shortcut_clipboard_long">Open Clipboard History</string>
+    <string name="shortcut_settings_short">Search settings</string>
+    <string name="shortcut_settings_long">Open Pixel Search settings</string>
+    <string name="shortcut_extensions_short">Extensions</string>
+    <string name="shortcut_extensions_long">Open Extensions Store</string>
 </resources>

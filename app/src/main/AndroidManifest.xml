@@ -54,6 +54,14 @@
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- Health Connect (data stays on-device; granted via Health Connect settings) -->
+    <uses-permission android:name="android.permission.health.READ_SLEEP" />
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.READ_WEIGHT" />
+    <uses-permission android:name="android.permission.health.READ_EXERCISE" />
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
@@ -84,6 +92,7 @@
     <uses-permission android:name="${applicationId}.permission.EXTERNAL_CONTROL" />
 
     <queries>
+        <package android:name="com.google.android.apps.healthdata" />
         <intent>
             <action android:name="android.intent.action.MAIN" />
         </intent>
@@ -102,6 +111,22 @@
         </intent>
         <intent>
             <action android:name="android.intent.action.WEB_SEARCH" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SET_ALARM" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SET_TIMER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SHOW_ALARMS" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SHOW_TIMERS" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.APP_CLOCK" />
         </intent>
         <intent>
             <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
@@ -185,6 +210,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Komorebi"
+        android:usesCleartextTraffic="true"
         tools:targetApi="36">
 
         <meta-data
@@ -224,6 +250,9 @@
             <meta-data
                 android:name="com.android.systemui.action_assist_icon"
                 android:resource="@mipmap/ic_launcher" />
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
 
         <activity
@@ -235,8 +264,41 @@
             android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
 
         <activity
-            android:name=".ui.activities.PixelSearchbarSettingsActivity"
+            android:name=".assistant.ui.AssistantSettingsActivity"
             android:exported="false"
+            android:label="AI assistant"
+            android:theme="@style/Theme.Komorebi" />
+
+        <receiver
+            android:name=".assistant.TaskReminderReceiver"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.activities.HealthPermissionsRationaleActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+        </activity>
+
+        <!-- Required so Komorebi appears in Health Connect > App permissions on Android 14+. -->
+        <activity-alias
+            android:name="ViewHealthPermissionsUsageActivity"
+            android:exported="true"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE"
+            android:targetActivity=".ui.activities.HealthPermissionsRationaleActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity
+            android:name=".ui.activities.PixelSearchbarSettingsActivity"
+            android:exported="true"
             android:label="@string/pixel_searchbar_settings_title"
             android:theme="@style/Theme.Komorebi" />
 
@@ -327,47 +389,8 @@
             android:noHistory="true"
             android:theme="@style/Theme.Komorebi.Translucent" />
 
-        <service
-            android:name=".services.AccessibilityShortcutService1"
-            android:exported="true"
-            android:icon="@drawable/rounded_circle_24"
-            android:label="@string/accessibility_shortcut_service_1_name"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_shortcut_service_config" />
-        </service>
 
-        <service
-            android:name=".services.AccessibilityShortcutService2"
-            android:exported="true"
-            android:icon="@drawable/rounded_pentagon_24"
-            android:label="@string/accessibility_shortcut_service_2_name"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_shortcut_service_config" />
-        </service>
 
-        <service
-            android:name=".services.AccessibilityShortcutService3"
-            android:exported="true"
-            android:icon="@drawable/rounded_square_24"
-            android:label="@string/accessibility_shortcut_service_3_name"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_shortcut_service_config" />
-        </service>
 
         <service
             android:name=".services.SearchGestureAccessibilityService"
@@ -383,19 +406,6 @@
                 android:resource="@xml/search_gesture_service_config" />
         </service>
 
-        <service
-            android:name=".services.SplitScreenShortcutService"
-            android:exported="true"
-            android:icon="@drawable/rounded_splitscreen_24"
-            android:label="@string/split_screen_shortcut_service_name"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/split_screen_shortcut_service_config" />
-        </service>
 
         <service
             android:name=".services.EssentialsVoiceInteractionService"
@@ -553,7 +563,7 @@
 
         <activity
             android:name=".ui.activities.ExtensionsActivity"
-            android:exported="false"
+            android:exported="true"
             android:label="Extensions &amp; Store"
             android:theme="@style/Theme.Komorebi" />
 

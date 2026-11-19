@@ -170,6 +170,8 @@ private data class VicinaeStoreExtensionDto(
 object RaycastStoreClient {
     private const val RAYCAST_BASE_URL = "https://backend.raycast.com/api/v1"
     private const val VICINAE_BASE_URL = "https://api.vicinae.com/v1"
+    private const val KOMOREBI_INDEX_URL =
+        "https://raw.githubusercontent.com/aislingheart/komorebi-extensions/main/index.json"
     private val gson = Gson()
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -235,6 +237,36 @@ object RaycastStoreClient {
                 }
                 val body = resp.body.string()
                 parseVicinaeListingsResponse(body)
+            }
+        }
+    }
+
+    suspend fun fetchKomorebiListings(
+        query: String = "",
+        page: Int = 1,
+        perPage: Int = 50,
+    ): Result<List<StoreExtensionListing>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val req = Request.Builder()
+                .url(KOMOREBI_INDEX_URL)
+                .header("Accept", "application/json")
+                .header("User-Agent", "Komorebi-RaycastCompat/1.0")
+                .build()
+            httpClient.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) {
+                    val errBody = readErrorBodySnippet(resp.body)
+                    error(
+                        if (errBody.isNotBlank()) "Komorebi Store HTTP ${resp.code}: $errBody"
+                        else "Komorebi Store HTTP ${resp.code}",
+                    )
+                }
+                val body = resp.body.string()
+                val filtered = parseKomorebiListingsResponse(body).filter { it.matchesQuery(query) }
+                val safePage = page.coerceAtLeast(1)
+                val safePerPage = perPage.coerceAtLeast(1)
+                val fromIndex = (safePage - 1) * safePerPage
+                if (fromIndex >= filtered.size) emptyList()
+                else filtered.drop(fromIndex).take(safePerPage)
             }
         }
     }
@@ -328,6 +360,61 @@ object RaycastStoreClient {
         }
     }
 
+    internal fun parseKomorebiListingsResponse(body: String): List<StoreExtensionListing> {
+        val dto = gson.fromJson(body, VicinaeStoreResponse::class.java)
+            ?: return emptyList()
+        val list = dto.extensions ?: dto.data ?: emptyList()
+        return list.map { ext ->
+            val safeName = ext.name.orEmpty()
+            StoreExtensionListing(
+                id = ext.id?.takeIf { it.isNotBlank() } ?: safeName,
+                name = safeName,
+                title = ext.title?.takeIf { it.isNotBlank() } ?: safeName,
+                description = ext.description.orEmpty(),
+                author = StoreListingAuthor(
+                    name = ext.author?.name.orEmpty(),
+                    handle = ext.author?.handle.orEmpty(),
+                    avatar = ext.author?.avatarUrl?.takeIf { it.isNotBlank() },
+                    profileUrl = ext.author?.profileUrl?.takeIf { it.isNotBlank() },
+                ),
+                icons = StoreListingIcons(
+                    light = ext.icons?.light?.takeIf { it.isNotBlank() },
+                    dark = ext.icons?.dark?.takeIf { it.isNotBlank() },
+                ),
+                downloadCount = ext.downloadCount ?: 0,
+                downloadUrl = ext.downloadUrl?.takeIf { it.isNotBlank() },
+                categories = parseFlexibleCategories(ext.categories),
+                commands = ext.commands.orEmpty().map { cmd ->
+                    val cmdName = cmd.name.orEmpty()
+                    StoreListingCommand(
+                        id = cmd.id?.takeIf { it.isNotBlank() } ?: cmdName,
+                        name = cmdName,
+                        title = cmd.title?.takeIf { it.isNotBlank() } ?: cmdName,
+                        subtitle = cmd.subtitle?.takeIf { it.isNotBlank() },
+                        description = cmd.description.orEmpty(),
+                        mode = cmd.mode?.takeIf { it.isNotBlank() } ?: "view",
+                        keywords = cmd.keywords.orEmpty().filterNotNull().filter { it.isNotBlank() },
+                        disabledByDefault = cmd.disabledByDefault ?: false,
+                        beta = cmd.beta ?: false,
+                    )
+                },
+                source = "komorebi",
+                platforms = parseStringList(ext.platforms),
+                apiVersion = ext.apiVersion?.takeIf { it.isNotBlank() },
+            )
+        }
+    }
+
+    private fun StoreExtensionListing.matchesQuery(query: String): Boolean {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) return true
+        return sequenceOf(name, title, description)
+            .plus(commands.asSequence().flatMap { cmd ->
+                sequenceOf(cmd.title) + cmd.keywords.asSequence()
+            })
+            .any { it.contains(trimmed, ignoreCase = true) }
+    }
+
     internal fun parseFlexibleCategories(element: JsonElement?): List<String> {
         if (element == null || element.isJsonNull) return emptyList()
         return when {
@@ -400,37 +487,50 @@ object RaycastStoreClient {
                 resp.body.bytes()
             }
 
-            val safeFolder = "${listing.author.handle.ifBlank { "ext" }}-${listing.name}"
-                .replace(Regex("[^a-zA-Z0-9._-]"), "_")
-            val targetDir = File(RaycastExtensionRepository.extensionsRootDir(context), safeFolder)
-            if (targetDir.exists()) targetDir.deleteRecursively()
-            targetDir.mkdirs()
+            val safeFolder = sanitizeExtensionFolder(listing.id.ifBlank { listing.name })
+            val extensionsRoot = RaycastExtensionRepository.extensionsRootDir(context).canonicalFile
+            val targetDir = File(extensionsRoot, safeFolder).canonicalFile
+            require(targetDir.parentFile == extensionsRoot) {
+                "Invalid extension target folder: $safeFolder"
+            }
 
-            extractArchiveSafely(bytes, targetDir)
-            flattenSingleNestedDirIfNeeded(targetDir)
+            val stagingDir = File(extensionsRoot, ".staging_${safeFolder}_${System.nanoTime()}")
+            stagingDir.mkdirs()
+            try {
+                extractArchiveSafely(bytes, stagingDir)
+                flattenSingleNestedDirIfNeeded(stagingDir)
 
-            val pkgFile = File(targetDir, "package.json")
-            if (!pkgFile.exists()) {
-                val fallbackManifest = RaycastPackageManifest(
-                    name = listing.name,
-                    title = listing.title.ifBlank { listing.name },
-                    description = listing.description,
-                    author = listing.author.name.ifBlank { listing.author.handle },
-                    categories = listing.categories.takeIf { it.isNotEmpty() },
-                    platforms = listing.platforms.takeIf { it.isNotEmpty() },
-                    commands = listing.commands.map {
-                        RaycastCommandManifest(
-                            name = it.name,
-                            title = it.title.ifBlank { it.name },
-                            subtitle = it.subtitle,
-                            description = it.description,
-                            mode = it.mode.ifBlank { "view" },
-                            keywords = it.keywords.takeIf { k -> k.isNotEmpty() },
-                            disabledByDefault = it.disabledByDefault.takeIf { d -> d },
-                        )
-                    },
-                )
-                pkgFile.writeText(gson.toJson(fallbackManifest))
+                val pkgFile = File(stagingDir, "package.json")
+                if (!pkgFile.exists()) {
+                    val fallbackManifest = RaycastPackageManifest(
+                        name = listing.name,
+                        title = listing.title.ifBlank { listing.name },
+                        description = listing.description,
+                        author = listing.author.name.ifBlank { listing.author.handle },
+                        categories = listing.categories.takeIf { it.isNotEmpty() },
+                        platforms = listing.platforms.takeIf { it.isNotEmpty() },
+                        commands = listing.commands.map {
+                            RaycastCommandManifest(
+                                name = it.name,
+                                title = it.title.ifBlank { it.name },
+                                subtitle = it.subtitle,
+                                description = it.description,
+                                mode = it.mode.ifBlank { "view" },
+                                keywords = it.keywords.takeIf { k -> k.isNotEmpty() },
+                                disabledByDefault = it.disabledByDefault.takeIf { d -> d },
+                            )
+                        },
+                    )
+                    pkgFile.writeText(gson.toJson(fallbackManifest))
+                }
+
+                if (targetDir.exists()) targetDir.deleteRecursively()
+                if (!stagingDir.renameTo(targetDir)) {
+                    stagingDir.copyRecursively(targetDir, overwrite = true)
+                    stagingDir.deleteRecursively()
+                }
+            } finally {
+                if (stagingDir.exists()) stagingDir.deleteRecursively()
             }
 
             RaycastExtensionRepository.findExtension(context, safeFolder)
@@ -438,17 +538,46 @@ object RaycastStoreClient {
         }
     }
 
+    internal fun sanitizeExtensionFolder(raw: String): String {
+        val cleaned = raw.trim()
+            .replace(Regex("[^A-Za-z0-9._-]"), "_")
+            .replace(Regex("\\.{2,}"), "_")
+            .trim('.')
+        return cleaned.ifBlank { "extension_${System.currentTimeMillis()}" }
+    }
+
     private fun extractArchiveSafely(bytes: ByteArray, destDir: File) {
+        val maxEntries = 10_000
+        val maxTotalBytes = 100L * 1024L * 1024L
+        var entryCount = 0
+        var totalBytes = 0L
+
+        fun copyBounded(input: java.io.InputStream, output: java.io.OutputStream) {
+            val buffer = ByteArray(8192)
+            while (true) {
+                val read = input.read(buffer)
+                if (read <= 0) break
+                totalBytes += read
+                if (totalBytes > maxTotalBytes) {
+                    error("Extension archive exceeds maximum extracted size limit.")
+                }
+                output.write(buffer, 0, read)
+            }
+        }
+
         val isZip = bytes.size >= 2 && bytes[0] == 0x50.toByte() && bytes[1] == 0x4B.toByte()
         if (isZip) {
             ZipInputStream(BufferedInputStream(ByteArrayInputStream(bytes))).use { zis ->
                 var entry = zis.nextEntry
                 while (entry != null) {
+                    if (++entryCount > maxEntries) {
+                        error("Extension archive contains too many entries.")
+                    }
                     if (!entry.isDirectory) {
                         val outFile = safeChildFile(destDir, entry.name)
                         if (outFile != null) {
                             outFile.parentFile?.mkdirs()
-                            outFile.outputStream().use { zis.copyTo(it) }
+                            outFile.outputStream().use { copyBounded(zis, it) }
                         }
                     }
                     entry = zis.nextEntry
@@ -467,11 +596,14 @@ object RaycastStoreClient {
         tarStream.use { tis ->
             var entry = tis.nextEntry
             while (entry != null) {
+                if (++entryCount > maxEntries) {
+                    error("Extension archive contains too many entries.")
+                }
                 if (!entry.isDirectory) {
                     val outFile = safeChildFile(destDir, entry.name)
                     if (outFile != null) {
                         outFile.parentFile?.mkdirs()
-                        outFile.outputStream().use { tis.copyTo(it) }
+                        outFile.outputStream().use { copyBounded(tis, it) }
                     }
                 }
                 entry = tis.nextEntry
@@ -479,7 +611,7 @@ object RaycastStoreClient {
         }
     }
 
-    private fun safeChildFile(destDir: File, entryName: String): File? {
+    internal fun safeChildFile(destDir: File, entryName: String): File? {
         val clean = entryName.trimStart('/', '\\')
         if (clean.isBlank()) return null
         val destCanonical = destDir.canonicalFile
@@ -487,15 +619,21 @@ object RaycastStoreClient {
         return if (out.path.startsWith(destCanonical.path + File.separator)) out else null
     }
 
-    private fun flattenSingleNestedDirIfNeeded(destDir: File) {
+    internal fun flattenSingleNestedDirIfNeeded(destDir: File) {
         if (File(destDir, "package.json").exists()) return
         val children = destDir.listFiles() ?: return
         if (children.size == 1 && children[0].isDirectory) {
             val nested = children[0]
-            nested.listFiles()?.forEach { child ->
-                child.renameTo(File(destDir, child.name))
+            val tempNested = File(destDir, ".flatten_tmp_${System.nanoTime()}")
+            val sourceDir = if (nested.renameTo(tempNested)) tempNested else nested
+            sourceDir.listFiles()?.forEach { child ->
+                val target = File(destDir, child.name)
+                if (!child.renameTo(target)) {
+                    child.copyRecursively(target, overwrite = true)
+                    child.deleteRecursively()
+                }
             }
-            nested.deleteRecursively()
+            sourceDir.deleteRecursively()
         }
     }
 }

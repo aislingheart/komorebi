@@ -27,7 +27,7 @@ class ExternalTokenActionReceiver : BroadcastReceiver() {
     ) {
         val expected = SettingsRepository(context).getExternalControlToken()
         val provided = intent.getStringExtra(EXTRA_TOKEN)
-        if (expected == null || provided == null ||
+        if (expected.isNullOrBlank() || provided.isNullOrBlank() ||
             !MessageDigest.isEqual(expected.toByteArray(), provided.toByteArray())
         ) {
             Log.w("ExternalTokenReceiver", "Rejected external control request with missing or wrong token")

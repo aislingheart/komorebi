@@ -19,6 +19,7 @@ import com.dokar.quickjs.binding.function
 import com.dokar.quickjs.evaluate
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import com.sameerasw.essentials.assistant.ScreenContextExtractor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -40,6 +41,11 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.security.MessageDigest
 import java.security.SecureRandom
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import javax.crypto.Mac
@@ -67,19 +73,28 @@ class RaycastRuntimeEngine(
     private val extension: InstalledRaycastExtension,
     private val command: RaycastCommandManifest,
 ) {
+    companion object {
+        private val sharedHttpClient: OkHttpClient by lazy {
+            OkHttpClient.Builder()
+                .connectTimeout(15, TimeUnit.SECONDS)
+                .readTimeout(25, TimeUnit.SECONDS)
+                .writeTimeout(25, TimeUnit.SECONDS)
+                .followRedirects(true)
+                .build()
+        }
+    }
+
     private val tag = "RaycastRuntime"
     private val gson = Gson()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     @Volatile
     private var quickJs: QuickJs? = null
+    @Volatile
+    private var closed = false
     private val secureRandom = SecureRandom()
 
-    private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(25, TimeUnit.SECONDS)
-        .writeTimeout(25, TimeUnit.SECONDS)
-        .followRedirects(true)
-        .build()
+    private val httpClient: OkHttpClient
+        get() = sharedHttpClient
 
     private val _viewStack = MutableStateFlow<List<RaycastViewScreen>>(emptyList())
     val viewStack: StateFlow<List<RaycastViewScreen>> = _viewStack.asStateFlow()
@@ -116,6 +131,10 @@ class RaycastRuntimeEngine(
                 }
 
                 val qjs = QuickJs.create(Dispatchers.IO)
+                if (closed) {
+                    runCatching { qjs.close() }
+                    return@launch
+                }
                 quickJs = qjs
                 qjs.memoryLimit = 64L * 1024L * 1024L
                 qjs.maxStackSize = 1024L * 1024L
@@ -452,15 +471,17 @@ class RaycastRuntimeEngine(
                 val alg = mapHmacAlgorithm(obj.get("alg")?.asString)
                 val keyB64 = obj.get("keyBase64")?.asString ?: ""
                 val b64 = obj.get("base64")?.asString ?: ""
-                val keyBytes = runCatching { Base64.decode(keyB64, Base64.DEFAULT) }.getOrDefault(ByteArray(0))
+                val decodedKey = runCatching { Base64.decode(keyB64, Base64.DEFAULT) }.getOrDefault(ByteArray(0))
+                val keyBytes = if (decodedKey.isEmpty()) ByteArray(1) { 0 } else decodedKey
                 val raw = runCatching { Base64.decode(b64, Base64.DEFAULT) }.getOrDefault(ByteArray(0))
                 val mac = Mac.getInstance(alg)
                 mac.init(SecretKeySpec(keyBytes, alg))
                 val digest = mac.doFinal(raw)
                 gson.toJson(digest.map { it.toInt() and 0xFF })
             }
-            "fs.readExtensionFile" -> {
-                val rel = obj.get("path")?.asString ?: return null
+            "time.format" -> formatTimeForHost(obj)
+            "fs.readExtensionFile" -> runCatching {
+                val rel = obj.get("path")?.asString ?: return@runCatching null
                 val extRoot = File(extension.dirPath).canonicalFile
                 val candidate = File(extRoot, rel.trimStart('/')).canonicalFile
                 if (!isWithinRoot(candidate, extRoot) || !candidate.exists() || !candidate.isFile) {
@@ -468,51 +489,51 @@ class RaycastRuntimeEngine(
                 } else {
                     gson.toJson(candidate.readText())
                 }
-            }
-            "fs.exists" -> {
+            }.getOrNull()
+            "fs.exists" -> runCatching {
                 val f = resolveSandboxedFile(obj.get("path")?.asString)
                 (f != null && f.exists()).toString()
-            }
-            "fs.read" -> {
+            }.getOrDefault("false")
+            "fs.read" -> runCatching {
                 val f = resolveSandboxedFile(obj.get("path")?.asString)
                 if (f != null && f.exists() && f.isFile) gson.toJson(f.readText()) else null
-            }
-            "fs.readBase64" -> {
+            }.getOrNull()
+            "fs.readBase64" -> runCatching {
                 val f = resolveSandboxedFile(obj.get("path")?.asString)
                 if (f != null && f.exists() && f.isFile) {
                     gson.toJson(Base64.encodeToString(f.readBytes(), Base64.NO_WRAP))
                 } else {
                     null
                 }
-            }
-            "fs.write" -> {
-                val f = resolveWritableSandboxedFile(obj.get("path")?.asString) ?: return "false"
+            }.getOrNull()
+            "fs.write" -> runCatching {
+                val f = resolveWritableSandboxedFile(obj.get("path")?.asString) ?: return@runCatching "false"
                 f.parentFile?.mkdirs()
                 f.writeText(obj.get("content")?.asString ?: "")
                 "true"
-            }
-            "fs.writeBase64" -> {
-                val f = resolveWritableSandboxedFile(obj.get("path")?.asString) ?: return "false"
+            }.getOrDefault("false")
+            "fs.writeBase64" -> runCatching {
+                val f = resolveWritableSandboxedFile(obj.get("path")?.asString) ?: return@runCatching "false"
                 val b64 = obj.get("base64")?.asString ?: ""
-                val bytes = runCatching { Base64.decode(b64, Base64.DEFAULT) }.getOrNull() ?: return "false"
+                val bytes = runCatching { Base64.decode(b64, Base64.DEFAULT) }.getOrNull() ?: return@runCatching "false"
                 f.parentFile?.mkdirs()
                 f.writeBytes(bytes)
                 "true"
-            }
-            "fs.mkdir" -> {
-                val f = resolveWritableSandboxedFile(obj.get("path")?.asString) ?: return "false"
-                if (f.exists() && f.isDirectory) return "true"
+            }.getOrDefault("false")
+            "fs.mkdir" -> runCatching {
+                val f = resolveWritableSandboxedFile(obj.get("path")?.asString) ?: return@runCatching "false"
+                if (f.exists() && f.isDirectory) return@runCatching "true"
                 f.mkdirs().toString()
-            }
-            "fs.readdir" -> {
+            }.getOrDefault("false")
+            "fs.readdir" -> runCatching {
                 val f = resolveSandboxedFile(obj.get("path")?.asString)
                 if (f != null && f.exists() && f.isDirectory) {
                     gson.toJson((f.list() ?: emptyArray()).toList())
                 } else {
                     null
                 }
-            }
-            "fs.stat" -> {
+            }.getOrNull()
+            "fs.stat" -> runCatching {
                 val f = resolveSandboxedFile(obj.get("path")?.asString)
                 if (f != null && f.exists()) {
                     gson.toJson(
@@ -526,35 +547,250 @@ class RaycastRuntimeEngine(
                 } else {
                     null
                 }
-            }
-            "fs.unlink" -> {
+            }.getOrNull()
+            "fs.unlink" -> runCatching {
                 val f = resolveWritableSandboxedFile(obj.get("path")?.asString)
                 (f != null && f.exists() && f.isFile && f.delete()).toString()
-            }
-            "fs.rm" -> {
-                val f = resolveWritableSandboxedFile(obj.get("path")?.asString) ?: return "false"
-                if (!f.exists()) return "false"
+            }.getOrDefault("false")
+            "fs.rm" -> runCatching {
+                val f = resolveWritableSandboxedFile(obj.get("path")?.asString) ?: return@runCatching "false"
+                if (!f.exists()) return@runCatching "false"
                 val recursive = obj.get("recursive")?.asBoolean ?: false
                 if (f.isDirectory && recursive) f.deleteRecursively().toString() else f.delete().toString()
-            }
-            "fs.rename" -> {
-                val src = resolveWritableSandboxedFile(obj.get("src")?.asString) ?: return "false"
-                val dest = resolveWritableSandboxedFile(obj.get("dest")?.asString) ?: return "false"
-                if (!src.exists()) return "false"
+            }.getOrDefault("false")
+            "fs.rename" -> runCatching {
+                val src = resolveWritableSandboxedFile(obj.get("src")?.asString) ?: return@runCatching "false"
+                val dest = resolveWritableSandboxedFile(obj.get("dest")?.asString) ?: return@runCatching "false"
+                if (!src.exists()) return@runCatching "false"
                 dest.parentFile?.mkdirs()
                 src.renameTo(dest).toString()
-            }
-            "fs.copyFile" -> {
-                val src = resolveSandboxedFile(obj.get("src")?.asString) ?: return "false"
-                val dest = resolveWritableSandboxedFile(obj.get("dest")?.asString) ?: return "false"
-                if (!src.exists() || !src.isFile) return "false"
+            }.getOrDefault("false")
+            "fs.copyFile" -> runCatching {
+                val src = resolveSandboxedFile(obj.get("src")?.asString) ?: return@runCatching "false"
+                val dest = resolveWritableSandboxedFile(obj.get("dest")?.asString) ?: return@runCatching "false"
+                if (!src.exists() || !src.isFile) return@runCatching "false"
                 dest.parentFile?.mkdirs()
                 src.copyTo(dest, overwrite = true)
                 "true"
-            }
+            }.getOrDefault("false")
             else -> null
         }
     }
+
+    private fun formatTimeForHost(obj: JsonObject): String {
+        val options = obj.getAsJsonObject("options") ?: JsonObject()
+        val rawZone = obj.optString("zone") ?: options.optString("timeZone")
+        val zoneId = rawZone
+            ?.let { runCatching { ZoneId.of(it) }.getOrNull() }
+            ?: ZoneId.systemDefault()
+        val epochMs = obj.get("epochMs")
+            ?.takeIf { it.isJsonPrimitive }
+            ?.asLong
+            ?: System.currentTimeMillis()
+        val zoned = Instant.ofEpochMilli(epochMs).atZone(zoneId)
+        val locale = obj.optString("locale")
+            ?.let { runCatching { Locale.forLanguageTag(it.replace('_', '-')) }.getOrNull() }
+            ?.takeIf { it.language.isNotBlank() }
+            ?: Locale.getDefault()
+
+        options.optString("dateStyle")?.takeIf { it.isNotBlank() }?.let { style ->
+            when (style) {
+                "full" -> {
+                    options.addProperty("weekday", "long")
+                    options.addProperty("year", "numeric")
+                    options.addProperty("month", "long")
+                    options.addProperty("day", "numeric")
+                }
+                "long" -> {
+                    options.addProperty("year", "numeric")
+                    options.addProperty("month", "long")
+                    options.addProperty("day", "numeric")
+                }
+                "medium" -> {
+                    options.addProperty("year", "numeric")
+                    options.addProperty("month", "short")
+                    options.addProperty("day", "numeric")
+                }
+                else -> {
+                    options.addProperty("year", "2-digit")
+                    options.addProperty("month", "numeric")
+                    options.addProperty("day", "numeric")
+                }
+            }
+        }
+        options.optString("timeStyle")?.takeIf { it.isNotBlank() }?.let { style ->
+            when (style) {
+                "full", "long" -> {
+                    options.addProperty("hour", "2-digit")
+                    options.addProperty("minute", "2-digit")
+                    options.addProperty("second", "2-digit")
+                }
+                "medium" -> {
+                    options.addProperty("hour", "2-digit")
+                    options.addProperty("minute", "2-digit")
+                }
+                else -> {
+                    options.addProperty("hour", "numeric")
+                    options.addProperty("minute", "2-digit")
+                }
+            }
+        }
+
+        val weekday = options.optString("weekday")
+        val year = options.optString("year")
+        val month = options.optString("month")
+        val day = options.optString("day")
+        val hour = options.optString("hour")
+        val minute = options.optString("minute")
+        val second = options.optString("second")
+        val hourCycle = options.optString("hourCycle")
+        val hour12 = options.get("hour12")
+            ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }
+            ?.asBoolean
+            ?: when (hourCycle) {
+                "h11", "h12" -> true
+                "h23", "h24" -> false
+                else -> false
+            }
+
+        val parts = mutableListOf<Map<String, String>>()
+        fun add(type: String, value: String) {
+            parts += linkedMapOf("type" to type, "value" to value)
+        }
+        fun addLiteral(value: String) {
+            if (value.isNotEmpty()) add("literal", value)
+        }
+
+        var hasDate = false
+        var previousDateType: String? = null
+        if (weekday != null) {
+            add("weekday", zoned.dayOfWeek.getDisplayName(textStyle(weekday), locale))
+            hasDate = true
+            previousDateType = "weekday"
+        }
+        if (month != null) {
+            if (hasDate) addLiteral(dateSeparator(previousDateType, "month", month))
+            add(
+                "month",
+                when (month) {
+                    "2-digit" -> zoned.monthValue.toString().padStart(2, '0')
+                    "numeric" -> zoned.monthValue.toString()
+                    "long" -> zoned.month.getDisplayName(TextStyle.FULL, locale)
+                    "narrow" -> zoned.month.getDisplayName(TextStyle.NARROW, locale)
+                    else -> zoned.month.getDisplayName(TextStyle.SHORT, locale)
+                },
+            )
+            hasDate = true
+            previousDateType = "month"
+        }
+        if (day != null) {
+            if (hasDate) addLiteral(dateSeparator(previousDateType, "day", month))
+            add(
+                "day",
+                if (day == "2-digit") zoned.dayOfMonth.toString().padStart(2, '0')
+                else zoned.dayOfMonth.toString(),
+            )
+            hasDate = true
+            previousDateType = "day"
+        }
+        if (year != null) {
+            if (hasDate) addLiteral(dateSeparator(previousDateType, "year", month))
+            add(
+                "year",
+                if (year == "2-digit") (zoned.year % 100).toString().padStart(2, '0')
+                else zoned.year.toString(),
+            )
+            hasDate = true
+            previousDateType = "year"
+        }
+
+        var hasTime = false
+        if (hour != null) {
+            val rawHour = if (hour12) {
+                if (hourCycle == "h11") zoned.hour % 12 else {
+                    val value = zoned.hour % 12
+                    if (value == 0) 12 else value
+                }
+            } else {
+                zoned.hour
+            }
+            val value = if (hour == "2-digit") {
+                rawHour.toString().padStart(2, '0')
+            } else {
+                rawHour.toString()
+            }
+            if (hasDate) addLiteral(", ")
+            if (hasTime) addLiteral(":")
+            add("hour", value)
+            hasTime = true
+        }
+        if (minute != null) {
+            val value = if (minute == "2-digit") zoned.minute.toString().padStart(2, '0')
+            else zoned.minute.toString()
+            if (hasDate && !hasTime) addLiteral(", ")
+            if (hasTime) addLiteral(":")
+            add("minute", value)
+            hasTime = true
+        }
+        if (second != null) {
+            val value = if (second == "2-digit") zoned.second.toString().padStart(2, '0')
+            else zoned.second.toString()
+            if (hasDate && !hasTime) addLiteral(", ")
+            if (hasTime) addLiteral(":")
+            add("second", value)
+            hasTime = true
+        }
+        if (hour != null && hour12) {
+            if (hasTime) addLiteral(" ")
+            add("dayPeriod", zoned.format(DateTimeFormatter.ofPattern("a", locale)))
+            hasTime = true
+        }
+        val timeZoneName = options.optString("timeZoneName")
+        if (timeZoneName != null) {
+            if (hasDate && !hasTime) addLiteral(", ")
+            if (hasTime) addLiteral(" ")
+            val pattern = if (timeZoneName == "long" || timeZoneName == "longOffset") "zzzz" else "z"
+            add("timeZoneName", zoned.format(DateTimeFormatter.ofPattern(pattern, locale)))
+            hasTime = true
+        }
+
+        if (!hasDate && !hasTime) {
+            add("year", zoned.year.toString())
+            addLiteral("/")
+            add("month", zoned.monthValue.toString().padStart(2, '0'))
+            addLiteral("/")
+            add("day", zoned.dayOfMonth.toString().padStart(2, '0'))
+        }
+
+        val text = buildString { parts.forEach { append(it["value"] ?: "") } }
+        return gson.toJson(mapOf("text" to text, "parts" to parts))
+    }
+
+    private fun textStyle(value: String): TextStyle = when (value.lowercase(Locale.ROOT)) {
+        "long" -> TextStyle.FULL
+        "narrow" -> TextStyle.NARROW
+        else -> TextStyle.SHORT
+    }
+
+    private fun dateSeparator(
+        previous: String?,
+        current: String,
+        month: String?,
+    ): String = when {
+        previous == null -> ""
+        previous == "weekday" -> ", "
+        previous == "month" && current == "day" ->
+            if (month == "2-digit" || month == "numeric") "/" else " "
+        previous == "day" && current == "year" ->
+            if (month == "2-digit" || month == "numeric") "/" else ", "
+        else -> ", "
+    }
+
+    private fun JsonObject.optString(name: String): String? =
+        get(name)
+            ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+            ?.asString
+            ?.takeIf { it.isNotBlank() && it != "none" }
 
     private fun mapDigestAlgorithm(raw: String?): String {
         return when ((raw ?: "sha256").lowercase().replace("-", "")) {
@@ -674,8 +910,15 @@ class RaycastRuntimeEngine(
             }
             "clipboard.readText" -> {
                 val text = withContext(Dispatchers.Main) {
-                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    cm.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString() ?: ""
+                    runCatching {
+                        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                        val clip = cm?.primaryClip
+                        if (clip != null && clip.itemCount > 0) {
+                            clip.getItemAt(0)?.coerceToText(context)?.toString() ?: ""
+                        } else {
+                            ""
+                        }
+                    }.getOrDefault("")
                 }
                 gson.toJson(text)
             }
@@ -732,6 +975,60 @@ class RaycastRuntimeEngine(
                 "true"
             }
             "ui.popToRoot", "ui.clearSearchBar", "ui.pushView", "ui.popView", "ui.updateCommandMetadata" -> "true"
+            "health.availability" -> {
+                gson.toJson(
+                    mapOf("status" to com.sameerasw.essentials.assistant.HealthConnectManager.availability(context)),
+                )
+            }
+            "health.summary", "health.sleep", "health.steps" -> {
+                val manager = com.sameerasw.essentials.assistant.HealthConnectManager
+                when (manager.availability(context)) {
+                    "available" -> Unit
+                    "update_required" -> return gson.toJson(
+                        mapOf("error" to "Health Connect needs an update; open it once to finish."),
+                    )
+                    else -> return gson.toJson(
+                        mapOf("error" to "Health Connect is not available on this device."),
+                    )
+                }
+                val snapshot = manager.readSnapshot(context).getOrNull()
+                    ?: return gson.toJson(mapOf("error" to "Could not read health data right now."))
+                if (snapshot.missingPermissions) {
+                    return gson.toJson(
+                        mapOf(
+                            "error" to "Health permissions missing. Run 'health summary' in Komorebi " +
+                                "search once and grant the permissions it requests, then reopen this extension.",
+                        ),
+                    )
+                }
+                val map = snapshot.map
+                val payload: Map<String, Any?> = when (method) {
+                    "health.sleep" -> mapOf(
+                        "minutesLastNight" to map["sleepMinutesLastNight"],
+                        "deepMin" to map["sleepDeepMin"],
+                        "remMin" to map["sleepRemMin"],
+                        "lightMin" to map["sleepLightMin"],
+                        "awakeMin" to map["sleepAwakeMin"],
+                        "avg7Min" to map["sleepAvg7Min"],
+                        "history" to map["sleepHistory"],
+                    )
+                    "health.steps" -> mapOf(
+                        "today" to map["stepsToday"],
+                        "yesterday" to map["stepsYesterday"],
+                        "avg7" to map["stepsAvg7"],
+                        "history" to map["stepsHistory"],
+                    )
+                    else -> map
+                }
+                gson.toJson(payload)
+            }
+            "system.getSelectedText" -> {
+                val contextSnapshot = ScreenContextExtractor.current()
+                val fresh = contextSnapshot != null &&
+                    System.currentTimeMillis() - contextSnapshot.capturedAt < 15_000L
+                val selected = if (fresh) contextSnapshot?.selectedText.orEmpty() else ""
+                gson.toJson(selected)
+            }
             "system.open" -> {
                 val target = obj.get("target")?.asString ?: return "false"
                 val app = if (obj.has("application") && !obj.get("application").isJsonNull) obj.get("application").asString else null
@@ -866,8 +1163,9 @@ class RaycastRuntimeEngine(
 
     private fun buildViewIntent(target: String, appPackage: String?): Intent {
         val localFile = when {
-            target.startsWith("file://") -> runCatching { File(Uri.parse(target).path ?: "") }.getOrNull()
-            target.startsWith("/") -> File(target)
+            target.startsWith("file://") -> runCatching { Uri.parse(target).path }.getOrNull()
+                ?.let { resolveSandboxedFile(it) }
+            target.startsWith("/") -> resolveSandboxedFile(target)
             else -> null
         }
         return if (localFile != null && localFile.exists()) {
@@ -905,8 +1203,8 @@ class RaycastRuntimeEngine(
     }
 
     fun close() {
+        closed = true
         runCatching {
-            httpClient.dispatcher.cancelAll()
             scope.launch {
                 runCatching { quickJs?.evaluate<Any?>("globalThis.__unmountExtension();", "unmount.js", false) }
                 runCatching { quickJs?.close() }

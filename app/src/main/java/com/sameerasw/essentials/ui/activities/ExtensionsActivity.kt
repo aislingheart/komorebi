@@ -7,6 +7,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,6 +23,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -117,7 +120,7 @@ private fun ExtensionsHubScreen(
     var selectedTab by remember { mutableIntStateOf(initialTab) }
     var installed by remember { mutableStateOf(RaycastExtensionRepository.listInstalledExtensions(context)) }
 
-    var storeSource by remember { mutableStateOf("raycast") } // "raycast" or "vicinae"
+    var storeSource by remember { mutableStateOf("raycast") } // "raycast", "vicinae", or "komorebi"
     var storeQuery by remember { mutableStateOf("") }
     var storeListings by remember { mutableStateOf<List<StoreExtensionListing>>(emptyList()) }
     var storeLoading by remember { mutableStateOf(false) }
@@ -131,14 +134,17 @@ private fun ExtensionsHubScreen(
         installed = RaycastExtensionRepository.listInstalledExtensions(context)
     }
 
+    var storeJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+
     fun loadStore() {
-        scope.launch {
+        storeJob?.cancel()
+        storeJob = scope.launch {
             storeLoading = true
             storeError = null
-            val res = if (storeSource == "raycast") {
-                RaycastStoreClient.fetchRaycastListings(query = storeQuery)
-            } else {
-                RaycastStoreClient.fetchVicinaeListings(query = storeQuery)
+            val res = when (storeSource) {
+                "vicinae" -> RaycastStoreClient.fetchVicinaeListings(query = storeQuery)
+                "komorebi" -> RaycastStoreClient.fetchKomorebiListings(query = storeQuery)
+                else -> RaycastStoreClient.fetchRaycastListings(query = storeQuery)
             }
             res.onSuccess { storeListings = it }
                 .onFailure { storeError = it.message ?: "Failed to load store" }
@@ -148,6 +154,12 @@ private fun ExtensionsHubScreen(
 
     LaunchedEffect(selectedTab, storeSource) {
         if (selectedTab == 1) loadStore()
+    }
+
+    val storeSourceLabel = when (storeSource) {
+        "vicinae" -> "Vicinae"
+        "komorebi" -> "Komorebi"
+        else -> "Raycast"
     }
 
     Scaffold(
@@ -228,6 +240,7 @@ private fun ExtensionsHubScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
                         .padding(horizontal = 16.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
@@ -241,11 +254,16 @@ private fun ExtensionsHubScreen(
                         onClick = { storeSource = "vicinae" },
                         label = { Text("Vicinae Store") },
                     )
+                    FilterChip(
+                        selected = storeSource == "komorebi",
+                        onClick = { storeSource = "komorebi" },
+                        label = { Text("Komorebi") },
+                    )
                 }
                 OutlinedTextField(
                     value = storeQuery,
                     onValueChange = { storeQuery = it },
-                    placeholder = { Text("Search ${if (storeSource == "raycast") "Raycast" else "Vicinae"} extensions...") },
+                    placeholder = { Text("Search $storeSourceLabel extensions...") },
                     leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
                     trailingIcon = {
                         FilledTonalButton(
@@ -284,7 +302,10 @@ private fun ExtensionsHubScreen(
                             contentPadding = PaddingValues(16.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
-                            items(storeListings, key = { "${it.source}_${it.id}_${it.name}" }) { item ->
+                            itemsIndexed(
+                                storeListings,
+                                key = { index, item -> "${item.source}_${item.id}_${item.name}_$index" },
+                            ) { _, item ->
                                 val report = remember(item.source, item.id, item.name) {
                                     RaycastCompatibilityAnalyzer.analyzeStoreListing(item)
                                 }

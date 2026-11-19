@@ -139,6 +139,8 @@ class MainViewModel : ViewModel() {
     val updateInfo = mutableStateOf<UpdateInfo?>(null)
     val isUpdateAvailable = mutableStateOf(false)
     val isCheckingUpdate = mutableStateOf(false)
+    val updateCheckError = mutableStateOf<String?>(null)
+    val updateCheckCompleted = mutableStateOf(false)
     val isAutoUpdateEnabled = mutableStateOf(true)
     val isUpdateNotificationEnabled = mutableStateOf(true)
     val isPreReleaseCheckEnabled = mutableStateOf(false)
@@ -356,9 +358,9 @@ class MainViewModel : ViewModel() {
         pixelSearchbarDateFormat.value = settingsRepository.getPixelSearchbarDateFormat()
         pixelSearchbarBackgroundPill.value = settingsRepository.getPixelSearchbarBackgroundPill()
         pixelSearchbarTapActionEnabled.value = settingsRepository.getPixelSearchbarTapActionEnabled()
-        pixelSearchbarMusicTitle.value = settingsRepository.getPixelSearchbarMusicTitle() ?: ""
-        pixelSearchbarMusicArtist.value = settingsRepository.getPixelSearchbarMusicArtist() ?: ""
-        pixelSearchbarMusicPackage.value = settingsRepository.getPixelSearchbarMusicPackage() ?: ""
+        pixelSearchbarMusicTitle.value = settingsRepository.getPixelSearchbarMusicTitle()
+        pixelSearchbarMusicArtist.value = settingsRepository.getPixelSearchbarMusicArtist()
+        pixelSearchbarMusicPackage.value = settingsRepository.getPixelSearchbarMusicPackage()
         if (pixelSearchbarType.value == "music") {
             updateMediaFromActiveSession(context)
         }
@@ -515,12 +517,16 @@ class MainViewModel : ViewModel() {
         pixelSearchResultSettings.value = settingsRepository.isPixelSearchResultSettingsEnabled()
         pixelSearchResultShortcuts.value = settingsRepository.isPixelSearchResultShortcutsEnabled()
         pixelSearchResultWeb.value = settingsRepository.isPixelSearchResultWebEnabled()
+        pixelSearchResultNotifications.value = settingsRepository.isPixelSearchResultNotificationsEnabled()
         pixelSearchBubblesWeb.value = settingsRepository.isPixelSearchBubblesWebEnabled()
         pixelSearchEngine.value = settingsRepository.getPixelSearchEngine()
         pixelSearchReachability.value = settingsRepository.isPixelSearchReachabilityEnabled()
         pixelSearchUsageRanking.value = settingsRepository.isPixelSearchUsageRankingEnabled()
         pixelSearchTypoTolerance.value = settingsRepository.isPixelSearchTypoToleranceEnabled()
         com.sameerasw.essentials.utils.FuzzySearchUtil.setTypoToleranceEnabled(pixelSearchTypoTolerance.value)
+        pixelSearchMaxResults.value = settingsRepository.getPixelSearchMaxResults()
+        pixelSearchHideInitialResults.value = settingsRepository.isPixelSearchHideInitialResultsEnabled()
+        pixelSearchAssistantEnabled.value = settingsRepository.isPixelSearchAssistantEnabled()
         isFaceUnlockBrightnessEnabled.value = settingsRepository.isFaceUnlockBrightnessEnabled()
     }
     fun setEnableUnsupportedFeatures(
@@ -763,16 +769,27 @@ class MainViewModel : ViewModel() {
         manual: Boolean = false,
     ) {
         if (isCheckingUpdate.value) return
-        if (isUpdateAvailable.value && !manual) return
+        if (isUpdateAvailable.value && !manual) {
+            updateCheckCompleted.value = true
+            return
+        }
 
         if (!manual) {
-            if (!isAutoUpdateEnabled.value) return
+            if (!isAutoUpdateEnabled.value) {
+                updateCheckCompleted.value = true
+                return
+            }
             val currentTime = System.currentTimeMillis()
-            if (currentTime - lastUpdateCheckTime < 900000) return
+            if (currentTime - lastUpdateCheckTime < 900000) {
+                updateCheckCompleted.value = true
+                return
+            }
         }
 
         isCheckingUpdate.value = true
         updateInfo.value = null // Clear stale data before checking
+        updateCheckError.value = null
+        updateCheckCompleted.value = false
         viewModelScope.launch {
             try {
                 val currentVersion =
@@ -783,17 +800,19 @@ class MainViewModel : ViewModel() {
                     } ?: "0.0"
 
                 val updateInfoResult =
-                    updateRepository.checkForUpdates(
-                        context,
-                        isPreReleaseCheckEnabled.value,
-                        currentVersion,
-                    )
+                    updateRepository
+                        .checkForUpdatesWithStatus(
+                            context,
+                            isPreReleaseCheckEnabled.value,
+                            currentVersion,
+                        ).getOrNull()
 
                 if (updateInfoResult != null) {
                     updateInfo.value = updateInfoResult
                     isUpdateAvailable.value = updateInfoResult.isUpdateAvailable
                     cachedIsUpdateAvailable = updateInfoResult.isUpdateAvailable
                     cachedUpdateInfo = updateInfoResult
+                    updateCheckError.value = null
 
                     if (updateInfoResult.isUpdateAvailable && updateInfoResult.downloadUrl.isNotEmpty()) {
                         if (isUpdateNotificationEnabled.value) {
@@ -810,9 +829,16 @@ class MainViewModel : ViewModel() {
                         SettingsRepository.KEY_LAST_UPDATE_CHECK_TIME,
                         lastUpdateCheckTime,
                     )
+                } else {
+                    updateCheckError.value = updateRepository.lastError
+                        ?: "Couldn't check for updates. GitHub may be rate-limiting; try again later."
                 }
+                updateCheckCompleted.value = true
             } catch (e: Exception) {
                 e.printStackTrace()
+                updateCheckError.value = updateRepository.lastError
+                    ?: "Couldn't check for updates. GitHub may be rate-limiting; try again later."
+                updateCheckCompleted.value = true
             } finally {
                 isCheckingUpdate.value = false
             }
@@ -1052,11 +1078,15 @@ class MainViewModel : ViewModel() {
     val pixelSearchResultSettings = mutableStateOf(true)
     val pixelSearchResultShortcuts = mutableStateOf(true)
     val pixelSearchResultWeb = mutableStateOf(true)
+    val pixelSearchResultNotifications = mutableStateOf(true)
     val pixelSearchBubblesWeb = mutableStateOf(false)
     val pixelSearchEngine = mutableStateOf("Google")
     val pixelSearchReachability = mutableStateOf(false)
     val pixelSearchUsageRanking = mutableStateOf(true)
     val pixelSearchTypoTolerance = mutableStateOf(true)
+    val pixelSearchMaxResults = mutableStateOf(8)
+    val pixelSearchHideInitialResults = mutableStateOf(false)
+    val pixelSearchAssistantEnabled = mutableStateOf(false)
     fun setPixelSearchResultAppsEnabled(enabled: Boolean) {
         pixelSearchResultApps.value = enabled
         settingsRepository.setPixelSearchResultAppsEnabled(enabled)
@@ -1085,6 +1115,10 @@ class MainViewModel : ViewModel() {
         pixelSearchResultWeb.value = enabled
         settingsRepository.setPixelSearchResultWebEnabled(enabled)
     }
+    fun setPixelSearchResultNotificationsEnabled(enabled: Boolean) {
+        pixelSearchResultNotifications.value = enabled
+        settingsRepository.setPixelSearchResultNotificationsEnabled(enabled)
+    }
     fun setPixelSearchBubblesWebEnabled(enabled: Boolean) {
         pixelSearchBubblesWeb.value = enabled
         settingsRepository.setPixelSearchBubblesWebEnabled(enabled)
@@ -1101,10 +1135,24 @@ class MainViewModel : ViewModel() {
         pixelSearchUsageRanking.value = enabled
         settingsRepository.setPixelSearchUsageRankingEnabled(enabled)
         com.sameerasw.essentials.utils.SearchUsageTracker.invalidateRankingSetting()
+        com.sameerasw.essentials.utils.SearchContextRanker.invalidate()
     }
     fun setPixelSearchTypoToleranceEnabled(enabled: Boolean) {
         pixelSearchTypoTolerance.value = enabled
         settingsRepository.setPixelSearchTypoToleranceEnabled(enabled)
+    }
+    fun setPixelSearchMaxResults(limit: Int) {
+        val safe = limit.coerceIn(0, 50)
+        pixelSearchMaxResults.value = safe
+        settingsRepository.setPixelSearchMaxResults(safe)
+    }
+    fun setPixelSearchHideInitialResultsEnabled(enabled: Boolean) {
+        pixelSearchHideInitialResults.value = enabled
+        settingsRepository.setPixelSearchHideInitialResultsEnabled(enabled)
+    }
+    fun setPixelSearchAssistantEnabled(enabled: Boolean) {
+        pixelSearchAssistantEnabled.value = enabled
+        settingsRepository.setPixelSearchAssistantEnabled(enabled)
     }
     fun setPixelSearchbarTapActionEnabled(
         enabled: Boolean,

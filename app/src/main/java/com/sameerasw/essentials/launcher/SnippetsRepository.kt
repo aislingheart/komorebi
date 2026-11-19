@@ -27,6 +27,7 @@ object SnippetsRepository {
 
     private val gson = Gson()
     private val listType = object : TypeToken<List<TextSnippet>>() {}.type
+    @Volatile private var cache: List<TextSnippet>? = null
 
     private val BUILT_IN_DEFAULTS = listOf(
         TextSnippet(
@@ -72,6 +73,14 @@ object SnippetsRepository {
     }
 
     fun list(context: Context): List<TextSnippet> {
+        cache?.let { return it }
+        synchronized(this) {
+            cache?.let { return it }
+            return loadFromPrefs(context).also { cache = it }
+        }
+    }
+
+    private fun loadFromPrefs(context: Context): List<TextSnippet> {
         val appContext = context.applicationContext
         ensureSeeded(appContext)
         val prefs = appContext.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
@@ -176,6 +185,7 @@ object SnippetsRepository {
     }
 
     private fun persist(context: Context, list: List<TextSnippet>) {
+        cache = list
         context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_SNIPPETS, gson.toJson(list))

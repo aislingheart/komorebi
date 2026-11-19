@@ -42,10 +42,46 @@ object SearchRegistry {
         query: String,
         includeUnsupportedFeatures: Boolean = false,
         includeLegacyFeatures: Boolean = true,
+    ): List<Pair<SearchableItem, Int>> =
+        searchScored(
+            context = context,
+            items = indexItems(context, includeUnsupportedFeatures, includeLegacyFeatures),
+            query = query,
+        )
+
+    fun searchScored(
+        context: Context,
+        items: List<SearchableItem>,
+        query: String,
     ): List<Pair<SearchableItem, Int>> {
         val trimmed = query.trim()
         if (trimmed.isEmpty()) return emptyList()
+        return items
+            .mapNotNull { item ->
+                val baseScore = FuzzySearchUtil.scoreFields(
+                    query = trimmed,
+                    primary = item.title,
+                    secondary = item.keywords,
+                    tertiary = listOfNotNull(item.parentFeature, item.category, item.description),
+                )
+                if (baseScore > 0) {
+                    val score = baseScore + SearchUsageTracker.boost(
+                        context,
+                        SearchUsageTracker.settingKey(item.featureKey, item.title),
+                    )
+                    item to score
+                } else {
+                    null
+                }
+            }
+            .sortedWith(compareByDescending<Pair<SearchableItem, Int>> { it.second }.thenBy { it.first.title.lowercase() })
+    }
 
+    fun indexItems(
+        context: Context,
+        includeUnsupportedFeatures: Boolean = false,
+        includeLegacyFeatures: Boolean = true,
+    ): List<SearchableItem> {
         val allItems = mutableListOf<SearchableItem>()
 
         // --- Index Features and Sub-settings ---
@@ -129,23 +165,5 @@ object SearchRegistry {
         }
 
         return allItems
-            .mapNotNull { item ->
-                val baseScore = FuzzySearchUtil.scoreFields(
-                    query = trimmed,
-                    primary = item.title,
-                    secondary = item.keywords,
-                    tertiary = listOfNotNull(item.parentFeature, item.category, item.description),
-                )
-                if (baseScore > 0) {
-                    val score = baseScore + SearchUsageTracker.boost(
-                        context,
-                        SearchUsageTracker.settingKey(item.featureKey, item.title),
-                    )
-                    item to score
-                } else {
-                    null
-                }
-            }
-            .sortedWith(compareByDescending<Pair<SearchableItem, Int>> { it.second }.thenBy { it.first.title.lowercase() })
     }
 }

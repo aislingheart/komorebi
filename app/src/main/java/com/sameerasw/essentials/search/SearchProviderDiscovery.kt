@@ -48,6 +48,7 @@ import com.sameerasw.essentials.ui.activities.ExtensionsActivity
 import com.sameerasw.essentials.ui.activities.PixelSearchbarSettingsActivity
 import com.sameerasw.essentials.utils.FileSearchUtil
 import com.sameerasw.essentials.utils.FuzzySearchUtil
+import com.sameerasw.essentials.utils.SearchContextRanker
 import com.sameerasw.essentials.utils.SearchUsageTracker
 import com.sameerasw.essentials.utils.ShizukuUtils
 import kotlinx.coroutines.Dispatchers
@@ -71,6 +72,7 @@ object SearchProviderDiscovery {
     private const val INSTAGRAM_PACKAGE = "com.instagram.android"
     private const val ACTION_APP_FUNCTION_SERVICE = "android.app.appfunctions.AppFunctionService"
     private const val SHORTCUT_CACHE_TTL_MS = 60_000L
+    private const val APP_FUNCTION_CACHE_TTL_MS = 60_000L
 
     private val TELEGRAM_USERNAME_REGEX = Regex("^[a-zA-Z0-9_]{3,32}$")
     private val CURATED_PACKAGES = setOf(
@@ -97,9 +99,16 @@ object SearchProviderDiscovery {
     @Volatile
     private var lastShortcutsFetchMs: Long = 0L
 
+    @Volatile
+    private var cachedAppFunctions: List<AppFunctionItem> = emptyList()
+
+    @Volatile
+    private var lastAppFunctionsFetchMs: Long = 0L
+
     fun invalidateCaches() {
         cachedProviders = null
         lastShortcutsFetchMs = 0L
+        lastAppFunctionsFetchMs = 0L
     }
 
     suspend fun discoverProviders(context: Context): List<SearchProvider> = withContext(Dispatchers.IO) {
@@ -737,13 +746,9 @@ object SearchProviderDiscovery {
         )
     }
 
-    suspend fun discoverShortcuts(
-        context: Context,
-        query: String,
-        packageFilter: String? = null,
-    ): List<DiscoveredShortcut> = withContext(Dispatchers.IO) {
+    suspend fun getAllShortcuts(context: Context): List<DiscoveredShortcut> = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
-        val all = if (now - lastShortcutsFetchMs < SHORTCUT_CACHE_TTL_MS && cachedShortcuts.isNotEmpty()) {
+        if (now - lastShortcutsFetchMs < SHORTCUT_CACHE_TTL_MS && cachedShortcuts.isNotEmpty()) {
             cachedShortcuts
         } else {
             val loaded = fetchAllShortcuts(context)
@@ -751,9 +756,17 @@ object SearchProviderDiscovery {
             lastShortcutsFetchMs = now
             loaded
         }
+    }
 
+    fun searchShortcutsIn(
+        context: Context,
+        all: List<DiscoveredShortcut>,
+        query: String,
+        packageFilter: String? = null,
+    ): List<DiscoveredShortcut> {
         val trimmed = query.trim()
-        all.mapNotNull { item ->
+        val rankContext = SearchContextRanker.snapshot(context)
+        return all.mapNotNull { item ->
             val pkgOk = packageFilter == null || item.packageName == packageFilter
             if (!pkgOk) return@mapNotNull null
             if (trimmed.isEmpty()) return@mapNotNull item.copy(score = 1000)
@@ -765,7 +778,11 @@ object SearchProviderDiscovery {
                 tertiary = listOf(item.appName),
             )
             if (score > 0) {
-                item.copy(score = score + SearchUsageTracker.boost(context, SearchUsageTracker.suggestionKey("shortcut", item.id)))
+                item.copy(
+                    score = score +
+                        SearchUsageTracker.boost(context, SearchUsageTracker.suggestionKey("shortcut", item.id)) +
+                        SearchContextRanker.boostForShortcut(rankContext, item.packageName),
+                )
             } else {
                 null
             }
@@ -774,6 +791,13 @@ object SearchProviderDiscovery {
                 .thenBy { it.shortLabel.lowercase(Locale.getDefault()) },
         ).take(12)
     }
+
+    suspend fun discoverShortcuts(
+        context: Context,
+        query: String,
+        packageFilter: String? = null,
+    ): List<DiscoveredShortcut> =
+        searchShortcutsIn(context, getAllShortcuts(context), query, packageFilter)
 
     private fun fetchAllShortcuts(context: Context): List<DiscoveredShortcut> {
         val pm = context.packageManager
@@ -944,20 +968,19 @@ object SearchProviderDiscovery {
         return false
     }
 
-    suspend fun discoverAppFunctions(
-        context: Context,
-        query: String,
-    ): List<AppFunctionItem> = withContext(Dispatchers.IO) {
+    suspend fun indexAppFunctions(context: Context): List<AppFunctionItem> = withContext(Dispatchers.IO) {
         if (!AppFunctionAvailabilityManager.isSupported(context)) return@withContext emptyList()
-        val q = query.trim().lowercase(Locale.getDefault())
-        if (q.length < 2) return@withContext emptyList()
+        val now = System.currentTimeMillis()
+        if (now - lastAppFunctionsFetchMs < APP_FUNCTION_CACHE_TTL_MS && cachedAppFunctions.isNotEmpty()) {
+            return@withContext cachedAppFunctions
+        }
 
         val pm = context.packageManager
         val services = runCatching {
             pm.queryIntentServices(Intent(ACTION_APP_FUNCTION_SERVICE), PackageManager.MATCH_ALL)
         }.getOrDefault(emptyList())
 
-        services.mapNotNull { ri ->
+        val loaded = services.mapNotNull { ri ->
             val si = ri.serviceInfo ?: return@mapNotNull null
             val pkg = si.packageName ?: return@mapNotNull null
             val appName = runCatching {
@@ -965,15 +988,6 @@ object SearchProviderDiscovery {
             }.getOrDefault(pkg)
             val svcLabel = runCatching { ri.loadLabel(pm).toString() }.getOrDefault("App Function")
             val finalLabel = svcLabel.ifBlank { "App Function" }
-            val score = FuzzySearchUtil.scoreFields(
-                query = query.trim(),
-                primary = finalLabel,
-                secondary = listOf(appName),
-            )
-            if (score <= 0) {
-                return@mapNotNull null
-            }
-
             AppFunctionItem(
                 id = "appfn:$pkg:${si.name}",
                 packageName = pkg,
@@ -981,12 +995,46 @@ object SearchProviderDiscovery {
                 functionLabel = finalLabel,
                 icon = loadAppIcon(pm, pkg),
                 launchIntent = pm.getLaunchIntentForPackage(pkg),
-                score = score,
+                score = 0,
             )
         }.distinctBy { it.id }
-            .sortedByDescending { it.score }
+        cachedAppFunctions = loaded
+        lastAppFunctionsFetchMs = now
+        loaded
+    }
+
+    fun searchAppFunctionsIn(
+        context: Context,
+        functions: List<AppFunctionItem>,
+        query: String,
+    ): List<AppFunctionItem> {
+        val trimmed = query.trim()
+        if (trimmed.length < 2) return emptyList()
+        return functions.mapNotNull { item ->
+            val baseScore = FuzzySearchUtil.scoreFields(
+                query = trimmed,
+                primary = item.functionLabel,
+                secondary = listOf(item.appName),
+            )
+            if (baseScore <= 0) {
+                null
+            } else {
+                item.copy(
+                    score = baseScore + SearchUsageTracker.boost(
+                        context,
+                        SearchUsageTracker.suggestionKey("app_function", item.id),
+                    ),
+                )
+            }
+        }.sortedByDescending { it.score }
             .take(5)
     }
+
+    suspend fun discoverAppFunctions(
+        context: Context,
+        query: String,
+    ): List<AppFunctionItem> =
+        searchAppFunctionsIn(context, indexAppFunctions(context), query)
 
     suspend fun resolveEntities(
         context: Context,
@@ -1024,7 +1072,9 @@ object SearchProviderDiscovery {
             val mapIntent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=${Uri.encode(clean)}")).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            val finalScore = if (matchedVerb != null) (score + 120).coerceAtMost(1000) else score
+            val baseScore = if (matchedVerb != null) (score + 120).coerceAtMost(1000) else score
+            val finalScore = baseScore +
+                SearchContextRanker.boostForNavigation(SearchContextRanker.snapshot(context))
             results.add(
                 EntityRouteItem(
                     id = id,

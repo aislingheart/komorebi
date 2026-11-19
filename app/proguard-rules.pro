@@ -76,6 +76,10 @@
 -keep class com.sameerasw.essentials.search.** { *; }
 -keepclassmembers class com.sameerasw.essentials.search.** { *; }
 
+# Assistant repositories & Gson-serialized data models (memories, routines, tasks, tool specs)
+-keep class com.sameerasw.essentials.assistant.** { *; }
+-keepclassmembers class com.sameerasw.essentials.assistant.** { *; }
+
 # Optional compression/optional runtime codecs referenced by commons-compress / quickjs / litert / mlkit
 -dontwarn org.tukaani.xz.**
 -dontwarn com.github.luben.zstd.**

@@ -120,7 +120,10 @@ fun FeatureSettingsScreen(
     }
 
     // Initialize synchronously so settingsRepository is ready before first composition
-    remember(context) { viewModel.check(context) }
+    remember(context) {
+        viewModel.check(context)
+        true
+    }
 
     val isPitchBlackThemeEnabled by viewModel.isPitchBlackThemeEnabled
     val pinnedFeatureKeys by viewModel.pinnedFeatureKeys

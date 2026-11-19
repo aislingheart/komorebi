@@ -5,7 +5,9 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -770,11 +772,35 @@ private fun BusTimesOverlay(reachabilityLayout: Boolean) {
     var error by remember { mutableStateOf<String?>(null) }
     var refreshKey by remember { mutableIntStateOf(0) }
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions(),
-    ) { result ->
-        hasPermission = result.values.any { it } || hasLocationPermission(context)
-        if (hasPermission) refreshKey++
+    val registryOwner = LocalActivityResultRegistryOwner.current
+    val requestLocationPermissions: () -> Unit = if (registryOwner != null) {
+        val permissionLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions(),
+        ) { result ->
+            hasPermission = result.values.any { it } || hasLocationPermission(context)
+            if (hasPermission) refreshKey++
+        }
+        val launchPermissions: () -> Unit = {
+            permissionLauncher.launch(
+                arrayOf(
+                    android.Manifest.permission.ACCESS_COARSE_LOCATION,
+                    android.Manifest.permission.ACCESS_FINE_LOCATION,
+                ),
+            )
+        }
+        launchPermissions
+    } else {
+        val openAppSettings: () -> Unit = {
+            runCatching {
+                context.startActivity(
+                    Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.fromParts("package", context.packageName, null),
+                    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            }
+        }
+        openAppSettings
     }
 
     LaunchedEffect(hasPermission, refreshKey) {
@@ -837,14 +863,7 @@ private fun BusTimesOverlay(reachabilityLayout: Boolean) {
                     subtitle = "Komorebi uses your approximate location to find nearby bus stops. No accessibility service is used.",
                 )
                 Button(
-                    onClick = {
-                        permissionLauncher.launch(
-                            arrayOf(
-                                android.Manifest.permission.ACCESS_COARSE_LOCATION,
-                                android.Manifest.permission.ACCESS_FINE_LOCATION,
-                            ),
-                        )
-                    },
+                    onClick = requestLocationPermissions,
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Allow location") }
             }

@@ -37,7 +37,8 @@ object BluetoothPairedDevicesUtil {
         return devices
             .map { device ->
                 PairedDevice(
-                    name = device.alias ?: device.name ?: device.address,
+                    name = (if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) device.alias else null)
+                        ?: device.name ?: device.address,
                     address = device.address,
                 )
             }.sortedBy { it.name.lowercase() }

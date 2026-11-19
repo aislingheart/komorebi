@@ -18,12 +18,28 @@ import com.sameerasw.essentials.data.repository.SettingsRepository
 class SettingsExternalHandler : ExternalHandler {
     override val path: String = "settings"
 
+    internal fun isSensitiveKey(key: String): Boolean {
+        val lower = key.lowercase()
+        return key == SettingsRepository.KEY_EXTERNAL_CONTROL_TOKEN ||
+            lower.contains("token") ||
+            lower.contains("secret") ||
+            lower.contains("password") ||
+            lower.contains("api_key") ||
+            lower.contains("apikey") ||
+            lower.contains("credential") ||
+            lower.contains("oauth") ||
+            lower == "pat" ||
+            lower.contains("_pat") ||
+            lower.startsWith("pat_")
+    }
+
     override fun onQuery(
         context: Context,
         remainingPath: String,
         extras: Bundle?,
     ): Cursor? {
         val key = remainingPath
+        if (key.isBlank() || isSensitiveKey(key)) return null
         val prefs =
             context.getSharedPreferences(SettingsRepository.PREFS_NAME, Context.MODE_PRIVATE)
         if (!prefs.contains(key)) return null
@@ -41,6 +57,7 @@ class SettingsExternalHandler : ExternalHandler {
         extras: Bundle?,
     ): Boolean {
         val key = remainingPath
+        if (key.isBlank() || isSensitiveKey(key)) return false
         val prefs =
             context.getSharedPreferences(SettingsRepository.PREFS_NAME, Context.MODE_PRIVATE)
         if (!prefs.contains(key)) return false
@@ -50,14 +67,28 @@ class SettingsExternalHandler : ExternalHandler {
 
         return try {
             when (currentValue) {
-                is Boolean -> repository.putBoolean(key, value?.toBoolean() ?: false)
-                is String -> repository.putString(key, value)
-                is Int -> repository.putInt(key, value?.toInt() ?: 0)
-                is Float -> repository.putFloat(key, value?.toFloat() ?: 0f)
-                is Long -> repository.putLong(key, value?.toLong() ?: 0L)
+                is Boolean -> {
+                    repository.putBoolean(key, value?.toBoolean() ?: false)
+                    true
+                }
+                is String -> {
+                    repository.putString(key, value)
+                    true
+                }
+                is Int -> {
+                    repository.putInt(key, value?.toInt() ?: 0)
+                    true
+                }
+                is Float -> {
+                    repository.putFloat(key, value?.toFloat() ?: 0f)
+                    true
+                }
+                is Long -> {
+                    repository.putLong(key, value?.toLong() ?: 0L)
+                    true
+                }
                 else -> false
             }
-            true
         } catch (e: Exception) {
             false
         }
@@ -71,6 +102,7 @@ class SettingsExternalHandler : ExternalHandler {
     ): Bundle? {
         if (action == "toggle") {
             val key = remainingPath
+            if (key.isBlank() || isSensitiveKey(key)) return null
             val prefs =
                 context.getSharedPreferences(SettingsRepository.PREFS_NAME, Context.MODE_PRIVATE)
             val currentValue = prefs.all[key]

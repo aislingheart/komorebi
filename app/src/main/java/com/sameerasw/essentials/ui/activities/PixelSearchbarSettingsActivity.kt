@@ -9,6 +9,8 @@
 
 package com.sameerasw.essentials.ui.activities
 
+import com.sameerasw.essentials.assistant.AssistantTts
+import com.sameerasw.essentials.assistant.ui.AssistantSettingsActivity
 import com.sameerasw.essentials.translation.TranslatableText
 import com.sameerasw.essentials.ui.navigation.ProvideBottomBar
 import com.sameerasw.essentials.ui.navigation.BottomBarSpec
@@ -18,12 +20,12 @@ import android.app.Activity
 import android.content.Context
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,18 +37,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -61,10 +57,8 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.res.painterResource
+import androidx.core.app.NotificationManagerCompat
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.Font
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sameerasw.essentials.R
@@ -75,7 +69,6 @@ import com.sameerasw.essentials.ui.components.menus.SegmentedDropdownMenuItem
 import com.sameerasw.essentials.ui.core.cards.ConfigPickerItem
 import com.sameerasw.essentials.ui.core.cards.IconToggleItem
 import com.sameerasw.essentials.ui.core.containers.RoundedCardContainer
-import com.sameerasw.essentials.ui.core.pickers.SegmentedPicker
 import com.sameerasw.essentials.ui.core.sheets.FeatureHelpBottomSheet
 import com.sameerasw.essentials.ui.core.sheets.PermissionsBottomSheet
 import com.sameerasw.essentials.ui.core.sheets.ShakeForHelp
@@ -103,7 +96,10 @@ fun PixelSearchbarSettingsScreen(onBack: () -> Unit) {
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    remember(context) { viewModel.check(context) }
+    remember(context) {
+        viewModel.check(context)
+        true
+    }
 
     val isPitchBlackThemeEnabled by viewModel.isPitchBlackThemeEnabled
     var showHelpSheet by remember { mutableStateOf(false) }
@@ -117,25 +113,23 @@ fun PixelSearchbarSettingsScreen(onBack: () -> Unit) {
                 category = R.string.cat_display,
                 description = R.string.feat_pixel_searchbar_desc,
                 aboutDescription = R.string.about_desc_pixel_searchbar,
-                permissionKeys = listOf("WRITE_SECURE_SETTINGS"),
-                showToggle = true,
+                showToggle = false,
                 hasMoreSettings = true,
             ) {
-                override fun isEnabled(viewModel: MainViewModel) = viewModel.isPixelSearchbarEnabled.value
+                override fun isEnabled(viewModel: MainViewModel) = false
 
                 override fun onToggle(
                     viewModel: MainViewModel,
                     context: Context,
                     enabled: Boolean,
-                ) {
-                    viewModel.setPixelSearchbarEnabled(enabled, context)
-                }
+                ) {}
             }
         }
 
     val isBlurEnabled by viewModel.isBlurEnabled
 
     EssentialsTheme(pitchBlackTheme = isPitchBlackThemeEnabled) {
+        @Suppress("UnusedMaterial3ScaffoldPaddingParameter")
         Scaffold(
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -287,11 +281,11 @@ fun PixelSearchbarSettingsUI(
     var searchOverlayEnabled by remember {
         mutableStateOf(overlayRepository.getPixelSearchOverlayEnabled())
     }
+    var voiceSearchEnabled by remember { mutableStateOf(overlayRepository.isVoiceSearchEnabled()) }
+    var voiceTtsEnabled by remember { mutableStateOf(overlayRepository.isVoiceTtsEnabled()) }
+    var voicePreset by remember { mutableStateOf(overlayRepository.getVoiceTtsPreset()) }
     val view = LocalView.current
-    val isEnabled = viewModel.isPixelSearchbarEnabled.value
-    var showPermissionSheet by remember { mutableStateOf(false) }
     var requestingPermissionKey by remember { mutableStateOf<String?>(null) }
-    val currentType = viewModel.pixelSearchbarType.value
 
     val mediaPermissionLauncher =
         rememberLauncherForActivityResult(
@@ -308,13 +302,25 @@ fun PixelSearchbarSettingsUI(
             viewModel.setPixelSearchResultContactsEnabled(isGranted)
         }
 
-    val options = listOf("searchbar", "empty", "date")
-    val labels =
-        mapOf(
-            "searchbar" to stringResource(R.string.pixel_searchbar_style_searchbar),
-            "empty" to stringResource(R.string.pixel_searchbar_style_empty),
-            "date" to stringResource(R.string.pixel_searchbar_style_date),
-        )
+    var notificationAccessTick by remember { mutableStateOf(0) }
+    val notificationAccessLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.StartActivityForResult(),
+        ) { notificationAccessTick++ }
+    val hasNotificationAccess =
+        remember(context, notificationAccessTick) {
+            NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
+        }
+
+    val assistantRoleLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.StartActivityForResult(),
+        ) {
+            val granted = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+                context.getSystemService(android.app.role.RoleManager::class.java)
+                    ?.isRoleHeld(android.app.role.RoleManager.ROLE_ASSISTANT) == true
+            viewModel.setPixelSearchAssistantEnabled(granted)
+        }
 
     Column(
         modifier =
@@ -323,25 +329,6 @@ fun PixelSearchbarSettingsUI(
                 .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        RoundedCardContainer {
-            IconToggleItem(
-                iconRes = R.drawable.rounded_search_24,
-                title = stringResource(R.string.feat_pixel_searchbar_title),
-                description = stringResource(R.string.feat_pixel_searchbar_desc),
-                isChecked = isEnabled,
-                onCheckedChange = { enabled ->
-                    if (viewModel.isWriteSecureSettingsEnabled.value ||
-                        viewModel.isShizukuPermissionGranted.value ||
-                        viewModel.isRootPermissionGranted.value
-                    ) {
-                        viewModel.setPixelSearchbarEnabled(enabled, context)
-                    } else {
-                        showPermissionSheet = true
-                    }
-                },
-            )
-        }
-
         RoundedCardContainer {
             IconToggleItem(
                 iconRes = R.drawable.rounded_widgets_24,
@@ -405,435 +392,372 @@ fun PixelSearchbarSettingsUI(
             )
         }
 
-        AnimatedVisibility(
-            visible = isEnabled,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+        RoundedCardContainer {
+            IconToggleItem(
+                iconRes = R.drawable.rounded_mic_24,
+                title = "Voice search",
+                description = "Search by speaking, using the system on-device speech recognizer",
+                isChecked = voiceSearchEnabled,
+                onCheckedChange = { checked ->
+                    HapticUtil.performVirtualKeyHaptic(view)
+                    voiceSearchEnabled = checked
+                    overlayRepository.setVoiceSearchEnabled(checked)
+                },
+            )
+            IconToggleItem(
+                iconRes = R.drawable.rounded_record_voice_over_24,
+                title = "Speak assistant responses",
+                description = "Read AI answers aloud after a voice search",
+                isChecked = voiceTtsEnabled,
+                onCheckedChange = { checked ->
+                    HapticUtil.performVirtualKeyHaptic(view)
+                    voiceTtsEnabled = checked
+                    overlayRepository.setVoiceTtsEnabled(checked)
+                    if (!checked) {
+                        com.sameerasw.essentials.assistant.AssistantTts.stop()
+                    }
+                },
+            )
+            val voicePresets = AssistantTts.presets
+            val selectedVoice = voicePresets.firstOrNull { it.id == voicePreset } ?: voicePresets.first()
+            ConfigPickerItem(
+                iconRes = R.drawable.rounded_record_voice_over_24,
+                title = "Voice style",
+                description = "Pitch and speaking-rate presets for spoken responses",
+                selectedValue = selectedVoice.label,
             ) {
-                TranslatableText(
-                    stringResId = R.string.label_replace_with,
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(start = 16.dp, top = 8.dp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-
-                RoundedCardContainer {
-                    SegmentedPicker(
-                        items = options,
-                        selectedItem = currentType,
-                        onItemSelected = { type ->
+                voicePresets.forEach { preset ->
+                    SegmentedDropdownMenuItem(
+                        text = { Text(preset.label) },
+                        onClick = {
                             HapticUtil.performVirtualKeyHaptic(view)
-                            viewModel.setPixelSearchbarType(type, context)
-                        },
-                        labelProvider = { labels[it] ?: it },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-
-                AnimatedVisibility(
-                    visible = currentType == "date",
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    val currentDateFormat = viewModel.pixelSearchbarDateFormat.value
-                    val dateFormats =
-                        listOf(
-                            "EEEE, MMMM d",
-                            "EEEE, MMM d",
-                            "EEE, MMM d",
-                            "EEEE, d MMMM",
-                            "d MMMM",
-                            "MMMM d",
-                            "EEE, d MMM",
-                            "yyyy-MM-dd",
-                            "dd/MM/yyyy",
-                        )
-                    val currentDate = remember { java.util.Date() }
-                    val googleSansFlexRound =
-                        remember { FontFamily(Font(R.font.google_sans_flex_round)) }
-
-                    Column(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(top = 4.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        RoundedCardContainer {
-                            IconToggleItem(
-                                iconRes = R.drawable.rounded_rounded_corner_24,
-                                title = stringResource(R.string.pixel_searchbar_background_pill_title),
-                                description = stringResource(R.string.pixel_searchbar_background_pill_desc),
-                                isChecked = viewModel.pixelSearchbarBackgroundPill.value,
-                                onCheckedChange = { enabled ->
-                                    viewModel.setPixelSearchbarBackgroundPill(enabled, context)
-                                },
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        TranslatableText(
-                            stringResId = R.string.pixel_searchbar_date_format,
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-
-                        RoundedCardContainer(spacing = 2.dp) {
-                            dateFormats.forEach { format ->
-                                val isSelected = currentDateFormat == format
-                                val formattedDate =
-                                    remember(format, currentDate) {
-                                        try {
-                                            java.text
-                                                .SimpleDateFormat(
-                                                    format,
-                                                    java.util.Locale.getDefault(),
-                                                ).format(currentDate)
-                                        } catch (e: Exception) {
-                                            format
-                                        }
-                                    }
-
-                                ListItem(
-                                    onClick = {
-                                        HapticUtil.performVirtualKeyHaptic(view)
-                                        viewModel.setPixelSearchbarDateFormat(format, context)
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    leadingContent = {
-                                        RadioButton(
-                                            selected = isSelected,
-                                            onClick = {
-                                                HapticUtil.performVirtualKeyHaptic(view)
-                                                viewModel.setPixelSearchbarDateFormat(
-                                                    format,
-                                                    context,
-                                                )
-                                            },
-                                        )
-                                    },
-                                    colors =
-                                        ListItemDefaults.colors(
-                                            containerColor = MaterialTheme.colorScheme.surfaceBright,
-                                        ),
-                                ) {
-                                    Text(
-                                        text = formattedDate,
-                                        style =
-                                            MaterialTheme.typography.bodyLarge.copy(
-                                                fontFamily = googleSansFlexRound,
-                                            ),
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                TranslatableText(
-                    stringResId = R.string.pixel_searchbar_tap_action,
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(start = 16.dp, top = 8.dp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-
-                RoundedCardContainer {
-                    val tapActionEnabled = viewModel.pixelSearchbarTapActionEnabled.value
-                    ListItem(
-                        onClick = {},
-                        modifier = Modifier.fillMaxWidth(),
-                        leadingContent = {
-                            Icon(
-                                painter = painterResource(id = R.drawable.rounded_rocket_launch_24),
-                                contentDescription = null,
-                                modifier = Modifier.size(24.dp),
-                                tint =
-                                    if (tapActionEnabled) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                                            alpha = 0.38f,
-                                        )
-                                    },
-                            )
-                        },
-                        trailingContent = {
-                            Switch(
-                                checked = tapActionEnabled,
-                                onCheckedChange = { enabled ->
-                                    HapticUtil.performVirtualKeyHaptic(view)
-                                    viewModel.setPixelSearchbarTapActionEnabled(enabled, context)
-                                },
-                            )
-                        },
-                        supportingContent = {
-                            TranslatableText(
-                                stringResId = R.string.pixel_searchbar_tap_action_enabled_desc,
-                                style = MaterialTheme.typography.labelMedium,
-                                color =
-                                    if (tapActionEnabled) {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                                            alpha = 0.38f,
-                                        )
-                                    },
-                            )
-                        },
-                        colors =
-                            ListItemDefaults.colors(
-                                containerColor = MaterialTheme.colorScheme.surfaceBright,
-                            ),
-                    ) {
-                        TranslatableText(
-                            stringResId = R.string.pixel_searchbar_tap_action_enabled,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color =
-                                if (tapActionEnabled) {
-                                    MaterialTheme.colorScheme.onSurface
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface.copy(
-                                        alpha = 0.38f,
-                                    )
-                                },
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                TranslatableText(
-                    stringResId = R.string.pixel_search_results_title,
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(start = 16.dp, top = 8.dp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-
-                val appsEnabled = viewModel.pixelSearchResultApps.value
-                val mediaEnabled = viewModel.pixelSearchResultMedia.value
-                val filesEnabled = viewModel.pixelSearchResultFiles.value
-                val contactsEnabled = viewModel.pixelSearchResultContacts.value
-                val settingsEnabled = viewModel.pixelSearchResultSettings.value
-                val shortcutsEnabled = viewModel.pixelSearchResultShortcuts.value
-                val webEnabled = viewModel.pixelSearchResultWeb.value
-                val reachabilityEnabled = viewModel.pixelSearchReachability.value
-                val usageRankingEnabled = viewModel.pixelSearchUsageRanking.value
-                val typoToleranceEnabled = viewModel.pixelSearchTypoTolerance.value
-
-                RoundedCardContainer {
-                    IconToggleItem(
-                        iconRes = R.drawable.rounded_apps_24,
-                        title = stringResource(R.string.pixel_search_results_apps_title),
-                        description = stringResource(R.string.pixel_search_results_apps_desc),
-                        isChecked = appsEnabled,
-                        onCheckedChange = { checked ->
-                            HapticUtil.performVirtualKeyHaptic(view)
-                            viewModel.setPixelSearchResultAppsEnabled(checked)
+                            voicePreset = preset.id
+                            overlayRepository.setVoiceTtsPreset(preset.id)
+                            AssistantTts.preview(context, preset.id)
                         },
                     )
-
-                    IconToggleItem(
-                        iconRes = R.drawable.rounded_image_24,
-                        title = stringResource(R.string.pixel_search_results_media_title),
-                        description = stringResource(R.string.pixel_search_results_media_desc),
-                        isChecked = mediaEnabled,
-                        onCheckedChange = { checked ->
-                            HapticUtil.performVirtualKeyHaptic(view)
-                            if (checked) {
-                                val hasMediaPerm = PermissionUtils.hasMediaPermissions(context)
-                                if (!hasMediaPerm) {
-                                    requestingPermissionKey = "MEDIA"
-                                } else {
-                                    viewModel.setPixelSearchResultMediaEnabled(true)
-                                }
-                            } else {
-                                viewModel.setPixelSearchResultMediaEnabled(false)
-                            }
-                        },
-                    )
-
-                    IconToggleItem(
-                        iconRes = R.drawable.rounded_description_24,
-                        title = stringResource(R.string.pixel_search_results_files_title),
-                        description = stringResource(R.string.pixel_search_results_files_desc),
-                        isChecked = filesEnabled,
-                        onCheckedChange = { checked ->
-                            HapticUtil.performVirtualKeyHaptic(view)
-                            if (checked) {
-                                val hasFilesPerm = PermissionUtils.hasManageExternalStoragePermission(context) ||
-                                    PermissionUtils.hasStoragePermission(context) ||
-                                    viewModel.isStoragePermissionGranted.value
-                                if (!hasFilesPerm) {
-                                    requestingPermissionKey = "ALL_FILES"
-                                } else {
-                                    viewModel.setPixelSearchResultFilesEnabled(true)
-                                }
-                            } else {
-                                viewModel.setPixelSearchResultFilesEnabled(false)
-                            }
-                        },
-                    )
-
-                    IconToggleItem(
-                        iconRes = R.drawable.rounded_call_24,
-                        title = stringResource(R.string.pixel_search_results_contacts_title),
-                        description = stringResource(R.string.pixel_search_results_contacts_desc),
-                        isChecked = contactsEnabled,
-                        onCheckedChange = { checked ->
-                            HapticUtil.performVirtualKeyHaptic(view)
-                            if (checked) {
-                                val hasContactsPerm = androidx.core.content.ContextCompat.checkSelfPermission(
-                                    context,
-                                    Manifest.permission.READ_CONTACTS,
-                                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-
-                                if (!hasContactsPerm) {
-                                    requestingPermissionKey = "READ_CONTACTS"
-                                } else {
-                                    viewModel.setPixelSearchResultContactsEnabled(true)
-                                }
-                            } else {
-                                viewModel.setPixelSearchResultContactsEnabled(false)
-                            }
-                        },
-                    )
-
-                    IconToggleItem(
-                        iconRes = R.drawable.rounded_settings_24,
-                        title = stringResource(R.string.pixel_search_results_settings_title),
-                        description = stringResource(R.string.pixel_search_results_settings_desc),
-                        isChecked = settingsEnabled,
-                        onCheckedChange = { checked ->
-                            HapticUtil.performVirtualKeyHaptic(view)
-                            viewModel.setPixelSearchResultSettingsEnabled(checked)
-                        },
-                    )
-
-                    IconToggleItem(
-                        iconRes = R.drawable.rounded_rocket_launch_24,
-                        title = stringResource(R.string.pixel_search_results_shortcuts_title),
-                        description = stringResource(R.string.pixel_search_results_shortcuts_desc),
-                        isChecked = shortcutsEnabled,
-                        onCheckedChange = { checked ->
-                            HapticUtil.performVirtualKeyHaptic(view)
-                            viewModel.setPixelSearchResultShortcutsEnabled(checked)
-                        },
-                    )
-
-                    IconToggleItem(
-                        iconRes = R.drawable.rounded_web_24,
-                        title = stringResource(R.string.pixel_search_results_web_title),
-                        description = stringResource(R.string.pixel_search_results_web_desc),
-                        isChecked = webEnabled,
-                        onCheckedChange = { checked ->
-                            HapticUtil.performVirtualKeyHaptic(view)
-                            viewModel.setPixelSearchResultWebEnabled(checked)
-                        },
-                    )
-
-                    IconToggleItem(
-                        iconRes = R.drawable.rounded_keyboard_24,
-                        title = stringResource(R.string.pixel_search_reachability_title),
-                        description = stringResource(R.string.pixel_search_reachability_desc),
-                        isChecked = reachabilityEnabled,
-                        onCheckedChange = { checked ->
-                            HapticUtil.performVirtualKeyHaptic(view)
-                            viewModel.setPixelSearchReachabilityEnabled(checked)
-                        },
-                    )
-
-                    IconToggleItem(
-                        iconRes = R.drawable.rounded_history_24,
-                        title = stringResource(R.string.pixel_search_usage_ranking_title),
-                        description = stringResource(R.string.pixel_search_usage_ranking_desc),
-                        isChecked = usageRankingEnabled,
-                        onCheckedChange = { checked ->
-                            HapticUtil.performVirtualKeyHaptic(view)
-                            viewModel.setPixelSearchUsageRankingEnabled(checked)
-                        },
-                    )
-
-                    IconToggleItem(
-                        iconRes = R.drawable.rounded_auto_awesome_24,
-                        title = stringResource(R.string.pixel_search_typo_tolerance_title),
-                        description = stringResource(R.string.pixel_search_typo_tolerance_desc),
-                        isChecked = typoToleranceEnabled,
-                        onCheckedChange = { checked ->
-                            HapticUtil.performVirtualKeyHaptic(view)
-                            viewModel.setPixelSearchTypoToleranceEnabled(checked)
-                        },
-                    )
-
-                    val bubblesWebEnabled = viewModel.pixelSearchBubblesWeb.value
-                    val searchEngine = viewModel.pixelSearchEngine.value
-                    val searchEngineOptions = remember {
-                        listOf(
-                            "Google",
-                            "DuckDuckGo",
-                            "Brave Search",
-                            "Startpage",
-                            "Kagi",
-                            "Ecosia",
-                            "Bing",
-                        )
-                    }
-
-                    IconToggleItem(
-                        iconRes = R.drawable.rounded_bubble_24,
-                        title = stringResource(R.string.pixel_search_use_bubbles_title),
-                        description = stringResource(R.string.pixel_search_use_bubbles_desc),
-                        isChecked = bubblesWebEnabled,
-                        onCheckedChange = { checked ->
-                            HapticUtil.performVirtualKeyHaptic(view)
-                            viewModel.setPixelSearchBubblesWebEnabled(checked)
-                        },
-                    )
-
-                    if (bubblesWebEnabled) {
-                        ConfigPickerItem(
-                            iconRes = R.drawable.rounded_search_24,
-                            title = stringResource(R.string.pixel_search_engine_title),
-                            description = stringResource(R.string.pixel_search_engine_desc),
-                            selectedValue = searchEngine,
-                        ) {
-                            searchEngineOptions.forEach { engine ->
-                                SegmentedDropdownMenuItem(
-                                    text = { Text(engine) },
-                                    onClick = {
-                                        HapticUtil.performVirtualKeyHaptic(view)
-                                        viewModel.setPixelSearchEngine(engine)
-                                    },
-                                )
-                            }
-                        }
-                    }
                 }
             }
         }
-    }
 
-    if (showPermissionSheet) {
-        val permissionItem =
-            remember(context, viewModel) {
-                PermissionUIHelper.getPermissionItem(
-                    "WRITE_SECURE_SETTINGS",
-                    context,
-                    viewModel,
+        RoundedCardContainer {
+            ConfigPickerItem(
+                iconRes = R.drawable.rounded_robot_24,
+                title = "AI assistant",
+                description = "Off, Gemini Nano on-device, or bring your own OpenAI-compatible key",
+                selectedValue = "Configure",
+            ) {
+                SegmentedDropdownMenuItem(
+                    text = { Text("Open AI settings") },
+                    onClick = {
+                        HapticUtil.performVirtualKeyHaptic(view)
+                        context.startActivity(AssistantSettingsActivity.intent(context))
+                    },
                 )
             }
-        if (permissionItem != null) {
-            PermissionsBottomSheet(
-                onDismissRequest = { showPermissionSheet = false },
-                featureTitle = "Pixel Searchbar",
-                permissions = listOf(permissionItem),
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        TranslatableText(
+            stringResId = R.string.pixel_search_results_title,
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(start = 16.dp, top = 8.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        val appsEnabled = viewModel.pixelSearchResultApps.value
+        val mediaEnabled = viewModel.pixelSearchResultMedia.value
+        val filesEnabled = viewModel.pixelSearchResultFiles.value
+        val contactsEnabled = viewModel.pixelSearchResultContacts.value
+        val settingsEnabled = viewModel.pixelSearchResultSettings.value
+        val shortcutsEnabled = viewModel.pixelSearchResultShortcuts.value
+        val webEnabled = viewModel.pixelSearchResultWeb.value
+        val reachabilityEnabled = viewModel.pixelSearchReachability.value
+        val usageRankingEnabled = viewModel.pixelSearchUsageRanking.value
+        val typoToleranceEnabled = viewModel.pixelSearchTypoTolerance.value
+        val maxResults = viewModel.pixelSearchMaxResults.value
+        val hideInitialResults = viewModel.pixelSearchHideInitialResults.value
+        val notificationsEnabled = viewModel.pixelSearchResultNotifications.value
+        val assistantEnabled = viewModel.pixelSearchAssistantEnabled.value
+
+        RoundedCardContainer {
+            IconToggleItem(
+                iconRes = R.drawable.rounded_apps_24,
+                title = stringResource(R.string.pixel_search_results_apps_title),
+                description = stringResource(R.string.pixel_search_results_apps_desc),
+                isChecked = appsEnabled,
+                onCheckedChange = { checked ->
+                    HapticUtil.performVirtualKeyHaptic(view)
+                    viewModel.setPixelSearchResultAppsEnabled(checked)
+                },
             )
+
+            IconToggleItem(
+                iconRes = R.drawable.rounded_image_24,
+                title = stringResource(R.string.pixel_search_results_media_title),
+                description = stringResource(R.string.pixel_search_results_media_desc),
+                isChecked = mediaEnabled,
+                onCheckedChange = { checked ->
+                    HapticUtil.performVirtualKeyHaptic(view)
+                    if (checked) {
+                        val hasMediaPerm = PermissionUtils.hasMediaPermissions(context)
+                        if (!hasMediaPerm) {
+                            requestingPermissionKey = "MEDIA"
+                        } else {
+                            viewModel.setPixelSearchResultMediaEnabled(true)
+                        }
+                    } else {
+                        viewModel.setPixelSearchResultMediaEnabled(false)
+                    }
+                },
+            )
+
+            IconToggleItem(
+                iconRes = R.drawable.rounded_description_24,
+                title = stringResource(R.string.pixel_search_results_files_title),
+                description = stringResource(R.string.pixel_search_results_files_desc),
+                isChecked = filesEnabled,
+                onCheckedChange = { checked ->
+                    HapticUtil.performVirtualKeyHaptic(view)
+                    if (checked) {
+                        val hasFilesPerm = PermissionUtils.hasManageExternalStoragePermission(context) ||
+                            PermissionUtils.hasStoragePermission(context) ||
+                            viewModel.isStoragePermissionGranted.value
+                        if (!hasFilesPerm) {
+                            requestingPermissionKey = "ALL_FILES"
+                        } else {
+                            viewModel.setPixelSearchResultFilesEnabled(true)
+                        }
+                    } else {
+                        viewModel.setPixelSearchResultFilesEnabled(false)
+                    }
+                },
+            )
+
+            IconToggleItem(
+                iconRes = R.drawable.rounded_call_24,
+                title = stringResource(R.string.pixel_search_results_contacts_title),
+                description = stringResource(R.string.pixel_search_results_contacts_desc),
+                isChecked = contactsEnabled,
+                onCheckedChange = { checked ->
+                    HapticUtil.performVirtualKeyHaptic(view)
+                    if (checked) {
+                        val hasContactsPerm = androidx.core.content.ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.READ_CONTACTS,
+                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+                        if (!hasContactsPerm) {
+                            requestingPermissionKey = "READ_CONTACTS"
+                        } else {
+                            viewModel.setPixelSearchResultContactsEnabled(true)
+                        }
+                    } else {
+                        viewModel.setPixelSearchResultContactsEnabled(false)
+                    }
+                },
+            )
+
+            IconToggleItem(
+                iconRes = R.drawable.rounded_settings_24,
+                title = stringResource(R.string.pixel_search_results_settings_title),
+                description = stringResource(R.string.pixel_search_results_settings_desc),
+                isChecked = settingsEnabled,
+                onCheckedChange = { checked ->
+                    HapticUtil.performVirtualKeyHaptic(view)
+                    viewModel.setPixelSearchResultSettingsEnabled(checked)
+                },
+            )
+
+            IconToggleItem(
+                iconRes = R.drawable.rounded_rocket_launch_24,
+                title = stringResource(R.string.pixel_search_results_shortcuts_title),
+                description = stringResource(R.string.pixel_search_results_shortcuts_desc),
+                isChecked = shortcutsEnabled,
+                onCheckedChange = { checked ->
+                    HapticUtil.performVirtualKeyHaptic(view)
+                    viewModel.setPixelSearchResultShortcutsEnabled(checked)
+                },
+            )
+
+            IconToggleItem(
+                iconRes = R.drawable.rounded_web_24,
+                title = stringResource(R.string.pixel_search_results_web_title),
+                description = stringResource(R.string.pixel_search_results_web_desc),
+                isChecked = webEnabled,
+                onCheckedChange = { checked ->
+                    HapticUtil.performVirtualKeyHaptic(view)
+                    viewModel.setPixelSearchResultWebEnabled(checked)
+                },
+            )
+
+            IconToggleItem(
+                iconRes = R.drawable.rounded_notifications_24,
+                title = "Search active notifications",
+                description = if (hasNotificationAccess) {
+                    "Include notification titles and text in search results"
+                } else {
+                    "Grant notification access to search active notifications"
+                },
+                isChecked = notificationsEnabled && hasNotificationAccess,
+                onCheckedChange = { checked ->
+                    HapticUtil.performVirtualKeyHaptic(view)
+                    if (checked) {
+                        if (hasNotificationAccess) {
+                            viewModel.setPixelSearchResultNotificationsEnabled(true)
+                        } else {
+                            notificationAccessLauncher.launch(
+                                android.content.Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS),
+                            )
+                        }
+                    } else {
+                        viewModel.setPixelSearchResultNotificationsEnabled(false)
+                    }
+                },
+            )
+
+            IconToggleItem(
+                iconRes = R.drawable.rounded_robot_24,
+                title = "Use Komorebi as assistant",
+                description = "Let the system launch Komorebi search as your assistant app",
+                isChecked = assistantEnabled,
+                onCheckedChange = { checked ->
+                    HapticUtil.performVirtualKeyHaptic(view)
+                    if (!checked) {
+                        viewModel.setPixelSearchAssistantEnabled(false)
+                        return@IconToggleItem
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        val roleManager = context.getSystemService(android.app.role.RoleManager::class.java)
+                        if (roleManager?.isRoleAvailable(android.app.role.RoleManager.ROLE_ASSISTANT) == true) {
+                            if (roleManager.isRoleHeld(android.app.role.RoleManager.ROLE_ASSISTANT)) {
+                                viewModel.setPixelSearchAssistantEnabled(true)
+                            } else {
+                                assistantRoleLauncher.launch(
+                                    roleManager.createRequestRoleIntent(
+                                        android.app.role.RoleManager.ROLE_ASSISTANT,
+                                    ),
+                                )
+                            }
+                        } else {
+                            context.startActivity(
+                                android.content.Intent(Settings.ACTION_VOICE_INPUT_SETTINGS),
+                            )
+                        }
+                    } else {
+                        context.startActivity(
+                            android.content.Intent(Settings.ACTION_VOICE_INPUT_SETTINGS),
+                        )
+                    }
+                },
+            )
+
+            IconToggleItem(
+                iconRes = R.drawable.rounded_keyboard_24,
+                title = stringResource(R.string.pixel_search_reachability_title),
+                description = stringResource(R.string.pixel_search_reachability_desc),
+                isChecked = reachabilityEnabled,
+                onCheckedChange = { checked ->
+                    HapticUtil.performVirtualKeyHaptic(view)
+                    viewModel.setPixelSearchReachabilityEnabled(checked)
+                },
+            )
+
+            IconToggleItem(
+                iconRes = R.drawable.rounded_history_24,
+                title = stringResource(R.string.pixel_search_usage_ranking_title),
+                description = stringResource(R.string.pixel_search_usage_ranking_desc),
+                isChecked = usageRankingEnabled,
+                onCheckedChange = { checked ->
+                    HapticUtil.performVirtualKeyHaptic(view)
+                    viewModel.setPixelSearchUsageRankingEnabled(checked)
+                },
+            )
+
+            IconToggleItem(
+                iconRes = R.drawable.rounded_auto_awesome_24,
+                title = stringResource(R.string.pixel_search_typo_tolerance_title),
+                description = stringResource(R.string.pixel_search_typo_tolerance_desc),
+                isChecked = typoToleranceEnabled,
+                onCheckedChange = { checked ->
+                    HapticUtil.performVirtualKeyHaptic(view)
+                    viewModel.setPixelSearchTypoToleranceEnabled(checked)
+                },
+            )
+
+            IconToggleItem(
+                iconRes = R.drawable.rounded_visibility_off_24,
+                title = "Hide results until typing",
+                description = "Open with an empty list so the first screen stays uncluttered",
+                isChecked = hideInitialResults,
+                onCheckedChange = { checked ->
+                    HapticUtil.performVirtualKeyHaptic(view)
+                    viewModel.setPixelSearchHideInitialResultsEnabled(checked)
+                },
+            )
+
+            val resultLimitOptions = remember { listOf("3", "5", "8", "10", "15", "20", "All") }
+            ConfigPickerItem(
+                iconRes = R.drawable.rounded_view_headline_24,
+                title = "Results per section",
+                description = "Limit how many results each section shows on screen",
+                selectedValue = if (maxResults <= 0) "All" else maxResults.toString(),
+            ) {
+                resultLimitOptions.forEach { label ->
+                    SegmentedDropdownMenuItem(
+                        text = { Text(label) },
+                        onClick = {
+                            HapticUtil.performVirtualKeyHaptic(view)
+                            viewModel.setPixelSearchMaxResults(if (label == "All") 0 else label.toInt())
+                        },
+                    )
+                }
+            }
+
+            val bubblesWebEnabled = viewModel.pixelSearchBubblesWeb.value
+            val searchEngine = viewModel.pixelSearchEngine.value
+            val searchEngineOptions = remember {
+                listOf(
+                    "Google",
+                    "DuckDuckGo",
+                    "Brave Search",
+                    "Startpage",
+                    "Kagi",
+                    "Ecosia",
+                    "Bing",
+                )
+            }
+
+            IconToggleItem(
+                iconRes = R.drawable.rounded_bubble_24,
+                title = stringResource(R.string.pixel_search_use_bubbles_title),
+                description = stringResource(R.string.pixel_search_use_bubbles_desc),
+                isChecked = bubblesWebEnabled,
+                onCheckedChange = { checked ->
+                    HapticUtil.performVirtualKeyHaptic(view)
+                    viewModel.setPixelSearchBubblesWebEnabled(checked)
+                },
+            )
+
+            if (bubblesWebEnabled) {
+                ConfigPickerItem(
+                    iconRes = R.drawable.rounded_search_24,
+                    title = stringResource(R.string.pixel_search_engine_title),
+                    description = stringResource(R.string.pixel_search_engine_desc),
+                    selectedValue = searchEngine,
+                ) {
+                    searchEngineOptions.forEach { engine ->
+                        SegmentedDropdownMenuItem(
+                            text = { Text(engine) },
+                            onClick = {
+                                HapticUtil.performVirtualKeyHaptic(view)
+                                viewModel.setPixelSearchEngine(engine)
+                            },
+                        )
+                    }
+                }
+            }
         }
     }
 

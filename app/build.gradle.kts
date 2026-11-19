@@ -1,4 +1,5 @@
 import java.util.Properties
+import org.gradle.api.tasks.Exec
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -90,8 +91,8 @@ android {
         applicationId = "com.aislingheart.komorebi"
         minSdk = 26
         targetSdk = 37
-        versionCode = 84
-        versionName = "0.5"
+        versionCode = 101
+        versionName = "0.11.3"
 
         val whatsNewCounter = 10
         buildConfigField("int", "WHATS_NEW_COUNTER", whatsNewCounter.toString())
@@ -149,6 +150,15 @@ android {
         jniLibs {
             useLegacyPackaging = true
         }
+    }
+}
+
+configurations.all {
+    resolutionStrategy {
+        force(
+            "androidx.concurrent:concurrent-futures:1.2.0",
+            "androidx.concurrent:concurrent-futures-ktx:1.2.0",
+        )
     }
 }
 
@@ -222,6 +232,7 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
     implementation(libs.mlkit.text.recognition)
+    implementation(libs.androidx.health.connect.client)
     implementation(libs.litert)
     implementation(libs.commons.compress)
 
@@ -231,4 +242,16 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+}
+
+tasks.register<Exec>("deliverReleaseToPixel") {
+    group = "delivery"
+    description = "Installs the release APK on the Pixel 9 Pro over Tailscale (best effort)."
+    workingDir = rootProject.projectDir
+    commandLine("bash", "scripts/send-to-pixel.sh", "app/build/outputs/apk/release/app-release.apk")
+    isIgnoreExitValue = true
+}
+
+tasks.matching { it.name == "assembleRelease" }.configureEach {
+    finalizedBy("deliverReleaseToPixel")
 }

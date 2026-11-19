@@ -1,3 +1,73 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/rounded_search_24"
+        android:shortcutId="search"
+        android:shortcutLongLabel="@string/shortcut_search_long"
+        android:shortcutShortLabel="@string/shortcut_search_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="komorebi://search"
+            android:targetClass="com.sameerasw.essentials.ui.activities.PixelSearchResultsActivity"
+            android:targetPackage="com.aislingheart.komorebi" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/rounded_link_24"
+        android:shortcutId="quicklinks"
+        android:shortcutLongLabel="@string/shortcut_quicklinks_long"
+        android:shortcutShortLabel="@string/shortcut_quicklinks_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="komorebi://tool/QUICKLINKS"
+            android:targetClass="com.sameerasw.essentials.ui.activities.PixelSearchResultsActivity"
+            android:targetPackage="com.aislingheart.komorebi" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/rounded_edit_note_24"
+        android:shortcutId="snippets"
+        android:shortcutLongLabel="@string/shortcut_snippets_long"
+        android:shortcutShortLabel="@string/shortcut_snippets_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="komorebi://tool/SNIPPETS"
+            android:targetClass="com.sameerasw.essentials.ui.activities.PixelSearchResultsActivity"
+            android:targetPackage="com.aislingheart.komorebi" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_clipboard"
+        android:shortcutId="clipboard"
+        android:shortcutLongLabel="@string/shortcut_clipboard_long"
+        android:shortcutShortLabel="@string/shortcut_clipboard_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="komorebi://tool/CLIPBOARD_HISTORY"
+            android:targetClass="com.sameerasw.essentials.ui.activities.PixelSearchResultsActivity"
+            android:targetPackage="com.aislingheart.komorebi" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/rounded_settings_24"
+        android:shortcutId="search_settings"
+        android:shortcutLongLabel="@string/shortcut_settings_long"
+        android:shortcutShortLabel="@string/shortcut_settings_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="com.sameerasw.essentials.ui.activities.PixelSearchbarSettingsActivity"
+            android:targetPackage="com.aislingheart.komorebi" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/rounded_extension_24"
+        android:shortcutId="extensions"
+        android:shortcutLongLabel="@string/shortcut_extensions_long"
+        android:shortcutShortLabel="@string/shortcut_extensions_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="com.sameerasw.essentials.ui.activities.ExtensionsActivity"
+            android:targetPackage="com.aislingheart.komorebi" />
+    </shortcut>
 </shortcuts>

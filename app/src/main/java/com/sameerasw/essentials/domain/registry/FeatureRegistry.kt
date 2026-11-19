@@ -54,33 +54,23 @@ object FeatureRegistry {
         listOf(
             object : Feature(
                 id = "Pixel Searchbar",
-                title = R.string.feat_pixel_searchbar_title,
+                title = R.string.pixel_searchbar_settings_title,
                 iconRes = R.drawable.rounded_search_24,
                 category = R.string.cat_interface,
                 description = R.string.feat_pixel_searchbar_desc,
                 aboutDescription = R.string.about_desc_pixel_searchbar,
-                permissionKeys = listOf("WRITE_SECURE_SETTINGS"),
-                showToggle = true,
+                showToggle = false,
                 hasMoreSettings = true,
                 isBeta = true,
                 animationRes = R.raw.searchbar_motion,
             ) {
-                override fun isEnabled(viewModel: MainViewModel) = viewModel.isPixelSearchbarEnabled.value
-
-                override fun isToggleEnabled(
-                    viewModel: MainViewModel,
-                    context: Context,
-                ) = viewModel.isWriteSecureSettingsEnabled.value ||
-                    viewModel.isShizukuPermissionGranted.value ||
-                    viewModel.isRootPermissionGranted.value
+                override fun isEnabled(viewModel: MainViewModel) = false
 
                 override fun onToggle(
                     viewModel: MainViewModel,
                     context: Context,
                     enabled: Boolean,
-                ) {
-                    viewModel.setPixelSearchbarEnabled(enabled, context)
-                }
+                ) {}
 
                 override fun onClick(
                     context: Context,

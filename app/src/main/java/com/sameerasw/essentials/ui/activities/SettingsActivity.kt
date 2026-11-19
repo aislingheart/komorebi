@@ -169,7 +169,10 @@ class SettingsActivity : AppCompatActivity() {
                 lifecycleOwner.lifecycle.addObserver(observer)
                 onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
             }
-            remember(context) { viewModel.check(context) }
+            remember(context) {
+                viewModel.check(context)
+                true
+            }
             val isPitchBlackThemeEnabled by viewModel.isPitchBlackThemeEnabled
             EssentialsTheme(pitchBlackTheme = isPitchBlackThemeEnabled) {
                 Box(
@@ -243,6 +246,8 @@ fun SettingsContent(
     var showUpdateSheet by remember { mutableStateOf(false) }
     val updateInfo by viewModel.updateInfo
     val isUpdateAvailable by viewModel.isUpdateAvailable
+    val updateCheckError by viewModel.updateCheckError
+    val updateCheckCompleted by viewModel.updateCheckCompleted
 
     LaunchedEffect(Unit) {
         viewModel.checkForUpdates(context, manual = false)
@@ -376,6 +381,9 @@ fun SettingsContent(
         UpdateBottomSheet(
             updateInfo = updateInfo,
             isChecking = viewModel.isCheckingUpdate.value,
+            updateCheckError = updateCheckError,
+            updateCheckCompleted = updateCheckCompleted,
+            onRetry = { viewModel.checkForUpdates(context, manual = true) },
             onDismissRequest = { showUpdateSheet = false },
         )
     }

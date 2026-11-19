@@ -57,8 +57,15 @@ object CliBridge {
             }
 
             "pbpaste" -> {
-                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                val text = cm.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString().orEmpty()
+                val text = runCatching {
+                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                    val clip = cm?.primaryClip
+                    if (clip != null && clip.itemCount > 0) {
+                        clip.getItemAt(0)?.coerceToText(context)?.toString().orEmpty()
+                    } else {
+                        ""
+                    }
+                }.getOrDefault("")
                 return CliResult(text, "", 0)
             }
         }
@@ -76,13 +83,26 @@ object CliBridge {
             return CliResult("", it.message ?: "Unable to start shell", 1)
         }
 
+        val maxOutputChars = 512 * 1024
         val stdout = StringBuilder()
         val stderr = StringBuilder()
         val outThread = Thread {
-            runCatching { process.inputStream.bufferedReader().forEachLine { stdout.appendLine(it) } }
+            runCatching {
+                process.inputStream.bufferedReader().forEachLine { line ->
+                    if (stdout.length < maxOutputChars) {
+                        stdout.appendLine(line.take(maxOutputChars - stdout.length))
+                    }
+                }
+            }
         }
         val errThread = Thread {
-            runCatching { process.errorStream.bufferedReader().forEachLine { stderr.appendLine(it) } }
+            runCatching {
+                process.errorStream.bufferedReader().forEachLine { line ->
+                    if (stderr.length < maxOutputChars) {
+                        stderr.appendLine(line.take(maxOutputChars - stderr.length))
+                    }
+                }
+            }
         }
         outThread.start()
         errThread.start()

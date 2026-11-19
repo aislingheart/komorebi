@@ -186,6 +186,8 @@ class SignalPlugin : BaseIslandPlugin() {
             @Suppress("DEPRECATION")
             manager.networkType
         }
+    } catch (_: SecurityException) {
+        TelephonyManager.NETWORK_TYPE_UNKNOWN
     } catch (_: Exception) {
         TelephonyManager.NETWORK_TYPE_UNKNOWN
     }

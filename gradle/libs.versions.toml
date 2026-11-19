@@ -62,6 +62,7 @@ okhttp = "5.5.1"
 browser = "1.10.0"
 room = "2.8.5"
 mlkitTextRecognition = "16.0.1"
+healthConnect = "1.1.0"
 litert = "2.3.2"
 commonsCompress = "1.28.0"
 
@@ -69,6 +70,7 @@ commonsCompress = "1.28.0"
 androidx-car-app = { module = "androidx.car.app:app", version.ref = "carApp" }
 androidx-appfunctions = { module = "androidx.appfunctions:appfunctions", version.ref = "appfunctions" }
 androidx-appfunctions-compiler = { module = "androidx.appfunctions:appfunctions-compiler", version.ref = "appfunctions" }
+androidx-health-connect-client = { module = "androidx.health.connect:connect-client", version.ref = "healthConnect" }
 
 
 mlkit-genai-prompt = { module = "com.google.mlkit:genai-prompt", version.ref = "mlkitGenaiPrompt" }

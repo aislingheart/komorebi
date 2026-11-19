@@ -16,6 +16,7 @@ import eu.darken.porter.bridge.PorterShizukuBridge
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 
 class EssentialsApp : Application() {
@@ -23,6 +24,8 @@ class EssentialsApp : Application() {
         lateinit var context: Context
             private set
     }
+
+    private val initScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()
@@ -34,43 +37,37 @@ class EssentialsApp : Application() {
         } catch (e: Exception) {
         }
 
-        try {
-            HiddenApiBypass.setHiddenApiExemptions("")
-        } catch (_: Throwable) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            try {
+                HiddenApiBypass.setHiddenApiExemptions("")
+            } catch (_: Throwable) {
+            }
         }
 
-        runCatching {
-            PorterShizukuBridge.start(CoroutineScope(SupervisorJob() + Dispatchers.Default))
-        }.onFailure {
-            android.util.Log.e("EssentialsApp", "Porter bridge failed to start", it)
+        initScope.launch {
+            runCatching {
+                PorterShizukuBridge.start(initScope)
+            }.onFailure {
+                android.util.Log.e("EssentialsApp", "Porter bridge failed to start", it)
+            }
+
+            runCatching { ShizukuUtils.initialize() }
+                .onFailure { android.util.Log.e("EssentialsApp", "Shizuku init failed", it) }
+
+            runCatching { com.sameerasw.essentials.utils.LogManager.init(applicationContext) }
+                .onFailure { android.util.Log.e("EssentialsApp", "LogManager init failed", it) }
+
+            runCatching { com.sameerasw.essentials.services.CalendarSyncManager.init(applicationContext) }
+                .onFailure { android.util.Log.e("EssentialsApp", "Calendar sync init failed", it) }
+
+            runCatching { com.sameerasw.essentials.utils.ServiceUtils.startRequiredServices(applicationContext) }
+                .onFailure { android.util.Log.e("EssentialsApp", "Service startup failed", it) }
+
+            runCatching { com.sameerasw.essentials.appfunctions.AppFunctionAvailabilityManager.updateAvailability(applicationContext) }
+                .onFailure { android.util.Log.e("EssentialsApp", "App function init failed", it) }
+
+            runCatching { com.sameerasw.essentials.launcher.ClipboardHistoryManager.startObserving(applicationContext) }
+                .onFailure { android.util.Log.e("EssentialsApp", "Clipboard observer init failed", it) }
         }
-
-        runCatching { ShizukuUtils.initialize() }
-            .onFailure { android.util.Log.e("EssentialsApp", "Shizuku init failed", it) }
-
-        runCatching {
-            com.sameerasw.essentials.utils.LogManager
-                .init(this)
-        }.onFailure { android.util.Log.e("EssentialsApp", "LogManager init failed", it) }
-
-        runCatching {
-            com.sameerasw.essentials.services.CalendarSyncManager
-                .init(this)
-        }.onFailure { android.util.Log.e("EssentialsApp", "Calendar sync init failed", it) }
-
-        runCatching {
-            com.sameerasw.essentials.utils.ServiceUtils
-                .startRequiredServices(this)
-        }.onFailure { android.util.Log.e("EssentialsApp", "Service startup failed", it) }
-
-        runCatching {
-            com.sameerasw.essentials.appfunctions.AppFunctionAvailabilityManager
-                .updateAvailability(this)
-        }.onFailure { android.util.Log.e("EssentialsApp", "App function init failed", it) }
-
-        runCatching {
-            com.sameerasw.essentials.launcher.ClipboardHistoryManager
-                .startObserving(this)
-        }.onFailure { android.util.Log.e("EssentialsApp", "Clipboard observer init failed", it) }
     }
 }

@@ -51,8 +51,9 @@ class AppUpdateWorker(
                     false,
                 )
 
-            val updateInfo =
-                updateRepository.checkForUpdates(context, isPreReleaseEnabled, currentVersion)
+            val updateInfo = updateRepository
+                .checkForUpdatesWithStatus(context, isPreReleaseEnabled, currentVersion)
+                .getOrNull()
 
             if (updateInfo != null) {
                 MainViewModel.cachedIsUpdateAvailable = updateInfo.isUpdateAvailable
@@ -77,9 +78,11 @@ class AppUpdateWorker(
                     SettingsRepository.KEY_LAST_UPDATE_CHECK_TIME,
                     System.currentTimeMillis(),
                 )
+                Result.success()
+            } else {
+                Log.w(TAG, "Periodic update check failed: ${updateRepository.lastError}")
+                if (runAttemptCount < 3) Result.retry() else Result.success()
             }
-
-            Result.success()
         } catch (e: Exception) {
             Log.e(TAG, "Error during periodic update check", e)
             if (runAttemptCount < 3) Result.retry() else Result.failure()

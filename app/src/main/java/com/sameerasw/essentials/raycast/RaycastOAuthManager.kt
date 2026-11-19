@@ -18,17 +18,27 @@ object RaycastOAuthManager {
         pendingAuth?.cancel()
         pendingAuth = deferred
 
-        withContext(Dispatchers.Main) {
+        val launched = withContext(Dispatchers.Main) {
             runCatching {
                 val customTabs = CustomTabsIntent.Builder().setShowTitle(true).build()
                 customTabs.intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 customTabs.launchUrl(context, Uri.parse(authUrl))
-            }.onFailure {
-                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(authUrl)).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(browserIntent)
+                true
+            }.getOrElse {
+                runCatching {
+                    val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(authUrl)).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(browserIntent)
+                    true
+                }.getOrDefault(false)
             }
+        }
+
+        if (!launched) {
+            pendingAuth = null
+            deferred.cancel()
+            return mapOf("error" to "no_browser_available")
         }
 
         return withTimeoutOrNull(180_000L) { deferred.await() } ?: emptyMap()

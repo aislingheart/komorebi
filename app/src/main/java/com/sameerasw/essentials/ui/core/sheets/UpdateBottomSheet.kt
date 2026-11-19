@@ -72,6 +72,9 @@ import java.net.URL
 fun UpdateBottomSheet(
     updateInfo: UpdateInfo?,
     isChecking: Boolean,
+    updateCheckError: String? = null,
+    updateCheckCompleted: Boolean = false,
+    onRetry: () -> Unit = {},
     onDismissRequest: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState()
@@ -110,7 +113,7 @@ fun UpdateBottomSheet(
                     .fillMaxWidth(),
             contentAlignment = Alignment.TopCenter,
         ) {
-            if (isChecking || updateInfo == null) {
+            if (isChecking) {
                 androidx.compose.foundation.layout.Box(
                     modifier =
                         Modifier
@@ -119,6 +122,53 @@ fun UpdateBottomSheet(
                     contentAlignment = Alignment.Center,
                 ) {
                     LoadingIndicator()
+                }
+            } else if (updateInfo == null) {
+                if (updateCheckCompleted) {
+                    Column(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Icon(
+                            painter =
+                                painterResource(
+                                    id = if (updateCheckError != null) R.drawable.rounded_warning_24 else R.drawable.rounded_mobile_check_24,
+                                ),
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp),
+                            tint = if (updateCheckError != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary,
+                        )
+
+                        Text(
+                            text = updateCheckError ?: stringResource(R.string.status_up_to_date),
+                            style = MaterialTheme.typography.bodyLarge,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        )
+
+                        OutlinedButton(
+                            onClick = {
+                                HapticUtil.performUIHaptic(view)
+                                onRetry()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            TranslatableText(R.string.action_retry)
+                        }
+                    }
+                } else {
+                    androidx.compose.foundation.layout.Box(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .height(240.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        LoadingIndicator()
+                    }
                 }
             } else {
                 Column(

@@ -7,6 +7,7 @@ import android.content.Intent
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.os.Build
+import android.provider.AlarmClock
 import android.provider.Settings
 import android.widget.Toast
 import androidx.core.content.ContextCompat
@@ -131,6 +132,17 @@ object BuiltInLauncherTools {
             onExecute = {},
         ),
         BuiltInLauncherAction(
+            id = "show_qr_code",
+            title = "Show QR Code",
+            subtitle = "Display the clipboard (or query) as a scannable QR code",
+            badge = "Tool",
+            iconRes = R.drawable.rounded_qr_code_24,
+            keywords = listOf("qr", "qr code", "barcode", "show qr", "generate qr"),
+            opensModal = null,
+            closesSearch = false,
+            onExecute = {},
+        ),
+        BuiltInLauncherAction(
             id = "generate_uuid",
             title = "Generate UUID v4",
             subtitle = "Create and copy a random UUID v4",
@@ -171,6 +183,78 @@ object BuiltInLauncherTools {
                 val now = Instant.now()
                 val iso = now.toString()
                 copyAndToast(ctx, "Timestamp", iso, "Copied $iso (${now.epochSecond})")
+            },
+        ),
+        BuiltInLauncherAction(
+            id = "open_clock",
+            title = "Open Clock",
+            subtitle = "Open your device's Clock app",
+            badge = "Clock",
+            iconRes = R.drawable.rounded_schedule_24,
+            keywords = listOf("clock", "time", "open clock", "show clock", "view clock", "world clock", "clock app"),
+            opensModal = null,
+            closesSearch = true,
+            onExecute = { ctx ->
+                ClockIntentLauncher.openClockApp(
+                    ctx,
+                    failureToast = "No Clock app found",
+                )
+            },
+        ),
+        BuiltInLauncherAction(
+            id = "open_alarms",
+            title = "Open Alarms",
+            subtitle = "Show alarms in the Clock app",
+            badge = "Clock",
+            iconRes = R.drawable.rounded_alarm_24,
+            keywords = listOf(
+                "alarm", "alarms", "open alarms", "show alarms", "view alarms",
+                "wake me", "wake me up", "wake up", "clock",
+            ),
+            opensModal = null,
+            closesSearch = true,
+            onExecute = { ctx ->
+                ClockIntentLauncher.launch(
+                    ctx,
+                    Intent(AlarmClock.ACTION_SHOW_ALARMS),
+                    failureToast = "No alarms app found",
+                )
+            },
+        ),
+        BuiltInLauncherAction(
+            id = "open_timers",
+            title = "Open Timers",
+            subtitle = "Show active timers in the Clock app",
+            badge = "Clock",
+            iconRes = R.drawable.rounded_timer_24,
+            keywords = listOf(
+                "timer", "timers", "open timers", "show timers", "view timers",
+                "active timers", "clock", "countdown",
+            ),
+            opensModal = null,
+            closesSearch = true,
+            onExecute = { ctx ->
+                ClockIntentLauncher.launch(
+                    ctx,
+                    Intent(AlarmClock.ACTION_SHOW_TIMERS),
+                    failureToast = "No timer app found",
+                )
+            },
+        ),
+        BuiltInLauncherAction(
+            id = "start_stopwatch",
+            title = "Start Stopwatch",
+            subtitle = "Open the Clock app's stopwatch",
+            badge = "Clock",
+            iconRes = R.drawable.rounded_av_timer_24,
+            keywords = listOf("stopwatch", "stop watch", "clock", "timer", "countdown", "time"),
+            opensModal = null,
+            closesSearch = true,
+            onExecute = { ctx ->
+                ClockIntentLauncher.openClockApp(
+                    ctx,
+                    failureToast = "No Clock app found",
+                )
             },
         ),
         BuiltInLauncherAction(

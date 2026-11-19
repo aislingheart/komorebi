@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.sameerasw.essentials.R
 import com.sameerasw.essentials.data.repository.SettingsRepository
+import com.sameerasw.essentials.launcher.ClockIntentLauncher
 import com.sameerasw.essentials.island.model.CompactCell
 import com.sameerasw.essentials.island.model.CompactPlacement
 import com.sameerasw.essentials.island.model.InteractionOverrides
@@ -339,10 +340,7 @@ class TimeBatteryPlugin : BaseIslandPlugin() {
     }
 
     private fun openClock() {
-        try {
-            context.startActivity(Intent(AlarmClock.ACTION_SHOW_ALARMS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        } catch (_: Exception) {
-        }
+        ClockIntentLauncher.openClockApp(context)
     }
 
     private fun idleColor(): Color? {

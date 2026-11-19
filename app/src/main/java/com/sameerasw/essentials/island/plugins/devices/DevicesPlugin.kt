@@ -207,7 +207,7 @@ class DevicesPlugin : BaseIslandPlugin() {
 
     @SuppressLint("MissingPermission")
     private fun nameOf(device: BluetoothDevice): String = try {
-        device.alias ?: device.name
+        (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) device.alias else null) ?: device.name
     } catch (_: SecurityException) {
         null
     } ?: context.getString(R.string.island_devices_unknown)

@@ -25,6 +25,7 @@ object QuicklinksRepository {
 
     private val gson = Gson()
     private val listType = object : TypeToken<List<Quicklink>>() {}.type
+    @Volatile private var cache: List<Quicklink>? = null
 
     private val BUILT_IN_DEFAULTS = listOf(
         Quicklink(
@@ -104,6 +105,14 @@ object QuicklinksRepository {
     }
 
     fun list(context: Context): List<Quicklink> {
+        cache?.let { return it }
+        synchronized(this) {
+            cache?.let { return it }
+            return loadFromPrefs(context).also { cache = it }
+        }
+    }
+
+    private fun loadFromPrefs(context: Context): List<Quicklink> {
         val appContext = context.applicationContext
         ensureSeeded(appContext)
         val prefs = appContext.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
@@ -213,6 +222,7 @@ object QuicklinksRepository {
     }
 
     private fun persist(context: Context, list: List<Quicklink>) {
+        cache = list
         context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_LINKS, gson.toJson(list))

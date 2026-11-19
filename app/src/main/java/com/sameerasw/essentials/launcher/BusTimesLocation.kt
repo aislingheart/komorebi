@@ -28,6 +28,7 @@ fun hasLocationPermission(context: Context): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
         PackageManager.PERMISSION_GRANTED
 
+@android.annotation.SuppressLint("MissingPermission")
 suspend fun getCurrentLocation(context: Context, timeoutMs: Long = 8_000): Location? {
     if (!hasLocationPermission(context)) return null
     val manager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null

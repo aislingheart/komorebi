@@ -954,6 +954,9 @@ fun PreferencesStepContent(
         UpdateBottomSheet(
             updateInfo = updateInfo,
             isChecking = isCheckingUpdate,
+            updateCheckError = viewModel.updateCheckError.value,
+            updateCheckCompleted = viewModel.updateCheckCompleted.value,
+            onRetry = { viewModel.checkForUpdates(context, manual = true) },
             onDismissRequest = { showUpdateSheet = false },
         )
     }

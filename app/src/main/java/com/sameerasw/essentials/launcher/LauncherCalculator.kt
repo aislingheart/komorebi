@@ -1,6 +1,7 @@
 package com.sameerasw.essentials.launcher
 
 import android.content.Context
+import com.sameerasw.essentials.assistant.tools.AssistantTimeParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -8,13 +9,21 @@ import okhttp3.Request
 import org.json.JSONObject
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
+import java.text.NumberFormat
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.MonthDay
+import java.time.Period
+import java.time.YearMonth
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
+import java.util.Currency
 import java.util.Locale
+import java.util.Random
 import java.util.concurrent.TimeUnit
 import kotlin.math.PI
 import kotlin.math.E
@@ -108,6 +117,19 @@ object LauncherCalculator {
         "JPY" to "¥",
         "INR" to "₹",
         "KRW" to "₩",
+    )
+
+    private val CURRENCY_NAMES: Map<String, String> = mapOf(
+        "dollar" to "USD", "dollars" to "USD", "buck" to "USD", "bucks" to "USD",
+        "euro" to "EUR", "euros" to "EUR",
+        "pound" to "GBP", "pounds" to "GBP", "sterling" to "GBP", "quid" to "GBP",
+        "yen" to "JPY", "rupee" to "INR", "rupees" to "INR",
+        "won" to "KRW", "franc" to "CHF", "francs" to "CHF",
+        "yuan" to "CNY", "renminbi" to "CNY",
+        "peso" to "MXN", "pesos" to "MXN", "real" to "BRL", "reais" to "BRL",
+        "lira" to "TRY", "dirham" to "AED", "dirhams" to "AED",
+        "riyal" to "SAR", "riyals" to "SAR", "baht" to "THB",
+        "ringgit" to "MYR", "krona" to "SEK", "krone" to "NOK",
     )
 
     private val CITY_TIMEZONES: Map<String, Pair<String, String>> = mapOf(
@@ -227,6 +249,12 @@ object LauncherCalculator {
 
         evaluateProgrammerOrColor(trimmed)?.let { return it }
         evaluateTimezoneOrDate(trimmed)?.let { return it }
+        evaluateTip(trimmed)?.let { return it }
+        evaluateAge(trimmed)?.let { return it }
+        evaluateDateMath(trimmed)?.let { return it }
+        evaluateEpoch(trimmed)?.let { return it }
+        evaluateSleep(trimmed)?.let { return it }
+        evaluateRandom(trimmed)?.let { return it }
         evaluateUnitConversion(trimmed)?.let { return it }
         evaluateCurrencyConversion(trimmed, context)?.let { return it }
         evaluateArithmetic(trimmed)?.let { return it }
@@ -544,6 +572,345 @@ object LauncherCalculator {
     }
 
     // -------------------------------------------------------------------------
+    // 2b. Productivity: Tip, Age, Days, Epoch, Sleep, Random
+    // -------------------------------------------------------------------------
+
+    private val TIP_REGEX = Regex(
+        """^tip\s+(\d+(?:\.\d+)?)\s+(?:at\s+)?(\d+(?:\.\d+)?)\s*%?\s*(?:(?:split(?:\s+between)?|between|for)\s+(\d{1,3}))?$""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    internal fun evaluateTip(input: String): CalcResult? {
+        val m = TIP_REGEX.matchEntire(input) ?: return null
+        val bill = m.groupValues[1].toDoubleOrNull() ?: return null
+        val pct = m.groupValues[2].toDoubleOrNull() ?: return null
+        val split = m.groupValues[3].takeIf { it.isNotEmpty() }?.toIntOrNull() ?: 1
+        if (bill < 0.0 || pct < 0.0 || pct > 100.0 || split < 1) return null
+        val tip = bill * pct / 100.0
+        val total = bill + tip
+        val perPerson = total / split
+        val pctStr = formatNumber(pct, 2)
+        val subtitle = if (split > 1) {
+            "Total ${money(total)} · ${money(perPerson)} each ($split people)"
+        } else {
+            "Total ${money(total)}"
+        }
+        return CalcResult(
+            expression = input,
+            formattedResult = "${money(tip)} tip on ${money(bill)} ($pctStr%)",
+            subtitle = subtitle,
+            copyValue = formatNumber(total, 2),
+            category = "Tip",
+        )
+    }
+
+    private fun money(value: Double): String =
+        "$" + DecimalFormat("0.00", DecimalFormatSymbols(Locale.US)).format(value)
+
+    private val AGE_REGEX = Regex("""^age\s+(.+)$""", RegexOption.IGNORE_CASE)
+    private val SLASH_DATE_REGEX = Regex("""^(\d{1,2})/(\d{1,2})/(\d{4})$""")
+    private val MONTH_DAY_YEAR_REGEX = Regex(
+        """^([a-z]+)\.?\s+(\d{1,2})(?:st|nd|rd|th)?\s*,?\s*(\d{4})$""",
+        RegexOption.IGNORE_CASE,
+    )
+    private val DAY_MONTH_YEAR_REGEX = Regex(
+        """^(\d{1,2})(?:st|nd|rd|th)?\s+([a-z]+)\.?\s*,?\s*(\d{4})$""",
+        RegexOption.IGNORE_CASE,
+    )
+    private val MONTH_NAMES: Map<String, Int> = mapOf(
+        "january" to 1, "jan" to 1,
+        "february" to 2, "feb" to 2,
+        "march" to 3, "mar" to 3,
+        "april" to 4, "apr" to 4,
+        "may" to 5,
+        "june" to 6, "jun" to 6,
+        "july" to 7, "jul" to 7,
+        "august" to 8, "aug" to 8,
+        "september" to 9, "sep" to 9, "sept" to 9,
+        "october" to 10, "oct" to 10,
+        "november" to 11, "nov" to 11,
+        "december" to 12, "dec" to 12,
+    )
+
+    /** Flexible date parsing: ISO, d/M/yyyy (or M/d/yyyy fallback), month-name forms, AssistantTimeParser. */
+    internal fun parseFlexibleDate(raw: String): LocalDate? {
+        val text = raw.trim()
+        if (text.isEmpty()) return null
+        runCatching { LocalDate.parse(text) }.getOrNull()?.let { return it }
+        AssistantTimeParser.parseLocalDate(text)?.let { return it }
+        SLASH_DATE_REGEX.matchEntire(text)?.let { m ->
+            val a = m.groupValues[1].toIntOrNull()
+            val b = m.groupValues[2].toIntOrNull()
+            val year = m.groupValues[3].toIntOrNull()
+            if (a != null && b != null && year != null) {
+                runCatching { LocalDate.of(year, b, a) }.getOrNull()
+                    ?: runCatching { LocalDate.of(year, a, b) }.getOrNull()
+            } else {
+                null
+            }
+        }?.let { return it }
+        MONTH_DAY_YEAR_REGEX.matchEntire(text)?.let { m ->
+            val month = MONTH_NAMES[m.groupValues[1].lowercase(Locale.US)]
+            val day = m.groupValues[2].toIntOrNull()
+            val year = m.groupValues[3].toIntOrNull()
+            if (month != null && day != null && year != null) {
+                runCatching { LocalDate.of(year, month, day) }.getOrNull()
+            } else {
+                null
+            }
+        }?.let { return it }
+        DAY_MONTH_YEAR_REGEX.matchEntire(text)?.let { m ->
+            val day = m.groupValues[1].toIntOrNull()
+            val month = MONTH_NAMES[m.groupValues[2].lowercase(Locale.US)]
+            val year = m.groupValues[3].toIntOrNull()
+            if (month != null && day != null && year != null) {
+                runCatching { LocalDate.of(year, month, day) }.getOrNull()
+            } else {
+                null
+            }
+        }?.let { return it }
+        return null
+    }
+
+    internal fun evaluateAge(input: String): CalcResult? {
+        val m = AGE_REGEX.matchEntire(input) ?: return null
+        val birth = parseFlexibleDate(m.groupValues[1]) ?: return null
+        val today = LocalDate.now()
+        if (birth.isAfter(today)) return null
+        val period = Period.between(birth, today)
+        val ageStr = "${period.years} years, ${period.months} months, ${period.days} days"
+        val nextBirthday = runCatching { LocalDate.of(today.year, birth.monthValue, birth.dayOfMonth) }
+            .getOrElse {
+                val month = YearMonth.of(today.year, birth.monthValue)
+                month.atDay(minOf(birth.dayOfMonth, month.lengthOfMonth()))
+            }
+            .let { if (it.isBefore(today)) it.plusYears(1) else it }
+        val daysToNext = ChronoUnit.DAYS.between(today, nextBirthday)
+        val bornStr = birth.format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.US))
+        val nextStr = nextBirthday.format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.US))
+        return CalcResult(
+            expression = input,
+            formattedResult = ageStr,
+            subtitle = "Born $bornStr · next birthday in $daysToNext days ($nextStr)",
+            copyValue = ageStr,
+            category = "Age",
+        )
+    }
+
+    private val DAYS_FROM_TO_REGEX = Regex(
+        """^days\s+(?:between|from)\s+(.+?)\s+(?:and|to)\s+(.+)$""",
+        RegexOption.IGNORE_CASE,
+    )
+    private val DAYS_UNTIL_WORD_REGEX = Regex(
+        """^days\s+(?:until|till)\s+(.+)$""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    internal fun evaluateDateMath(input: String): CalcResult? {
+        val betweenMatch = DAYS_FROM_TO_REGEX.matchEntire(input)
+        if (betweenMatch != null) {
+            val d1 = parseFlexibleDate(betweenMatch.groupValues[1]) ?: return null
+            val d2 = parseFlexibleDate(betweenMatch.groupValues[2]) ?: return null
+            val diff = abs(ChronoUnit.DAYS.between(d1, d2))
+            return CalcResult(
+                expression = input,
+                formattedResult = "$diff days",
+                subtitle = "${weeksAndDays(diff)} • $d1 → $d2",
+                copyValue = diff.toString(),
+                category = "Date Math",
+            )
+        }
+
+        val untilMatch = DAYS_UNTIL_WORD_REGEX.matchEntire(input)
+        if (untilMatch != null) {
+            val targetRaw = untilMatch.groupValues[1].trim()
+            val today = LocalDate.now()
+            val target = nextHolidayDate(targetRaw, today) ?: parseFlexibleDate(targetRaw) ?: return null
+            val diff = ChronoUnit.DAYS.between(today, target)
+            val targetStr = target.format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.US))
+            val formatted = if (diff < 0) "${abs(diff)} days ago" else "$diff days"
+            return CalcResult(
+                expression = input,
+                formattedResult = formatted,
+                subtitle = "Target: $targetStr",
+                copyValue = abs(diff).toString(),
+                category = "Date Math",
+            )
+        }
+        return null
+    }
+
+    private fun weeksAndDays(days: Long): String {
+        val weeks = days / 7
+        val rem = days % 7
+        return when {
+            weeks <= 0L -> "$days days"
+            rem == 0L -> "$weeks weeks"
+            else -> "$weeks weeks, $rem days"
+        }
+    }
+
+    private fun nextHolidayDate(raw: String, today: LocalDate): LocalDate? {
+        val name = raw.trim().lowercase(Locale.US).replace("'", "")
+        val monthDay = when (name) {
+            "christmas", "xmas" -> MonthDay.of(12, 25)
+            "halloween" -> MonthDay.of(10, 31)
+            "new year", "new years" -> MonthDay.of(1, 1)
+            else -> return null
+        }
+        val thisYear = monthDay.atYear(today.year)
+        return if (!thisYear.isBefore(today)) thisYear else thisYear.plusYears(1)
+    }
+
+    private val BARE_EPOCH_REGEX = Regex("""^(\d{10}|\d{13})$""")
+
+    internal fun evaluateEpoch(input: String): CalcResult? {
+        val lower = input.trim().lowercase(Locale.US)
+        if (lower == "epoch" || lower == "epoch now" || lower == "now to epoch" || lower == "current epoch") {
+            val epochSec = Instant.now().epochSecond
+            return CalcResult(
+                expression = input,
+                formattedResult = epochSec.toString(),
+                subtitle = "Current Unix timestamp (seconds)",
+                copyValue = epochSec.toString(),
+                category = "Epoch",
+            )
+        }
+        val bare = BARE_EPOCH_REGEX.matchEntire(input.trim()) ?: return null
+        val rawTs = bare.groupValues[1].toLongOrNull() ?: return null
+        val instant = if (rawTs > 99_999_999_999L) Instant.ofEpochMilli(rawTs) else Instant.ofEpochSecond(rawTs)
+        val formatter = DateTimeFormatter.ofPattern("EEE, MMM d yyyy HH:mm", Locale.US)
+        val localStr = instant.atZone(ZoneId.systemDefault()).format(formatter)
+        val utcStr = instant.atZone(ZoneId.of("UTC")).format(formatter)
+        return CalcResult(
+            expression = input,
+            formattedResult = localStr,
+            subtitle = "UTC: $utcStr",
+            copyValue = rawTs.toString(),
+            category = "Epoch",
+        )
+    }
+
+    private const val FALL_ASLEEP_MINUTES = 14L
+    private const val SLEEP_CYCLE_MINUTES = 90L
+    private val WAKE_AT_REGEX = Regex("""^wake(?:\s*up)?\s+at\s+(.+)$""", RegexOption.IGNORE_CASE)
+
+    internal fun evaluateSleep(input: String): CalcResult? {
+        val lower = input.trim().lowercase(Locale.US)
+        if (lower == "sleep now") {
+            val start = LocalTime.now().plusMinutes(FALL_ASLEEP_MINUTES)
+            val timeStrs = (4L..6L).map { k -> start.plusMinutes(SLEEP_CYCLE_MINUTES * k) }
+                .map { formatSleepClock(it) }
+            return CalcResult(
+                expression = input,
+                formattedResult = "You'd wake at:",
+                subtitle = timeStrs.joinToString(" · "),
+                copyValue = timeStrs.first(),
+                category = "Sleep",
+            )
+        }
+
+        val m = WAKE_AT_REGEX.matchEntire(input) ?: return null
+        val wake = parseFlexibleTime(m.groupValues[1]) ?: return null
+        val wakeStr = formatSleepClock(wake)
+        val wakeDateTime = LocalDate.now().atTime(wake)
+        val bedtimeStrs = (6L downTo 3L)
+            .map { k -> wakeDateTime.minusMinutes(FALL_ASLEEP_MINUTES + SLEEP_CYCLE_MINUTES * k) }
+            .map { formatSleepClock(it) }
+        return CalcResult(
+            expression = input,
+            formattedResult = "To wake at $wakeStr, sleep at:",
+            subtitle = bedtimeStrs.joinToString(" · "),
+            copyValue = bedtimeStrs.first(),
+            category = "Sleep",
+        )
+    }
+
+    private fun parseFlexibleTime(raw: String): LocalTime? {
+        val text = raw.trim()
+        if (text.isEmpty()) return null
+        AssistantTimeParser.parseLocalTime(text)?.let { return it }
+        val hourOnly = Regex("""^(\d{1,2})$""").matchEntire(text) ?: return null
+        val hour = hourOnly.groupValues[1].toIntOrNull() ?: return null
+        if (hour !in 0..23) return null
+        return LocalTime.of(hour, 0)
+    }
+
+    private fun formatSleepClock(value: LocalTime): String =
+        value.format(DateTimeFormatter.ofPattern("h:mm a", Locale.US))
+
+    private fun formatSleepClock(value: LocalDateTime): String =
+        value.format(DateTimeFormatter.ofPattern("h:mm a", Locale.US))
+
+    private val DICE_REGEX = Regex("""^roll(?:\s+(?:(\d{0,3})d(\d{1,4})|dice))?$""", RegexOption.IGNORE_CASE)
+    private val RANDOM_RANGE_REGEX = Regex(
+        """^random(?:\s+number)?\s+(-?\d{1,9})\s*(?:-|to|and)\s*(-?\d{1,9})$""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    internal fun evaluateRandom(input: String): CalcResult? {
+        val lower = input.trim().lowercase(Locale.US)
+        val rng = Random()
+
+        if (lower == "flip a coin" || lower == "flip coin" || lower == "coin flip" ||
+            lower == "toss a coin" || lower == "toss coin" || lower == "coin toss"
+        ) {
+            val outcome = if (rng.nextBoolean()) "Heads" else "Tails"
+            return CalcResult(
+                expression = input,
+                formattedResult = outcome,
+                subtitle = "50/50 flip",
+                copyValue = outcome,
+                category = "Random",
+            )
+        }
+
+        val diceMatch = DICE_REGEX.matchEntire(input)
+        if (diceMatch != null) {
+            val countRaw = diceMatch.groupValues[1]
+            val sidesRaw = diceMatch.groupValues[2]
+            if (countRaw.isEmpty() && sidesRaw.isEmpty()) {
+                return buildDiceResult(input, rng, 1, 6)
+            }
+            val count = countRaw.ifEmpty { "1" }.toIntOrNull() ?: return null
+            val sides = sidesRaw.toIntOrNull() ?: return null
+            if (count !in 1..100 || sides !in 2..1000) return null
+            return buildDiceResult(input, rng, count, sides)
+        }
+
+        val rangeMatch = RANDOM_RANGE_REGEX.matchEntire(input)
+        if (rangeMatch != null) {
+            val a = rangeMatch.groupValues[1].toIntOrNull() ?: return null
+            val b = rangeMatch.groupValues[2].toIntOrNull() ?: return null
+            val lo = minOf(a, b)
+            val hi = maxOf(a, b)
+            val span = hi - lo + 1
+            if (span <= 0) return null
+            val value = lo + rng.nextInt(span)
+            return CalcResult(
+                expression = input,
+                formattedResult = value.toString(),
+                subtitle = "Random number between $lo and $hi",
+                copyValue = value.toString(),
+                category = "Random",
+            )
+        }
+        return null
+    }
+
+    private fun buildDiceResult(input: String, rng: Random, count: Int, sides: Int): CalcResult {
+        val rolls = (0 until count).map { 1 + rng.nextInt(sides) }
+        val total = rolls.sum()
+        return CalcResult(
+            expression = input,
+            formattedResult = total.toString(),
+            subtitle = "${count}d$sides: ${rolls.joinToString(" + ")}",
+            copyValue = total.toString(),
+            category = "Random",
+        )
+    }
+
+    // -------------------------------------------------------------------------
     // 3. Unit Conversions
     // -------------------------------------------------------------------------
 
@@ -644,6 +1011,50 @@ object LauncherCalculator {
         UnitDef(UnitFamily.ANGLE, "deg", PI / 180.0, setOf("deg", "degree", "degrees", "°")),
     )
 
+    private val LOCALIZED_UNIT_ALIASES: Map<String, String> = mapOf(
+        // Length
+        "metro" to "m", "metros" to "m", "metre" to "m", "metres" to "m",
+        "centimetro" to "cm", "centimetros" to "cm", "centimètre" to "cm", "centimètres" to "cm",
+        "zentimeter" to "cm", "centimetri" to "cm", "сантиметр" to "cm",
+        "kilometro" to "km", "kilometros" to "km", "kilomètre" to "km", "kilomètres" to "km",
+        "kilometer" to "km", "kilometers" to "km", "kilometre" to "km", "kilometres" to "km",
+        "quilometro" to "km", "quilometros" to "km", "chilometro" to "km", "chilometri" to "km",
+        "километр" to "km", "километров" to "km",
+        "pulgada" to "in", "pulgadas" to "in", "pouce" to "in", "pouces" to "in",
+        "zoll" to "in", "duim" to "in", "pollice" to "in", "pollici" to "in", "polegada" to "in", "дюйм" to "in",
+        "pie" to "ft", "pies" to "ft", "pied" to "ft", "pieds" to "ft", "fuß" to "ft", "fuss" to "ft",
+        "voet" to "ft", "piede" to "ft", "piedi" to "ft", "pé" to "ft", "pés" to "ft", "фут" to "ft",
+        "milla" to "mi", "millas" to "mi", "mille" to "mi", "meile" to "mi", "mijl" to "mi",
+        "miglio" to "mi", "milha" to "mi", "миля" to "mi",
+        "square foot" to "ft²", "square feet" to "ft²", "sq ft" to "ft²",
+        "square meter" to "m²", "square meters" to "m²", "sq m" to "m²",
+        "square metre" to "m²", "square metres" to "m²",
+        "square mile" to "mi²", "square miles" to "mi²",
+        "square kilometer" to "km²", "square kilometers" to "km²",
+        // Mass
+        "gramo" to "g", "gramos" to "g", "gramme" to "g", "grammes" to "g", "gramm" to "g",
+        "grammo" to "g", "grammi" to "g", "grama" to "g", "грамм" to "g",
+        "kilogramo" to "kg", "kilogramos" to "kg", "kilogramme" to "kg", "kilogrammes" to "kg",
+        "kilogramm" to "kg", "chilogrammo" to "kg", "chilogrammi" to "kg", "quilograma" to "kg",
+        "килограмм" to "kg",
+        "libra" to "lb", "libras" to "lb", "livre" to "lb", "livres" to "lb", "pfund" to "lb",
+        "pond" to "lb", "libbra" to "lb", "libbre" to "lb", "фунт" to "lb",
+        "onza" to "oz", "onzas" to "oz", "once" to "oz", "onces" to "oz", "unze" to "oz",
+        "ons" to "oz", "oncia" to "oz", "onça" to "oz", "унция" to "oz",
+        "tonelada" to "t", "toneladas" to "t", "tonne" to "t", "tonnes" to "t", "ton" to "t", "tons" to "t",
+        // Volume
+        "litro" to "l", "litros" to "l", "litre" to "l", "litres" to "l", "liter" to "l",
+        "liters" to "l", "litri" to "l", "литр" to "l",
+        "mililitro" to "ml", "mililitros" to "ml", "millilitre" to "ml",
+        "milliliter" to "ml", "milliliters" to "ml", "millilitri" to "ml", "миллилитр" to "ml",
+        "galon" to "gal", "galones" to "gal", "gallone" to "gal", "galloni" to "gal",
+        "galão" to "gal", "galões" to "gal", "галлон" to "gal",
+        // Speed / energy
+        "kilometre per hour" to "km/h", "kilometer per hour" to "km/h", "kilometres per hour" to "km/h",
+        "kilometers per hour" to "km/h", "mile per hour" to "mph", "miles per hour" to "mph",
+        "kilojoule" to "kJ", "kilojoules" to "kJ", "kilocaloria" to "kcal", "kilocalorias" to "kcal",
+    )
+
     private val UNIT_LOOKUP: Map<String, UnitDef> by lazy {
         val map = HashMap<String, UnitDef>()
         for (def in UNIT_DEFS) {
@@ -651,48 +1062,173 @@ object LauncherCalculator {
                 map[alias] = def
             }
         }
+        val byCanonical = UNIT_DEFS.associateBy { it.canonical }
+        for ((alias, canonical) in LOCALIZED_UNIT_ALIASES) {
+            byCanonical[canonical]?.let { map[alias] = it }
+        }
         map
     }
 
     private val UNIT_CONV_REGEX = Regex(
-        """^(-?\d+(?:\.\d+)?)\s*([a-zA-Z°²/]+(?:\s+oz)?)\s+(?:to|in|as|->)\s+([a-zA-Z°²/]+(?:\s+oz)?)$""",
+        """^(-?\d+(?:[.,]\d+)?)\s*([^\s\d]+(?:\s+[^\s\d]+)?)\s+(?:to|in|as|->)\s+([^\s\d]+(?:\s+[^\s\d]+)?)$""",
         RegexOption.IGNORE_CASE,
     )
 
+    private val IMPLICIT_SUFFIX_REGEX = Regex(
+        """^(-?\d+(?:[.,]\d+)?)\s*([a-zA-Z°²/]+(?:\s+[a-zA-Z°²/]+)?)$""",
+    )
+    private val IMPLICIT_PREFIX_REGEX = Regex(
+        """^([a-zA-Z°²/]+(?:\s+[a-zA-Z°²/]+)?)\s*(-?\d+(?:[.,]\d+)?)$""",
+    )
+
+    private fun normalizeUnitKey(raw: String): String =
+        raw.trim().lowercase(Locale.ROOT).replace(Regex("\\s+"), " ")
+
+    private fun parseQuantityNumber(raw: String): Double? {
+        val cleaned = raw.trim().replace("\u00A0", "").replace(" ", "")
+        if (cleaned.isEmpty()) return null
+        val symbols = DecimalFormatSymbols.getInstance(Locale.getDefault())
+        val decimal = symbols.decimalSeparator
+        val grouping = symbols.groupingSeparator
+        val normalized = when {
+            cleaned.contains('.') && cleaned.contains(',') -> {
+                if (cleaned.lastIndexOf('.') > cleaned.lastIndexOf(',')) {
+                    cleaned.replace(",", "")
+                } else {
+                    cleaned.replace(".", "").replace(',', '.')
+                }
+            }
+            decimal != '.' && cleaned.contains(',') ->
+                cleaned.replace(grouping.toString(), "").replace(',', '.')
+            else -> cleaned.replace(",", "")
+        }
+        return normalized.toDoubleOrNull()
+    }
+
+    private fun formatLocalizedNumber(value: Double, maxDecimals: Int = 4): String {
+        val cleaned = if (abs(value) < 1e-12) 0.0 else value
+        val symbols = DecimalFormatSymbols.getInstance(Locale.getDefault())
+        val pattern = "0." + "#".repeat(maxDecimals.coerceIn(1, 10))
+        return DecimalFormat(pattern, symbols).format(cleaned)
+    }
+
     private fun evaluateUnitConversion(input: String): CalcResult? {
-        val match = UNIT_CONV_REGEX.matchEntire(input) ?: return null
-        val value = match.groupValues[1].toDoubleOrNull() ?: return null
-        val fromKey = match.groupValues[2].trim().lowercase(Locale.US)
-        val toKey = match.groupValues[3].trim().lowercase(Locale.US)
+        UNIT_CONV_REGEX.matchEntire(input)?.let { m ->
+            val value = parseQuantityNumber(m.groupValues[1]) ?: return null
+            val fromUnit = UNIT_LOOKUP[normalizeUnitKey(m.groupValues[2])] ?: return null
+            val toUnit = UNIT_LOOKUP[normalizeUnitKey(m.groupValues[3])] ?: return null
+            if (fromUnit.family != toUnit.family) return null
+            return buildConversionResult(input, value, fromUnit, toUnit)
+        }
 
-        val fromUnit = UNIT_LOOKUP[fromKey] ?: return null
-        val toUnit = UNIT_LOOKUP[toKey] ?: return null
-        if (fromUnit.family != toUnit.family) return null
+        val (value, unit) = parseImplicitUnit(input) ?: return null
+        val target = implicitTargetUnit(unit, value) ?: return null
+        return buildConversionResult(input, value, unit, target)
+    }
 
-        val converted = if (fromUnit.family == UnitFamily.TEMPERATURE) {
-            val celsius = when (fromUnit.canonical) {
+    private fun parseImplicitUnit(input: String): Pair<Double, UnitDef>? {
+        IMPLICIT_SUFFIX_REGEX.matchEntire(input)?.let { m ->
+            val unit = UNIT_LOOKUP[normalizeUnitKey(m.groupValues[2])] ?: return@let
+            val value = parseQuantityNumber(m.groupValues[1]) ?: return@let
+            return value to unit
+        }
+        IMPLICIT_PREFIX_REGEX.matchEntire(input)?.let { m ->
+            val unit = UNIT_LOOKUP[normalizeUnitKey(m.groupValues[1])] ?: return@let
+            val value = parseQuantityNumber(m.groupValues[2]) ?: return@let
+            return value to unit
+        }
+        return null
+    }
+
+    private fun implicitTargetUnit(from: UnitDef, value: Double): UnitDef? {
+        val baseValue = if (from.family == UnitFamily.TEMPERATURE) value else value * from.toBaseFactor
+        val canonical = when (from.family) {
+            UnitFamily.LENGTH -> {
+                if (from.canonical in setOf("ft", "in", "yd", "mi", "nmi")) {
+                    when {
+                        baseValue >= 1000.0 -> "km"
+                        baseValue >= 1.0 -> "m"
+                        baseValue >= 0.01 -> "cm"
+                        else -> "mm"
+                    }
+                } else {
+                    when {
+                        baseValue >= 1609.344 -> "mi"
+                        baseValue >= 0.3048 -> "ft"
+                        else -> "in"
+                    }
+                }
+            }
+            UnitFamily.MASS -> {
+                if (from.canonical in setOf("lb", "oz", "st")) {
+                    if (baseValue >= 1000.0) "kg" else "g"
+                } else {
+                    if (baseValue >= 453.59237) "lb" else "oz"
+                }
+            }
+            UnitFamily.TEMPERATURE -> when (from.canonical) {
+                "°C" -> "°F"
+                "°F" -> "°C"
+                else -> "°C"
+            }
+            UnitFamily.VOLUME -> {
+                if (from.canonical in setOf("fl oz", "cup", "pint", "qt", "gal")) {
+                    if (baseValue >= 1000.0) "l" else "ml"
+                } else {
+                    when {
+                        baseValue >= 3785.411784 -> "gal"
+                        baseValue >= 236.5882365 -> "cup"
+                        else -> "fl oz"
+                    }
+                }
+            }
+            UnitFamily.SPEED -> when (from.canonical) {
+                "km/h" -> "mph"
+                "mph" -> "km/h"
+                else -> "km/h"
+            }
+            UnitFamily.AREA -> when (from.canonical) {
+                "m²" -> "ft²"
+                "ft²" -> "m²"
+                "km²" -> "mi²"
+                "mi²" -> "km²"
+                "acre" -> "ha"
+                "ha" -> "acre"
+                else -> "m²"
+            }
+            UnitFamily.ENERGY -> if (from.canonical in setOf("kcal", "cal")) "kJ" else "kcal"
+            UnitFamily.ANGLE -> if (from.canonical == "rad") "deg" else "rad"
+            UnitFamily.DATA, UnitFamily.TIME, UnitFamily.CSS -> return null
+        }
+        if (canonical == from.canonical) return null
+        return UNIT_DEFS.firstOrNull { it.family == from.family && it.canonical == canonical }
+    }
+
+    private fun buildConversionResult(input: String, value: Double, from: UnitDef, to: UnitDef): CalcResult? {
+        val converted = if (from.family == UnitFamily.TEMPERATURE) {
+            val celsius = when (from.canonical) {
                 "°C" -> value
                 "°F" -> (value - 32.0) * 5.0 / 9.0
                 "K" -> value - 273.15
                 else -> return null
             }
-            when (toUnit.canonical) {
+            when (to.canonical) {
                 "°C" -> celsius
                 "°F" -> celsius * 9.0 / 5.0 + 32.0
                 "K" -> celsius + 273.15
                 else -> return null
             }
         } else {
-            val baseVal = value * fromUnit.toBaseFactor
-            baseVal / toUnit.toBaseFactor
+            value * from.toBaseFactor / to.toBaseFactor
         }
 
-        val numFormatted = formatNumber(converted, maxDecimals = 4)
-        val display = "$numFormatted ${toUnit.canonical}"
+        val numFormatted = formatLocalizedNumber(converted)
+        val display = "$numFormatted ${to.canonical}"
+        val family = from.family.name.lowercase(Locale.ROOT).replaceFirstChar { it.uppercase() }
         return CalcResult(
             expression = input,
             formattedResult = display,
-            subtitle = "${formatNumber(value, 4)} ${fromUnit.canonical} → $display (${fromUnit.family.name.lowercase(Locale.US).replaceFirstChar { it.uppercase() }})",
+            subtitle = "${formatLocalizedNumber(value)} ${from.canonical} → $display ($family)",
             copyValue = numFormatted,
             category = "Unit Conversion",
         )
@@ -702,65 +1238,121 @@ object LauncherCalculator {
     // 4. Currency Conversion
     // -------------------------------------------------------------------------
 
-    private val CURRENCY_CODE_REGEX = Regex(
-        """^(\d+(?:\.\d+)?)\s*([a-zA-Z]{3})\s+(?:to|in|as|->)\s+([a-zA-Z]{3})$""",
+    private val CURRENCY_EXPLICIT_REGEX = Regex(
+        """^(?:(?<pre>[$€£¥₹₩]|[A-Za-z]{3}|[A-Za-z]+)\s*)?(?<num>-?\d+(?:[.,]\d+)?)\s*(?<post>[$€£¥₹₩]|[A-Za-z]{3}|[A-Za-z]+)?\s+(?:to|in|as|->)\s+(?<to>[$€£¥₹₩]|[A-Za-z]{3}|[A-Za-z]+)$""",
         RegexOption.IGNORE_CASE,
     )
-    private val CURRENCY_SYMBOL_REGEX = Regex(
-        """^([$€£¥₹₩])\s*(\d+(?:\.\d+)?)\s+(?:to|in|as|->)\s+([a-zA-Z]{3}|[$€£¥₹₩])$""",
-        RegexOption.IGNORE_CASE,
+    private val CURRENCY_IMPLICIT_SUFFIX = Regex(
+        """^(-?\d+(?:[.,]\d+)?)\s*([$€£¥₹₩]|[A-Za-z]{3}|[A-Za-z]+)$""",
     )
+    private val CURRENCY_IMPLICIT_PREFIX = Regex(
+        """^([$€£¥₹₩]|[A-Za-z]{3}|[A-Za-z]+)\s*(-?\d+(?:[.,]\d+)?)$""",
+    )
+
+    private fun resolveCurrency(raw: String?, rates: Map<String, Double>): String? {
+        val token = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        CURRENCY_SYMBOLS[token]?.let { return it }
+        val upper = token.uppercase(Locale.ROOT)
+        if (upper.length == 3 && rates.containsKey(upper)) return upper
+        CURRENCY_NAMES[token.lowercase(Locale.ROOT)]?.let { name ->
+            val localized = localizedCurrencyForName(name)
+            return if (rates.containsKey(localized)) localized else name
+        }
+        return null
+    }
+
+    private fun localizedCurrencyForName(name: String): String {
+        val country = Locale.getDefault().country.uppercase(Locale.ROOT)
+        return when (name) {
+            "USD" -> when (country) {
+                "CA" -> "CAD"
+                "AU" -> "AUD"
+                "NZ" -> "NZD"
+                "SG" -> "SGD"
+                "HK" -> "HKD"
+                else -> "USD"
+            }
+            "GBP" -> if (country == "EG") "EGP" else "GBP"
+            "MXN" -> when (country) {
+                "AR" -> "ARS"
+                "CL" -> "CLP"
+                "CO" -> "COP"
+                "PH" -> "PHP"
+                else -> "MXN"
+            }
+            else -> name
+        }
+    }
+
+    private fun localeCurrencyCode(rates: Map<String, Double>): String {
+        val code = runCatching { Currency.getInstance(Locale.getDefault()).currencyCode }.getOrDefault("USD")
+        return if (rates.containsKey(code)) code else "USD"
+    }
 
     private fun evaluateCurrencyConversion(input: String, context: Context?): CalcResult? {
         val (rates, isLive) = loadRates(context)
-
         var amount: Double? = null
         var fromCode: String? = null
         var toCode: String? = null
+        var explicitTarget = false
 
-        CURRENCY_SYMBOL_REGEX.matchEntire(input)?.let { m ->
-            fromCode = CURRENCY_SYMBOLS[m.groupValues[1]]
-            amount = m.groupValues[2].toDoubleOrNull()
-            val rawTo = m.groupValues[3]
-            toCode = CURRENCY_SYMBOLS[rawTo] ?: rawTo.uppercase(Locale.US)
+        CURRENCY_EXPLICIT_REGEX.matchEntire(input)?.let { m ->
+            val pre = m.groups["pre"]?.value
+            val post = m.groups["post"]?.value
+            fromCode = resolveCurrency(pre ?: post, rates)
+            amount = parseQuantityNumber(m.groups["num"]!!.value)
+            toCode = resolveCurrency(m.groups["to"]?.value, rates)
+            explicitTarget = true
         }
 
         if (amount == null) {
-            CURRENCY_CODE_REGEX.matchEntire(input)?.let { m ->
-                amount = m.groupValues[1].toDoubleOrNull()
-                fromCode = m.groupValues[2].uppercase(Locale.US)
-                toCode = m.groupValues[3].uppercase(Locale.US)
+            CURRENCY_IMPLICIT_SUFFIX.matchEntire(input)?.let { m ->
+                amount = parseQuantityNumber(m.groupValues[1])
+                fromCode = resolveCurrency(m.groupValues[2], rates)
+            }
+            CURRENCY_IMPLICIT_PREFIX.matchEntire(input)?.let { m ->
+                if (amount == null) {
+                    fromCode = resolveCurrency(m.groupValues[1], rates)
+                    amount = parseQuantityNumber(m.groupValues[2])
+                }
             }
         }
 
         val a = amount ?: return null
         val from = fromCode ?: return null
-        val to = toCode ?: return null
+        var to = toCode ?: localeCurrencyCode(rates)
+        if (to == from) {
+            if (!explicitTarget) {
+                to = when (from) {
+                    "EUR" -> "USD"
+                    "USD" -> "EUR"
+                    else -> localeCurrencyCode(rates).takeIf { it != from } ?: "USD"
+                }
+            } else {
+                return null
+            }
+        }
 
         val fromRate = rates[from] ?: return null
         val toRate = rates[to] ?: return null
-
         val converted = (a / fromRate) * toRate
-        val decimals = if (to == "JPY" || to == "KRW" || to == "IDR") 0 else 2
-        val numericText = formatCurrencyAmount(converted, decimals)
-        val sym = CURRENCY_DISPLAY_SYMBOLS[to]
-        val formatted = if (sym != null) "$sym$numericText $to" else "$numericText $to"
-        val unitRate = formatNumber((1.0 / fromRate) * toRate, 4)
-        val rateNote = if (isLive) "Cached live rate" else "Offline reference rate"
 
+        val targetCurrency = runCatching { Currency.getInstance(to) }.getOrNull()
+        val localized = runCatching {
+            NumberFormat.getCurrencyInstance(Locale.getDefault()).apply {
+                if (targetCurrency != null) currency = targetCurrency
+            }.format(converted)
+        }.getOrNull() ?: "${formatLocalizedNumber(converted, 2)} $to"
+
+        val unitRate = formatLocalizedNumber((1.0 / fromRate) * toRate, 4)
+        val rateNote = if (isLive) "Cached live rate" else "Offline reference rate"
         return CalcResult(
             expression = input,
-            formattedResult = formatted,
+            formattedResult = "$localized $to",
             subtitle = "1 $from = $unitRate $to • $rateNote",
-            copyValue = numericText.replace(",", ""),
+            copyValue = formatLocalizedNumber(converted, 4),
             category = "Currency",
         )
-    }
-
-    private fun formatCurrencyAmount(value: Double, minMaxDecimals: Int): String {
-        val symbols = DecimalFormatSymbols(Locale.US)
-        val pattern = if (minMaxDecimals == 0) "#,##0" else "#,##0.00"
-        return DecimalFormat(pattern, symbols).format(value)
     }
 
     // -------------------------------------------------------------------------

@@ -133,7 +133,10 @@ object CalendarEventUtil {
                     if (rawTitle.isNullOrBlank()) continue
 
                     val begin = cursor.getLong(beginIndex)
-                    val ongoing = includeOngoing && begin < now && cursor.getLong(cursor.getColumnIndex(CalendarContract.Instances.END)) > now
+                    val endIdx = cursor.getColumnIndex(CalendarContract.Instances.END)
+                    val eventIdIdx = cursor.getColumnIndex(CalendarContract.Instances.EVENT_ID)
+                    val endTime = if (endIdx != -1) cursor.getLong(endIdx) else begin
+                    val ongoing = includeOngoing && begin < now && endTime > now
                     if (ongoing || begin in now..maxTimeMillis) {
                         val location = if (locationIndex != -1) cursor.getString(locationIndex)?.trim()?.takeIf { it.isNotBlank() } else null
                         fun str(col: String) = cursor.getColumnIndex(col).takeIf { it != -1 }?.let { cursor.getString(it) }?.trim()?.takeIf { it.isNotBlank() }
@@ -142,8 +145,8 @@ object CalendarEventUtil {
                             title = rawTitle.trim(),
                             startTimeMillis = begin,
                             location = location,
-                            eventId = cursor.getLong(cursor.getColumnIndex(CalendarContract.Instances.EVENT_ID)),
-                            endTimeMillis = cursor.getLong(cursor.getColumnIndex(CalendarContract.Instances.END)),
+                            eventId = if (eventIdIdx != -1) cursor.getLong(eventIdIdx) else 0L,
+                            endTimeMillis = endTime,
                             allDay = allDayIndex != -1 && cursor.getInt(allDayIndex) != 0,
                             calendarName = str(CalendarContract.Instances.CALENDAR_DISPLAY_NAME),
                             calendarColor = if (colorIndex != -1 && !cursor.isNull(colorIndex)) cursor.getInt(colorIndex) else null,

@@ -27,11 +27,34 @@ class UpdateRepository {
         private const val READ_TIMEOUT_MS = 10_000
     }
 
+    /**
+     * Human-readable detail for the most recent failed check (HTTP status and/or GitHub message).
+     * Reset at the start of each check.
+     */
+    @Volatile
+    var lastError: String? = null
+        private set
+
     suspend fun checkForUpdates(
+        context: Context,
+        isPreReleaseCheckEnabled: Boolean,
+        currentVersion: String,
+    ): UpdateInfo? = checkForUpdatesWithStatus(context, isPreReleaseCheckEnabled, currentVersion).getOrNull()
+
+    suspend fun checkForUpdatesWithStatus(
         @Suppress("UNUSED_PARAMETER") context: Context,
         isPreReleaseCheckEnabled: Boolean,
         currentVersion: String,
-    ): UpdateInfo? = checkForUpdatesFromGitHub(isPreReleaseCheckEnabled, currentVersion)
+    ): Result<UpdateInfo?> =
+        withContext(Dispatchers.IO) {
+            lastError = null
+            try {
+                Result.success(checkForUpdatesFromGitHub(isPreReleaseCheckEnabled, currentVersion))
+            } catch (e: Exception) {
+                lastError = e.message ?: e.javaClass.simpleName
+                Result.failure(e)
+            }
+        }
 
     private suspend fun checkForUpdatesFromGitHub(
         isPreReleaseCheckEnabled: Boolean,
@@ -48,10 +71,19 @@ class UpdateRepository {
                         connectTimeout = CONNECT_TIMEOUT_MS
                         readTimeout = READ_TIMEOUT_MS
                         setRequestProperty("Accept", "application/vnd.github+json")
-                        setRequestProperty("User-Agent", "Komorebi-Updater")
+                        setRequestProperty("User-Agent", "Komorebi/$currentVersion-Updater")
                     }
 
-                if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                val responseCode = connection.responseCode
+                if (responseCode != HttpURLConnection.HTTP_OK) {
+                    val errorBody =
+                        try {
+                            connection.errorStream?.bufferedReader()?.use { it.readText() }
+                        } catch (_: Exception) {
+                            null
+                        }
+                    lastError = buildHttpErrorMessage(responseCode, errorBody)
+                    // 403/429 (rate limit) and other non-200 responses fail fast; no retry loop.
                     return@withContext null
                 }
 
@@ -62,12 +94,34 @@ class UpdateRepository {
                     currentVersion = currentVersion,
                 )
             } catch (e: Exception) {
+                lastError = e.message ?: e.javaClass.simpleName
                 e.printStackTrace()
                 null
             } finally {
                 connection?.disconnect()
             }
         }
+
+    internal fun buildHttpErrorMessage(
+        responseCode: Int,
+        errorBody: String?,
+    ): String {
+        val gitHubMessage =
+            try {
+                errorBody
+                    ?.let { Gson().fromJson(it, Map::class.java) as? Map<*, *> }
+                    ?.get("message")
+                    ?.toString()
+                    ?.takeIf { it.isNotBlank() }
+            } catch (_: Exception) {
+                null
+            }
+        return if (gitHubMessage != null) {
+            "HTTP $responseCode: $gitHubMessage"
+        } else {
+            "HTTP $responseCode"
+        }
+    }
 
     internal fun parseUpdateInfoFromJson(
         releaseData: String,

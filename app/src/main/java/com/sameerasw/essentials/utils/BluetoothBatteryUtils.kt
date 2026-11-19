@@ -127,7 +127,8 @@ object BluetoothBatteryUtils {
                 val case = if (separate) reader.read(device, KEY_CASE) else null
 
                 if (level != -1 || left != null || right != null || case != null) {
-                    val name = device.alias ?: device.name ?: "Unknown"
+                    val name = (if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) device.alias else null)
+                        ?: device.name ?: "Unknown"
                     val overall = if (level != -1) level else listOfNotNull(left, right).minOrNull() ?: case ?: -1
                     batteryList.add(BluetoothDeviceBattery(name, overall, device.address, left, right, case))
                 }

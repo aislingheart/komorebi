@@ -825,11 +825,15 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Host Bridge & Two-Generation Callback Manager
+  // Host Bridge & Bounded Callback History
   // ---------------------------------------------------------------------------
+  // An action panel is a snapshot of a previous render, so its callback ids can
+  // be several commits old by the time the user taps an action. Keep a small
+  // bounded history of previous callback maps instead of only one generation.
+  const CALLBACK_HISTORY_LIMIT = 8;
   let _cbSeq = 1;
   let _callbacks = new Map();
-  let _prevCallbacks = new Map();
+  let _callbackHistory = [];
   const _eventListeners = new Map();
 
   function registerCallback(fn) {
@@ -839,7 +843,13 @@
   }
 
   function resolveCallback(handlerId) {
-    return _callbacks.get(handlerId) || _prevCallbacks.get(handlerId);
+    const current = _callbacks.get(handlerId);
+    if (current) return current;
+    for (let i = _callbackHistory.length - 1; i >= 0; i--) {
+      const previous = _callbackHistory[i].get(handlerId);
+      if (previous) return previous;
+    }
+    return undefined;
   }
 
   global.__invokeCallback = function (handlerId, argsJson) {
@@ -910,6 +920,96 @@
     const raw = global.__hostCallSync(method, JSON.stringify(params || {}));
     if (raw == null || raw === "") return null;
     return typeof raw === "string" ? JSON.parse(raw) : raw;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Minimal Intl.DateTimeFormat polyfill (QuickJS has no ICU/Intl)
+  // ---------------------------------------------------------------------------
+  // Time zone math and localized names are delegated synchronously to the
+  // Android host so extensions like world-clock keep using the standard API.
+  if (typeof global.Intl === "undefined" || global.Intl === null) {
+    global.Intl = {};
+  }
+  if (typeof global.Intl.DateTimeFormat !== "function") {
+    (function () {
+      function firstLocale(locales) {
+        if (typeof locales === "string") return locales;
+        if (Array.isArray(locales)) {
+          for (let i = 0; i < locales.length; i++) {
+            if (typeof locales[i] === "string" && locales[i]) return locales[i];
+          }
+        }
+        return undefined;
+      }
+
+      function copyOptions(options) {
+        const out = {};
+        const keys = [
+          "timeZone", "hour12", "hourCycle", "weekday", "year", "month", "day",
+          "hour", "minute", "second", "era", "timeZoneName", "formatMatcher",
+          "dateStyle", "timeStyle",
+        ];
+        if (options && typeof options === "object") {
+          for (let i = 0; i < keys.length; i++) {
+            const key = keys[i];
+            if (options[key] !== undefined && options[key] !== null) out[key] = options[key];
+          }
+        }
+        return out;
+      }
+
+      function toDate(value) {
+        if (value instanceof Date) return value;
+        if (typeof value === "number") return new Date(value);
+        if (value === undefined) return new Date();
+        return new Date(value);
+      }
+
+      function requestParts(formatter, date) {
+        const payload = {
+          zone: formatter._options.timeZone,
+          epochMs: date.getTime(),
+          locale: formatter._locale,
+          options: formatter._options,
+        };
+        return hostCallSync("time.format", payload);
+      }
+
+      function DateTimeFormat(locales, options) {
+        if (!(this instanceof DateTimeFormat)) return new DateTimeFormat(locales, options);
+        this._locale = firstLocale(locales);
+        this._options = copyOptions(options);
+      }
+
+      DateTimeFormat.prototype.format = function (value) {
+        const date = toDate(value);
+        const result = requestParts(this, date);
+        if (result && typeof result.text === "string") return result.text;
+        return date.toISOString();
+      };
+
+      DateTimeFormat.prototype.formatToParts = function (value) {
+        const date = toDate(value);
+        const result = requestParts(this, date);
+        if (result && Array.isArray(result.parts)) return result.parts;
+        return [];
+      };
+
+      DateTimeFormat.prototype.resolvedOptions = function () {
+        const out = {};
+        for (const key in this._options) out[key] = this._options[key];
+        out.locale = this._locale || "en";
+        out.timeZone = this._options.timeZone || "UTC";
+        return out;
+      };
+
+      DateTimeFormat.supportedLocalesOf = function (locales) {
+        if (Array.isArray(locales)) return locales.slice();
+        return locales ? [locales] : [];
+      };
+
+      global.Intl.DateTimeFormat = DateTimeFormat;
+    })();
   }
 
   if (typeof global.crypto === "undefined") {
@@ -1472,7 +1572,12 @@
 
   function commitRoot() {
     if (!_rootElement) return;
-    _prevCallbacks = _callbacks;
+    if (_callbacks.size > 0) {
+      _callbackHistory.push(_callbacks);
+      while (_callbackHistory.length > CALLBACK_HISTORY_LIMIT) {
+        _callbackHistory.shift();
+      }
+    }
     _callbacks = new Map();
     _seenFiberKeys = new Set();
     const children = renderNode(_rootElement, "root");
@@ -1496,7 +1601,7 @@
     _seenFiberKeys = new Set();
     cleanupUnusedFibers();
     _callbacks.clear();
-    _prevCallbacks.clear();
+    _callbackHistory = [];
     _activeTimers.clear();
     _activeIntervals.clear();
   }
@@ -1785,11 +1890,14 @@
   };
 
   const LocalStorage = {
-    getItem: function (key) { return hostCallSync("storage.getItem", { key: String(key) }); },
-    setItem: function (key, value) { hostCallSync("storage.setItem", { key: String(key), value: value }); },
-    removeItem: function (key) { hostCallSync("storage.removeItem", { key: String(key) }); },
-    clear: function () { hostCallSync("storage.clear", {}); },
-    allItems: function () { return hostCallSync("storage.allItems", {}) || {}; },
+    // Raycast's LocalStorage API is async: getItem/allItems resolve values,
+    // setItem/removeItem/clear resolve void. Extensions (and the runtime's own
+    // useLocalStorage) chain .then()/await on these results.
+    getItem: function (key) { return Promise.resolve(hostCallSync("storage.getItem", { key: String(key) })); },
+    setItem: function (key, value) { hostCallSync("storage.setItem", { key: String(key), value: value }); return Promise.resolve(); },
+    removeItem: function (key) { hostCallSync("storage.removeItem", { key: String(key) }); return Promise.resolve(); },
+    clear: function () { hostCallSync("storage.clear", {}); return Promise.resolve(); },
+    allItems: function () { return Promise.resolve(hostCallSync("storage.allItems", {}) || {}); },
   };
 
   class Cache {
@@ -1823,7 +1931,7 @@
   function getApplications(pathArg) { return hostCall("system.getApplications", { path: pathArg || null }).then((r) => r || []); }
   function getDefaultApplication(target) { return hostCall("system.getDefaultApplication", { target: String(target) }); }
   function getFrontmostApplication() { return Promise.resolve({ name: "Komorebi", bundleId: "com.aislingheart.komorebi" }); }
-  function getSelectedText() { return Promise.resolve(""); }
+  function getSelectedText() { return hostCall("system.getSelectedText", {}); }
   function getSelectedFinderItems() { return Promise.resolve([]); }
   function showInFinder(path) { return open(path); }
   function showInFileBrowser(path) { return open(path); }
@@ -3041,37 +3149,229 @@
     };
   }
 
+  // ---------------------------------------------------------------------------
+  // VirtShell: cross-platform virtual shell + path translation
+  // ---------------------------------------------------------------------------
+  // Extensions are written against macOS/Linux/Windows developer machines and
+  // freely exec(1) coreutils, read $HOME, or reference platform-specific paths.
+  // On Android none of that exists. VirtShell projects a stable Linux-shaped
+  // environment into the runtime: canonical env vars, a path translator that
+  // maps foreign home/temp prefixes onto the Komorebi sandbox, and a VFS that
+  // unifies the extension source map (_fsMap) with the host fs bridge so the
+  // emulated CLI below can cat/ls/grep real extension data.
+  const VirtShell = {
+    env: {
+      HOME: "/home/komorebi",
+      USER: "komorebi",
+      SHELL: "/bin/sh",
+      PATH: "/usr/local/bin:/usr/bin:/bin",
+      TMPDIR: "/tmp",
+      LANG: "en_US.UTF-8",
+      TERM: "xterm-256color",
+    },
+  };
+  VirtShell.cwd = (environment && environment.supportPath) || VirtShell.env.HOME;
+
+  // Map foreign platform paths onto the Android sandbox:
+  //   ~ / ~foo-ish              -> $HOME
+  //   /Users/<name>/...         -> /home/komorebi/...
+  //   /var/folders/AB/Cx/T/...  -> /tmp/...
+  //   C:\Users\<name>\...       -> /home/komorebi/... (backslashes -> slashes)
+  // Everything else passes through untouched.
+  function virtTranslatePath(p) {
+    let s = String(p == null ? "" : p);
+    if (!s) return s;
+    if (s === "~") return VirtShell.env.HOME;
+    if (s.startsWith("~/")) s = VirtShell.env.HOME + s.slice(1);
+    if (/^[A-Za-z]:[\\/]/.test(s)) s = s.replace(/\\/g, "/");
+    const macUser = /^\/Users\/[^/]+(?:\/|$)/.exec(s);
+    if (macUser) s = VirtShell.env.HOME + s.slice(macUser[0].length - 1);
+    const winUser = /^[A-Za-z]:\/Users\/[^/]+(?:\/|$)/.exec(s);
+    if (winUser) s = VirtShell.env.HOME + s.slice(winUser[0].length - 1);
+    const macTmp = /^\/var\/folders\/[^/]+\/[^/]+\/[TC][^/]*(\/.*)?$/.exec(s);
+    if (macTmp) s = "/tmp" + (macTmp[1] || "");
+    return s;
+  }
+
+  // Virtual filesystem over _fsMap (extension sources + emulator-written files)
+  // plus the host fs bridge. Writes are mirrored into _fsMap so subsequent
+  // reads (fs shims, require(), the CLI emulator) always see them.
+  const _vfsDirs = {};
+
+  function vfsResolve(p) {
+    const raw = virtTranslatePath(p);
+    if (!String(raw)) return "";
+    return isAbsolutePath(raw) ? normalizePath(raw) : resolvePath(VirtShell.cwd, raw);
+  }
+
+  function vfsExists(p) {
+    const key = vfsResolve(p);
+    if (!key) return false;
+    if (_fsMap[key] !== undefined || _vfsDirs[key] !== undefined) return true;
+    return Boolean(hostCallSync("fs.exists", { path: key }));
+  }
+
+  function vfsIsDir(p) {
+    const key = vfsResolve(p);
+    if (!key) return false;
+    if (_vfsDirs[key]) return true;
+    if (_fsMap[key] !== undefined) return false;
+    const st = hostCallSync("fs.stat", { path: key });
+    return Boolean(st && st.isDirectory);
+  }
+
+  function vfsRead(p) {
+    const key = vfsResolve(p);
+    if (!key) return null;
+    if (_fsMap[key] !== undefined) return String(_fsMap[key]);
+    return hostCallSync("fs.read", { path: key });
+  }
+
+  function vfsWrite(p, content) {
+    const key = vfsResolve(p);
+    if (!key) return false;
+    _fsMap[key] = String(content);
+    try { hostCallSync("fs.write", { path: key, content: String(content) }); } catch (_) {}
+    return true;
+  }
+
+  function vfsMkdir(p, recursive) {
+    const key = vfsResolve(p);
+    if (!key) return false;
+    _vfsDirs[key] = true;
+    if (recursive) {
+      const parts = key.split("/").filter(Boolean);
+      let acc = "";
+      for (const seg of parts) {
+        acc += "/" + seg;
+        if (_vfsDirs[acc] === undefined && _fsMap[acc] === undefined) _vfsDirs[acc] = true;
+      }
+    }
+    try { hostCallSync("fs.mkdir", { path: key, recursive: Boolean(recursive) }); } catch (_) {}
+    return true;
+  }
+
+  function vfsDelete(p, recursive) {
+    const key = vfsResolve(p);
+    if (!key) return false;
+    delete _fsMap[key];
+    delete _vfsDirs[key];
+    if (recursive) {
+      const prefix = key === "/" ? "/" : key + "/";
+      for (const k of Object.keys(_fsMap)) if (k.startsWith(prefix)) delete _fsMap[k];
+      for (const k of Object.keys(_vfsDirs)) if (k.startsWith(prefix)) delete _vfsDirs[k];
+    }
+    try { hostCallSync("fs.rm", { path: key, recursive: Boolean(recursive) }); } catch (_) {}
+    return true;
+  }
+
+  function vfsList(p) {
+    const key = vfsResolve(p);
+    if (!key) return null;
+    const prefix = key === "/" ? "/" : key + "/";
+    const names = [];
+    const seen = {};
+    const push = function (n) {
+      if (n && !Object.prototype.hasOwnProperty.call(seen, n)) { seen[n] = true; names.push(String(n)); }
+    };
+    let hostOk = false;
+    try {
+      const entries = hostCallSync("fs.readdir", { path: key });
+      if (Array.isArray(entries)) {
+        hostOk = true;
+        for (const e of entries) push(e);
+      }
+    } catch (_) {}
+    let virtOk = _vfsDirs[key] === true;
+    for (const k of Object.keys(_fsMap)) {
+      if (k.startsWith(prefix)) {
+        virtOk = true;
+        push(k.slice(prefix.length).split("/")[0]);
+      }
+    }
+    for (const k of Object.keys(_vfsDirs)) {
+      if (k.startsWith(prefix)) {
+        virtOk = true;
+        push(k.slice(prefix.length).split("/")[0]);
+      }
+    }
+    if (!hostOk && !virtOk) return null;
+    names.sort();
+    return names;
+  }
+
+  function vfsStat(p) {
+    const key = vfsResolve(p);
+    if (!key) return null;
+    if (_vfsDirs[key]) return { size: 4096, mtimeMs: 0, isFile: false, isDirectory: true };
+    if (_fsMap[key] !== undefined) {
+      return { size: global.Buffer.byteLength(String(_fsMap[key])), mtimeMs: 0, isFile: true, isDirectory: false };
+    }
+    return hostCallSync("fs.stat", { path: key });
+  }
+
+  const nodeConstants = {
+    F_OK: 0,
+    R_OK: 4,
+    W_OK: 2,
+    X_OK: 1,
+    O_RDONLY: 0,
+    O_WRONLY: 1,
+    O_RDWR: 2,
+    O_CREAT: 64,
+    O_TRUNC: 512,
+    O_APPEND: 1024,
+    SIGTERM: 15,
+    SIGKILL: 9,
+    SIGINT: 2,
+    COPYFILE_EXCL: 1,
+  };
+
   const nodeFsSync = {
-    existsSync: function (p) { return Boolean(hostCallSync("fs.exists", { path: String(p) })); },
+    existsSync: function (p) { return Boolean(hostCallSync("fs.exists", { path: virtTranslatePath(p) })); },
+    accessSync: function (p, mode) {
+      if (!nodeFsSync.existsSync(p) && !vfsExists(p)) {
+        const e = new Error("ENOENT: no such file or directory, access '" + String(p) + "'");
+        e.code = "ENOENT";
+        e.path = String(p);
+        throw e;
+      }
+    },
+    access: function (p, mode, cb) {
+      const callback = typeof mode === "function" ? mode : cb;
+      let err = null;
+      try { nodeFsSync.accessSync(p); } catch (e) { err = e; }
+      if (typeof callback === "function") callback(err);
+    },
     readFileSync: function (p, options) {
       const encoding = typeof options === "string" ? options : (options && options.encoding);
       if (encoding) {
-        const res = hostCallSync("fs.read", { path: String(p) });
+        const res = hostCallSync("fs.read", { path: virtTranslatePath(p) });
         if (res === null || res === undefined) throw makeFsError("ENOENT", p, "no such file or directory, open");
         if (encoding === "utf8" || encoding === "utf-8") return String(res);
         return global.Buffer.from(String(res), "utf8").toString(encoding);
       }
-      const b64 = hostCallSync("fs.readBase64", { path: String(p) });
+      const b64 = hostCallSync("fs.readBase64", { path: virtTranslatePath(p) });
       if (b64 === null || b64 === undefined) throw makeFsError("ENOENT", p, "no such file or directory, open");
       return global.Buffer.from(String(b64), "base64");
     },
     writeFileSync: function (p, data) {
       const ok = data instanceof Uint8Array
-        ? hostCallSync("fs.writeBase64", { path: String(p), base64: global.Buffer.from(data).toString("base64") })
-        : hostCallSync("fs.write", { path: String(p), content: String(data) });
+        ? hostCallSync("fs.writeBase64", { path: virtTranslatePath(p), base64: global.Buffer.from(data).toString("base64") })
+        : hostCallSync("fs.write", { path: virtTranslatePath(p), content: String(data) });
       if (!ok) throw makeFsError("EACCES", p, "permission denied or outside extension sandbox");
     },
     mkdirSync: function (p, options) {
-      const ok = hostCallSync("fs.mkdir", { path: String(p), recursive: Boolean(options && options.recursive) });
+      const ok = hostCallSync("fs.mkdir", { path: virtTranslatePath(p), recursive: Boolean(options && options.recursive) });
       if (!ok) throw makeFsError("EACCES", p, "cannot create directory");
     },
     readdirSync: function (p) {
-      const entries = hostCallSync("fs.readdir", { path: String(p) });
+      const entries = hostCallSync("fs.readdir", { path: virtTranslatePath(p) });
       if (!Array.isArray(entries)) throw makeFsError("ENOENT", p, "no such directory");
       return entries;
     },
     statSync: function (p) {
-      const st = hostCallSync("fs.stat", { path: String(p) });
+      const st = hostCallSync("fs.stat", { path: virtTranslatePath(p) });
       if (!st) throw makeFsError("ENOENT", p, "no such file or directory, stat");
       return {
         size: st.size || 0,
@@ -3083,21 +3383,22 @@
       };
     },
     unlinkSync: function (p) {
-      if (!hostCallSync("fs.unlink", { path: String(p) })) throw makeFsError("ENOENT", p, "unlink failed");
+      if (!hostCallSync("fs.unlink", { path: virtTranslatePath(p) })) throw makeFsError("ENOENT", p, "unlink failed");
     },
     rmSync: function (p, opts) {
-      if (!hostCallSync("fs.rm", { path: String(p), recursive: Boolean(opts && opts.recursive) }) && !(opts && opts.force)) {
+      if (!hostCallSync("fs.rm", { path: virtTranslatePath(p), recursive: Boolean(opts && opts.recursive) }) && !(opts && opts.force)) {
         throw makeFsError("ENOENT", p, "rm failed");
       }
     },
     renameSync: function (src, dest) {
-      if (!hostCallSync("fs.rename", { src: String(src), dest: String(dest) })) throw makeFsError("EACCES", src, "rename failed");
+      if (!hostCallSync("fs.rename", { src: virtTranslatePath(src), dest: virtTranslatePath(dest) })) throw makeFsError("EACCES", src, "rename failed");
     },
     copyFileSync: function (src, dest) {
-      if (!hostCallSync("fs.copyFile", { src: String(src), dest: String(dest) })) throw makeFsError("EACCES", src, "copyFile failed");
+      if (!hostCallSync("fs.copyFile", { src: virtTranslatePath(src), dest: virtTranslatePath(dest) })) throw makeFsError("EACCES", src, "copyFile failed");
     },
   };
   nodeFsSync.lstatSync = nodeFsSync.statSync;
+  nodeFsSync.constants = nodeConstants;
   const nodeFsPromises = {
     readFile: function (p, opts) { return Promise.resolve().then(() => nodeFsSync.readFileSync(p, opts)); },
     writeFile: function (p, d) { return Promise.resolve().then(() => nodeFsSync.writeFileSync(p, d)); },
@@ -3106,7 +3407,9 @@
     stat: function (p) { return Promise.resolve().then(() => nodeFsSync.statSync(p)); },
     lstat: function (p) { return Promise.resolve().then(() => nodeFsSync.statSync(p)); },
     access: function (p) {
-      return nodeFsSync.existsSync(p) ? Promise.resolve() : Promise.reject(makeFsError("ENOENT", p, "access"));
+      return new Promise(function (resolve, reject) {
+        try { nodeFsSync.accessSync(p); resolve(); } catch (e) { reject(e); }
+      });
     },
     unlink: function (p) { return Promise.resolve().then(() => nodeFsSync.unlinkSync(p)); },
     rm: function (p, opts) { return Promise.resolve().then(() => nodeFsSync.rmSync(p, opts)); },
@@ -3114,6 +3417,7 @@
     copyFile: function (s, d) { return Promise.resolve().then(() => nodeFsSync.copyFileSync(s, d)); },
   };
   nodeFsSync.promises = nodeFsPromises;
+  nodeFsPromises.constants = nodeConstants;
 
   function StreamBase() { EventEmitter.call(this); }
   StreamBase.prototype = Object.create(EventEmitter.prototype);
@@ -3132,6 +3436,36 @@
     queueMicrotask(function () {
       for (const item of iterable) r.emit("data", item);
       r.emit("end");
+    });
+    return r;
+  };
+  Readable.fromWeb = function (webStream) {
+    const r = new Readable();
+    queueMicrotask(function () {
+      if (!webStream || typeof webStream.getReader !== "function") {
+        r.emit("end");
+        return;
+      }
+      let reader;
+      try {
+        reader = webStream.getReader();
+      } catch (e) {
+        r.emit("error", e);
+        return;
+      }
+      function pump() {
+        reader.read().then(function (result) {
+          if (result.done) {
+            r.emit("end");
+            return;
+          }
+          r.emit("data", result.value);
+          pump();
+        }, function (err) {
+          r.emit("error", err);
+        });
+      }
+      pump();
     });
     return r;
   };
@@ -3274,6 +3608,1332 @@
     return result || { stdout: "", stderr: "CLI bridge returned no result", exitCode: 1 };
   }
 
+  // ---------------------------------------------------------------------------
+  // VirtShell CLI emulator: in-runtime coreutils + platform-CLI translation
+  // ---------------------------------------------------------------------------
+  // emulateCommand(name, args, stdinText) runs a command against the VirtShell
+  // VFS/env and returns { stdout, stderr, exitCode }, { promise } for
+  // network/clipboard/timer commands, or null when the command is not
+  // emulatable — in which case callers fall through to the host CliBridge with
+  // unchanged behavior.
+  const VIRT_TOOLS = {
+    echo: true, printf: true, cat: true, ls: true, pwd: true, which: true,
+    true: true, false: true, date: true, basename: true, dirname: true,
+    env: true, printenv: true, head: true, tail: true, wc: true, grep: true,
+    sort: true, uniq: true, tr: true, base64: true, mkdir: true, rm: true,
+    touch: true, cp: true, mv: true, hostname: true, whoami: true, id: true,
+    uname: true, open: true, pbcopy: true, pbpaste: true, osascript: true,
+    sw_vers: true, defaults: true, caffeinate: true, mdfind: true, mdls: true,
+    "xdg-open": true, xclip: true, xsel: true, "wl-copy": true, "wl-paste": true,
+    start: true, clip: true, explorer: true, curl: true, wget: true,
+    git: true, node: true, sleep: true,
+  };
+
+  function virtIsEmulatedCommand(name, args) {
+    if (!Object.prototype.hasOwnProperty.call(VIRT_TOOLS, name)) return false;
+    if (name === "git") return args.length === 1 && args[0] === "--version";
+    if (name === "node") return args.length === 1 && (args[0] === "--version" || args[0] === "-v");
+    if (name === "env") {
+      let i = 0;
+      while (i < args.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(String(args[i]))) i++;
+      if (i >= args.length) return true;
+      const sub = nodePath.basename(String(args[i]).replace(/\\/g, "/"));
+      return virtIsEmulatedCommand(sub, args.slice(i + 1));
+    }
+    return true;
+  }
+
+  function virtReadShellVar(cmd, i) {
+    const env = nodeProcess.env;
+    if (cmd.charAt(i + 1) === "{") {
+      const close = cmd.indexOf("}", i + 2);
+      if (close === -1) return { text: "", next: i + 1 };
+      const name = cmd.slice(i + 2, close);
+      return { text: name === "?" ? "0" : String(env[name] != null ? env[name] : ""), next: close + 1 };
+    }
+    let j = i + 1;
+    while (j < cmd.length && /[A-Za-z0-9_]/.test(cmd.charAt(j))) j++;
+    if (j === i + 1) return { text: "$", next: i + 1 };
+    const name = cmd.slice(i + 1, j);
+    return { text: String(env[name] != null ? env[name] : ""), next: j };
+  }
+
+  function virtExpandVars(s) {
+    const str = String(s);
+    let out = "";
+    let i = 0;
+    while (i < str.length) {
+      if (str.charAt(i) === "$") {
+        const r = virtReadShellVar(str, i);
+        out += r.text;
+        i = r.next;
+      } else {
+        out += str.charAt(i);
+        i++;
+      }
+    }
+    return out;
+  }
+
+  // POSIX-ish tokenizer: honors single/double quotes, backslash escapes, and
+  // expands $VAR / ${VAR} from the merged env (not inside single quotes).
+  function shellSplit(cmd) {
+    const tokens = [];
+    let cur = "";
+    let has = false;
+    let i = 0;
+    const n = cmd.length;
+    while (i < n) {
+      const c = cmd.charAt(i);
+      if (c === "'") {
+        const end = cmd.indexOf("'", i + 1);
+        if (end === -1) {
+          cur += cmd.slice(i + 1);
+          i = n;
+        } else {
+          cur += cmd.slice(i + 1, end);
+          i = end + 1;
+        }
+        has = true;
+      } else if (c === '"') {
+        i++;
+        while (i < n && cmd.charAt(i) !== '"') {
+          if (cmd.charAt(i) === "\\" && i + 1 < n && (cmd.charAt(i + 1) === '"' || cmd.charAt(i + 1) === "\\")) {
+            cur += cmd.charAt(i + 1);
+            i += 2;
+          } else if (cmd.charAt(i) === "$") {
+            const r = virtReadShellVar(cmd, i);
+            cur += r.text;
+            i = r.next;
+          } else {
+            cur += cmd.charAt(i);
+            i++;
+          }
+        }
+        i++;
+        has = true;
+      } else if (c === "\\" && i + 1 < n) {
+        cur += cmd.charAt(i + 1);
+        i += 2;
+        has = true;
+      } else if (/\s/.test(c)) {
+        if (has) {
+          tokens.push(cur);
+          cur = "";
+          has = false;
+        }
+        i++;
+      } else if (c === "$") {
+        const r = virtReadShellVar(cmd, i);
+        cur += r.text;
+        i = r.next;
+        has = true;
+      } else {
+        cur += c;
+        i++;
+        has = true;
+      }
+    }
+    if (has) tokens.push(cur);
+    return tokens;
+  }
+
+  // Quote-aware split on any of the given separators (multi-char supported).
+  function virtSplitSegments(cmd, seps) {
+    const parts = [];
+    const sepsFound = [];
+    let cur = "";
+    let quote = "";
+    let i = 0;
+    while (i < cmd.length) {
+      const c = cmd.charAt(i);
+      if (quote) {
+        cur += c;
+        if (c === quote) quote = "";
+        i++;
+        continue;
+      }
+      if (c === "'" || c === '"') {
+        quote = c;
+        cur += c;
+        i++;
+        continue;
+      }
+      if (c === "\\" && i + 1 < cmd.length) {
+        cur += c + cmd.charAt(i + 1);
+        i += 2;
+        continue;
+      }
+      let matched = null;
+      for (const s of seps) {
+        if (cmd.startsWith(s, i)) {
+          matched = s;
+          break;
+        }
+      }
+      if (matched) {
+        parts.push(cur);
+        sepsFound.push(matched);
+        cur = "";
+        i += matched.length;
+        continue;
+      }
+      cur += c;
+      i++;
+    }
+    parts.push(cur);
+    return { parts: parts, sepsFound: sepsFound };
+  }
+
+  function virtParseStages(unitString) {
+    const pipeSplit = virtSplitSegments(unitString, ["|"]);
+    const stages = [];
+    for (const s of pipeSplit.parts) {
+      const tokens = shellSplit(s);
+      const stage = { redirects: {}, name: "", args: [] };
+      const rest = [];
+      for (let i = 0; i < tokens.length; i++) {
+        const t = tokens[i];
+        if (t === "2>&1") {
+          stage.redirects.errToOut = true;
+          continue;
+        }
+        if (t === "1>&2" || t === ">&2") {
+          stage.redirects.outToErr = true;
+          continue;
+        }
+        let m = /^(\d?>>?)(.*)$/.exec(t);
+        if (m && (m[2] !== "" || i + 1 < tokens.length)) {
+          const target = m[2] !== "" ? m[2] : tokens[++i];
+          if (m[1].startsWith("2")) {
+            stage.redirects.err = target;
+            stage.redirects.errAppend = m[1] === "2>>";
+          } else {
+            stage.redirects.out = target;
+            stage.redirects.outAppend = m[1] === ">>";
+          }
+          continue;
+        }
+        m = /^<(.*)$/.exec(t);
+        if (m && (m[1] !== "" || i + 1 < tokens.length)) {
+          stage.redirects.in = m[1] !== "" ? m[1] : tokens[++i];
+          continue;
+        }
+        rest.push(t);
+      }
+      while (rest.length > 0 && /^[A-Za-z_][A-Za-z0-9_]*=/.test(rest[0])) rest.shift();
+      if (rest.length === 0) {
+        stage.name = "true";
+      } else {
+        stage.name = nodePath.basename(String(rest.shift()).replace(/\\/g, "/")) || "true";
+      }
+      stage.args = rest;
+      stages.push(stage);
+    }
+    return stages;
+  }
+
+  // Parse a full shell string: pipelines joined by ; && ||. Returns
+  // [{ op: "always"|"and"|"or", stages: [...] }] or null when any command in
+  // it is not emulatable (so callers can fall through with zero side effects).
+  function virtParseCommand(cmdString) {
+    const clauseSplit = virtSplitSegments(String(cmdString), [";"]);
+    const units = [];
+    for (const clause of clauseSplit.parts) {
+      if (clause.trim() === "" && clauseSplit.parts.length > 1) continue;
+      const unitSplit = virtSplitSegments(clause, ["&&", "||"]);
+      for (let i = 0; i < unitSplit.parts.length; i++) {
+        const op = i === 0 ? "always" : unitSplit.sepsFound[i - 1] === "&&" ? "and" : "or";
+        const stages = virtParseStages(unitSplit.parts[i]);
+        if (stages.length === 0) continue;
+        for (const stage of stages) {
+          if (!virtIsEmulatedCommand(stage.name, stage.args)) return null;
+        }
+        units.push({ op: op, stages: stages });
+      }
+    }
+    if (units.length === 0) return null;
+    return units;
+  }
+
+  function virtApplyStageRedirects(stage, res) {
+    let stdout = res.stdout == null ? "" : String(res.stdout);
+    let stderr = res.stderr == null ? "" : String(res.stderr);
+    const exitCode = res.exitCode == null ? 0 : res.exitCode;
+    if (stage.redirects.errToOut) {
+      stdout += stderr;
+      stderr = "";
+    }
+    if (stage.redirects.outToErr) {
+      stderr += stdout;
+      stdout = "";
+    }
+    if (stage.redirects.out !== undefined) {
+      const target = stage.redirects.out;
+      if (target === "/dev/null") {
+        stdout = "";
+      } else {
+        const existing = vfsRead(target);
+        const prev = stage.redirects.outAppend && existing != null ? String(existing) : "";
+        vfsWrite(target, prev + stdout);
+        stdout = "";
+      }
+    }
+    if (stage.redirects.err !== undefined) {
+      const target = stage.redirects.err;
+      if (target === "/dev/null") {
+        stderr = "";
+      } else {
+        const existing = vfsRead(target);
+        const prev = stage.redirects.errAppend && existing != null ? String(existing) : "";
+        vfsWrite(target, prev + stderr);
+        stderr = "";
+      }
+    }
+    return { stdout: stdout, stderr: stderr, exitCode: exitCode };
+  }
+
+  function virtRunStages(stages, idx, input) {
+    const stage = stages[idx];
+    const inFile = stage.redirects.in !== undefined ? vfsRead(stage.redirects.in) : null;
+    const stdinText = inFile != null ? String(inFile) : String(input == null ? "" : input);
+    const r = emulateCommand(stage.name, stage.args, stdinText);
+    if (r === null) return null;
+    if (r.promise) {
+      return {
+        promise: r.promise.then(function (res) {
+          const applied = virtApplyStageRedirects(stage, res);
+          if (idx + 1 >= stages.length) return applied;
+          const rest = virtRunStages(stages, idx + 1, applied.stdout);
+          return rest && rest.promise ? rest.promise : rest;
+        }),
+      };
+    }
+    const applied = virtApplyStageRedirects(stage, r);
+    if (idx + 1 >= stages.length) return applied;
+    return virtRunStages(stages, idx + 1, applied.stdout);
+  }
+
+  function virtRunUnits(units, idx, lastExit, acc) {
+    if (idx >= units.length) {
+      return { stdout: acc.stdout, stderr: acc.stderr, exitCode: lastExit == null ? 0 : lastExit };
+    }
+    const unit = units[idx];
+    if ((unit.op === "and" && lastExit !== 0 && lastExit != null) || (unit.op === "or" && lastExit === 0)) {
+      return virtRunUnits(units, idx + 1, lastExit, acc);
+    }
+    const r = virtRunStages(unit.stages, 0, "");
+    if (r === null) return null;
+    if (r.promise) {
+      return {
+        promise: r.promise.then(function (res) {
+          const next = virtRunUnits(units, idx + 1, res.exitCode, {
+            stdout: acc.stdout + (res.stdout || ""),
+            stderr: acc.stderr + (res.stderr || ""),
+          });
+          return next && next.promise ? next.promise : next;
+        }),
+      };
+    }
+    return virtRunUnits(units, idx + 1, r.exitCode, {
+      stdout: acc.stdout + (r.stdout || ""),
+      stderr: acc.stderr + (r.stderr || ""),
+    });
+  }
+
+  // Full emulation entry point. Returns a result object, { promise }, or null
+  // (not emulatable -> caller must use the host CliBridge unchanged).
+  function virtTryEmulate(cmdString) {
+    try {
+      const units = virtParseCommand(cmdString);
+      if (units === null) return null;
+      return virtRunUnits(units, 0, null, { stdout: "", stderr: "" });
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // execFile/spawn file translation: basename, strip bin prefixes (via
+  // basename), strip a leading `env [VAR=..]` wrapper, expand $VARS in args.
+  function virtTranslateExecFile(file, args) {
+    let name = nodePath.basename(String(file || "").replace(/\\/g, "/"));
+    let sourceArgs = Array.isArray(args) ? args.map(String) : [];
+    if (name === "env") {
+      let i = 0;
+      while (i < sourceArgs.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(sourceArgs[i])) i++;
+      if (i < sourceArgs.length) {
+        name = nodePath.basename(sourceArgs[i].replace(/\\/g, "/")) || "env";
+        sourceArgs = sourceArgs.slice(i + 1);
+      } else {
+        sourceArgs = [];
+      }
+    }
+    return { name: name, args: sourceArgs.map(virtExpandVars) };
+  }
+
+  function virtUnescape(s) {
+    return String(s).replace(/\\(n|t|r|a|b|f|v|\\)/g, function (_, c) {
+      return { n: "\n", t: "\t", r: "\r", a: "\x07", b: "\b", f: "\f", v: "\v", "\\": "\\" }[c];
+    });
+  }
+
+  function virtPad(n, width, zero, left) {
+    let s = String(n);
+    if (s.length >= width) return s;
+    const pad = new Array(width - s.length + 1).join(zero ? "0" : " ");
+    return left ? s + pad : pad + s;
+  }
+
+  function virtFormatPrintf(format, argList) {
+    let out = "";
+    let ai = 0;
+    let i = 0;
+    while (i < format.length) {
+      const c = format.charAt(i);
+      if (c === "\\") {
+        const next = format.charAt(i + 1);
+        if (next === "n") { out += "\n"; i += 2; }
+        else if (next === "t") { out += "\t"; i += 2; }
+        else if (next === "r") { out += "\r"; i += 2; }
+        else if (next === "\\") { out += "\\"; i += 2; }
+        else { out += c; i++; }
+      } else if (c === "%") {
+        const m = /^%([-+ 0#']*)(\d*)(?:\.(\d+))?([diouxXeEfgGcs%])/.exec(format.slice(i));
+        if (!m) {
+          out += "%";
+          i++;
+          continue;
+        }
+        i += m[0].length;
+        if (m[4] === "%") {
+          out += "%";
+          continue;
+        }
+        const conv = m[4];
+        let val = ai < argList.length ? argList[ai] : "";
+        ai++;
+        let text;
+        if (conv === "s") {
+          text = val == null ? "" : String(val);
+          if (m[3]) text = text.slice(0, Number(m[3]));
+        } else if (conv === "c") {
+          text = val == null ? "" : String(val).charAt(0);
+        } else if (conv === "d" || conv === "i" || conv === "u") {
+          const num = parseInt(val, 10);
+          text = String(isNaN(num) ? 0 : num);
+        } else if (conv === "x" || conv === "X") {
+          const num = parseInt(val, 10);
+          text = (isNaN(num) ? 0 : num).toString(16);
+          if (conv === "X") text = text.toUpperCase();
+        } else {
+          const num = parseFloat(val);
+          text = String(isNaN(num) ? 0 : num);
+        }
+        const width = Number(m[2]) || 0;
+        if (width > text.length) {
+          const leftJustify = m[1].indexOf("-") !== -1;
+          const zeroPad = m[1].indexOf("0") !== -1 && (conv === "d" || conv === "i" || conv === "u" || conv === "x" || conv === "X" || conv === "f");
+          text = virtPad(text, width, zeroPad, leftJustify);
+        }
+        out += text;
+      } else {
+        out += c;
+        i++;
+      }
+    }
+    return { text: out, used: ai };
+  }
+
+  function virtStrftime(fmt, d, utc) {
+    const p2 = function (n) { return n < 10 ? "0" + n : String(n); };
+    const day = utc ? d.getUTCDay() : d.getDay();
+    const date = utc ? d.getUTCDate() : d.getDate();
+    const month = (utc ? d.getUTCMonth() : d.getMonth()) + 1;
+    const year = utc ? d.getUTCFullYear() : d.getFullYear();
+    const hours = utc ? d.getUTCHours() : d.getHours();
+    const minutes = utc ? d.getUTCMinutes() : d.getMinutes();
+    const seconds = utc ? d.getUTCSeconds() : d.getSeconds();
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const dayFull = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const monNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const monFull = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const first = new Date(year, month - 1, 1);
+    const yday = Math.floor((d - first) / 86400000) + 1;
+    const hour12 = hours % 12 === 0 ? 12 : hours % 12;
+    return fmt.replace(/%([-_0]?)([aAbBcCdDeFgGhHIjkklmMnPrRsStTuUvVwWxXyYzZ%])/g, function (_, flag, code) {
+      const noPad = flag === "-";
+      const spacePad = flag === "_";
+      switch (code) {
+        case "a": return dayNames[day];
+        case "A": return dayFull[day];
+        case "b": case "h": return monNames[month - 1];
+        case "B": return monFull[month - 1];
+        case "C": return p2(Math.floor(year / 100));
+        case "c": return dayNames[day] + " " + monNames[month - 1] + " " + virtPad(date, 2) + " " + p2(hours) + ":" + p2(minutes) + ":" + p2(seconds) + " " + (utc ? "UTC " : "") + year;
+        case "d": return p2(date);
+        case "D": return p2(month) + "/" + p2(date) + "/" + p2(year % 100);
+        case "e": return noPad ? String(date) : virtPad(date, 2).replace(/^0/, " ");
+        case "F": return year + "-" + p2(month) + "-" + p2(date);
+        case "H": return p2(hours);
+        case "I": return p2(hour12);
+        case "j": return virtPad(yday, 3);
+        case "k": return spacePad || noPad ? String(hours) : virtPad(hours, 2);
+        case "l": return spacePad || noPad ? String(hour12) : virtPad(hour12, 2);
+        case "m": return p2(month);
+        case "M": return p2(minutes);
+        case "n": return "\n";
+        case "p": return hours < 12 ? "AM" : "PM";
+        case "P": return hours < 12 ? "am" : "pm";
+        case "r": return p2(hour12) + ":" + p2(minutes) + ":" + p2(seconds) + " " + (hours < 12 ? "AM" : "PM");
+        case "R": return p2(hours) + ":" + p2(minutes);
+        case "s": return String(Math.floor(d.getTime() / 1000));
+        case "S": return p2(seconds);
+        case "t": return "\t";
+        case "T": return p2(hours) + ":" + p2(minutes) + ":" + p2(seconds);
+        case "u": return String(day === 0 ? 7 : day);
+        case "w": return String(day);
+        case "x": return p2(month) + "/" + p2(date) + "/" + p2(year % 100);
+        case "X": return p2(hours) + ":" + p2(minutes) + ":" + p2(seconds);
+        case "y": return p2(year % 100);
+        case "Y": return String(year);
+        case "z": return utc ? "+0000" : -d.getTimezoneOffset() <= 0 ? "-" + virtPad(Math.abs(-d.getTimezoneOffset() / 60), 4) : "+" + virtPad(-d.getTimezoneOffset() / 60, 4);
+        case "Z": return utc ? "UTC" : "UTC";
+        case "%": return "%";
+        default: return "%" + code;
+      }
+    });
+  }
+
+  // Collect input for text filters: no file args -> stdin; "-" -> stdin mixed in.
+  function virtCollectInput(fileArgs, stdinText) {
+    if (fileArgs.length === 0) return { text: String(stdinText == null ? "" : stdinText), missing: [] };
+    const parts = [];
+    const missing = [];
+    for (const f of fileArgs) {
+      if (f === "-") {
+        parts.push(String(stdinText == null ? "" : stdinText));
+        continue;
+      }
+      const content = vfsRead(f);
+      if (content == null) missing.push(f);
+      else parts.push(String(content));
+    }
+    return { text: parts.join(""), missing: missing };
+  }
+
+  function virtGrepRegExp(pattern, ignoreCase, extended) {
+    let src = String(pattern);
+    if (!extended) {
+      // BRE -> ERE: escape literal metachars that JS would treat specially,
+      // while keeping backslash-escaped forms working.
+      src = src.replace(/\\?[+?{}()|]/g, function (m) {
+        return m.charAt(0) === "\\" ? m : "\\" + m;
+      });
+    }
+    try {
+      return new RegExp(src, ignoreCase ? "i" : "");
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function emulateCommand(name, args, stdinText) {
+    const input = String(stdinText == null ? "" : stdinText);
+    switch (name) {
+      case "true":
+        return { stdout: "", stderr: "", exitCode: 0 };
+      case "false":
+        return { stdout: "", stderr: "", exitCode: 1 };
+      case "pwd":
+        return { stdout: VirtShell.cwd + "\n", stderr: "", exitCode: 0 };
+      case "hostname":
+        return { stdout: "komorebi\n", stderr: "", exitCode: 0 };
+      case "whoami":
+        return { stdout: "komorebi\n", stderr: "", exitCode: 0 };
+      case "id": {
+        let uid = false, gid = false, nu = false;
+        for (const a of args) {
+          if (a === "-u") uid = true;
+          else if (a === "-g") gid = true;
+          else if (a === "-n") nu = true;
+        }
+        if (uid && !nu) return { stdout: "1000\n", stderr: "", exitCode: 0 };
+        if (uid && nu) return { stdout: "komorebi\n", stderr: "", exitCode: 0 };
+        if (gid && !nu) return { stdout: "1000\n", stderr: "", exitCode: 0 };
+        if (gid && nu) return { stdout: "komorebi\n", stderr: "", exitCode: 0 };
+        return { stdout: "uid=1000(komorebi) gid=1000(komorebi) groups=1000(komorebi)\n", stderr: "", exitCode: 0 };
+      }
+      case "uname": {
+        let s = false, m = false, r = false, a = false, n = false;
+        for (const arg of args) {
+          const t = String(arg);
+          if (t === "-s" || t === "--kernel-name") s = true;
+          else if (t === "-m" || t === "--machine" || t === "-p" || t === "--processor" || t === "-i" || t === "--hardware-platform") m = true;
+          else if (t === "-r" || t === "--kernel-release") r = true;
+          else if (t === "-n" || t === "--nodename") n = true;
+          else if (t === "-a" || t === "--all") a = true;
+        }
+        if (a) {
+          return { stdout: "Linux komorebi 6.1.75-android14-komorebi #1 SMP PREEMPT " + virtStrftime("%a %b %e %T UTC %Y", new Date(), true) + " aarch64 Android\n", stderr: "", exitCode: 0 };
+        }
+        if (m) return { stdout: "aarch64\n", stderr: "", exitCode: 0 };
+        if (r) return { stdout: "6.1.75-android14-komorebi\n", stderr: "", exitCode: 0 };
+        if (n) return { stdout: "komorebi\n", stderr: "", exitCode: 0 };
+        return { stdout: "Linux\n", stderr: "", exitCode: 0 };
+      }
+      case "sw_vers":
+        return { stdout: "ProductName:    Android\nProductVersion: 14\nBuildVersion:   komorebi.2026.11\n", stderr: "", exitCode: 0 };
+      case "git":
+        return { stdout: "git version 2.45.0\n", stderr: "", exitCode: 0 };
+      case "node":
+        return { stdout: "v20.0.0\n", stderr: "", exitCode: 0 };
+      case "echo": {
+        let newline = true;
+        let interpret = false;
+        const rest = [];
+        for (const a of args) {
+          if (a === "-n") {
+            newline = false;
+            continue;
+          }
+          if (a === "-e") {
+            interpret = true;
+            continue;
+          }
+          if (a === "-E") continue;
+          rest.push(a);
+        }
+        let text = rest.join(" ");
+        if (interpret) text = virtUnescape(text);
+        return { stdout: text + (newline ? "\n" : ""), stderr: "", exitCode: 0 };
+      }
+      case "printf": {
+        if (args.length === 0) return { stdout: "", stderr: "printf: usage: printf format [arguments]\n", exitCode: 2 };
+        const format = String(args[0]);
+        const rest = args.slice(1);
+        let out = "";
+        if (rest.length === 0) {
+          out = virtFormatPrintf(format, []).text;
+        } else {
+          let consumed = 0;
+          while (consumed < rest.length || consumed === 0) {
+            const pass = virtFormatPrintf(format, rest.slice(consumed));
+            out += pass.text;
+            consumed += pass.used;
+            if (pass.used === 0) break;
+          }
+        }
+        return { stdout: out, stderr: "", exitCode: 0 };
+      }
+      case "cat": {
+        const parts = [];
+        const errs = [];
+        let exit = 0;
+        for (const f of args) {
+          if (f === "-") {
+            parts.push(input);
+            continue;
+          }
+          if (f.startsWith("-") && f.length > 1) continue;
+          const content = vfsRead(f);
+          if (content == null) {
+            errs.push("cat: " + f + ": No such file or directory");
+            exit = 1;
+          } else {
+            parts.push(String(content));
+          }
+        }
+        return { stdout: parts.join(""), stderr: errs.length ? errs.join("\n") + "\n" : "", exitCode: exit };
+      }
+      case "ls": {
+        let long = false, all = false, one = false;
+        const targets = [];
+        for (const a of args) {
+          if (a === "--") continue;
+          if (a.startsWith("-") && a.length > 1) {
+            if (a === "-la" || a === "-al") { long = true; all = true; continue; }
+            for (const ch of a.slice(1)) {
+              if (ch === "l") long = true;
+              else if (ch === "a") all = true;
+              else if (ch === "1") one = true;
+            }
+            continue;
+          }
+          targets.push(a);
+        }
+        const dir = targets.length > 0 ? targets[0] : ".";
+        let names = vfsList(dir);
+        if (names === null) {
+          const st = vfsStat(dir);
+          if (st && st.isFile) {
+            return { stdout: nodePath.basename(vfsResolve(dir)) + "\n", stderr: "", exitCode: 0 };
+          }
+          return { stdout: "", stderr: "ls: cannot access '" + String(targets.length > 0 ? targets[0] : ".") + "': No such file or directory\n", exitCode: 2 };
+        }
+        if (all) names = [".", ".."].concat(names);
+        const lines = [];
+        for (const nm of names) {
+          const st = vfsStat(dir === "." ? nm : vfsResolve(dir) === "/" ? "/" + nm : vfsResolve(dir) + "/" + nm) || { isFile: true, isDirectory: false, size: 0, mtimeMs: 0 };
+          if (long) {
+            const isDir = Boolean(st.isDirectory);
+            const mode = isDir ? "drwxr-xr-x" : "-rw-r--r--";
+            const d = new Date(st.mtimeMs || Date.now());
+            const when = virtStrftime("%b %e %H:%M", d, false);
+            lines.push(mode + " 1 komorebi komorebi " + virtPad(st.size || 0, 8) + " " + when + " " + nm);
+          } else {
+            lines.push(nm);
+          }
+        }
+        return { stdout: lines.map(function (l) { return l + "\n"; }).join(""), stderr: "", exitCode: 0 };
+      }
+      case "which": {
+        const found = [];
+        let allOk = true;
+        for (const a of args) {
+          if (a.startsWith("-")) continue;
+          const nm = nodePath.basename(String(a).replace(/\\/g, "/"));
+          if (Object.prototype.hasOwnProperty.call(VIRT_TOOLS, nm)) {
+            found.push(nm === "node" ? "/usr/local/bin/node" : "/usr/bin/" + nm);
+          } else {
+            allOk = false;
+          }
+        }
+        return {
+          stdout: found.map(function (f) { return f + "\n"; }).join(""),
+          stderr: "",
+          exitCode: allOk && found.length > 0 ? 0 : allOk ? 0 : 1,
+        };
+      }
+      case "date": {
+        let utc = false;
+        let fmt = null;
+        for (const a of args) {
+          if (a === "-u" || a === "--utc" || a === "--universal") utc = true;
+          else if (a.startsWith("+")) fmt = a.slice(1);
+        }
+        return { stdout: virtStrftime(fmt || "%a %b %e %T %Z %Y", new Date(), utc) + "\n", stderr: "", exitCode: 0 };
+      }
+      case "basename": {
+        const rest = args.filter(function (a) { return a !== "-a" && a !== "--multiple" && !(a.startsWith("-s") ); });
+        let suffix = null;
+        let names = rest;
+        if (args.length === 2 && String(args[1]).startsWith(".") && args[0] === rest[0] && rest[1] === args[1]) {
+          names = [rest[0]];
+          suffix = rest[1];
+        }
+        const out = [];
+        for (const nm of names) {
+          let s = String(nm);
+          while (s.length > 1 && s.endsWith("/")) s = s.slice(0, -1);
+          const base = s === "" ? "/" : s.slice(s.lastIndexOf("/") + 1) || "/";
+          if (suffix && base !== suffix && base.endsWith(suffix)) out.push(base.slice(0, base.length - suffix.length));
+          else out.push(base);
+        }
+        if (out.length === 0) return { stdout: "", stderr: "basename: missing operand\n", exitCode: 1 };
+        return { stdout: out.map(function (o) { return o + "\n"; }).join(""), stderr: "", exitCode: 0 };
+      }
+      case "dirname": {
+        const out = [];
+        for (const a of args) {
+          if (a.startsWith("-")) continue;
+          out.push(dirname(virtTranslatePath(a)));
+        }
+        if (out.length === 0) return { stdout: "", stderr: "dirname: missing operand\n", exitCode: 1 };
+        return { stdout: out.map(function (o) { return o + "\n"; }).join(""), stderr: "", exitCode: 0 };
+      }
+      case "env": {
+        let i = 0;
+        const overrides = {};
+        while (i < args.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(String(args[i]))) {
+          const pair = String(args[i]);
+          const eq = pair.indexOf("=");
+          overrides[pair.slice(0, eq)] = pair.slice(eq + 1);
+          i++;
+        }
+        if (i < args.length) {
+          const subName = nodePath.basename(String(args[i]).replace(/\\/g, "/"));
+          return emulateCommand(subName, args.slice(i + 1), stdinText);
+        }
+        const merged = {};
+        for (const k of Object.keys(VirtShell.env)) merged[k] = VirtShell.env[k];
+        for (const k of Object.keys(nodeProcess.env)) merged[k] = nodeProcess.env[k];
+        for (const k of Object.keys(overrides)) merged[k] = overrides[k];
+        return { stdout: Object.keys(merged).map(function (k) { return k + "=" + String(merged[k]) + "\n"; }).join(""), stderr: "", exitCode: 0 };
+      }
+      case "printenv": {
+        if (args.length === 0) {
+          const merged = {};
+          for (const k of Object.keys(VirtShell.env)) merged[k] = VirtShell.env[k];
+          for (const k of Object.keys(nodeProcess.env)) merged[k] = nodeProcess.env[k];
+          return { stdout: Object.keys(merged).map(function (k) { return k + "=" + String(merged[k]) + "\n"; }).join(""), stderr: "", exitCode: 0 };
+        }
+        const v = nodeProcess.env[String(args[0])];
+        if (v === undefined) return { stdout: "", stderr: "", exitCode: 1 };
+        return { stdout: String(v) + "\n", stderr: "", exitCode: 0 };
+      }
+      case "head":
+      case "tail": {
+        let count = 10;
+        const files = [];
+        for (let i = 0; i < args.length; i++) {
+          const a = String(args[i]);
+          if (a === "-n") {
+            const v = parseInt(String(args[++i]), 10);
+            if (!isNaN(v)) count = v;
+            continue;
+          }
+          let m = /^-n(\d+)$/.exec(a);
+          if (m) {
+            count = parseInt(m[1], 10);
+            continue;
+          }
+          m = /^-(\d+)$/.exec(a);
+          if (m) {
+            count = parseInt(m[1], 10);
+            continue;
+          }
+          files.push(a);
+        }
+        const collected = virtCollectInput(files, input);
+        const errs = collected.missing.map(function (f) {
+          return name + ": cannot open '" + f + "' for reading: No such file or directory";
+        });
+        const lines = collected.text.split("\n");
+        let selected;
+        if (name === "head") selected = lines.slice(0, Math.max(0, count));
+        else selected = count <= 0 ? [] : lines.slice(-count - (lines.length && lines[lines.length - 1] === "" ? 1 : 0));
+        let text = selected.join("\n");
+        if (collected.text.endsWith("\n") && text !== "" && !text.endsWith("\n")) text += "\n";
+        return { stdout: text, stderr: errs.length ? errs.join("\n") + "\n" : "", exitCode: errs.length ? 1 : 0 };
+      }
+      case "wc": {
+        let wantL = false, wantW = false, wantC = false;
+        const files = [];
+        for (const a of args) {
+          if (a === "-l" || a === "--lines") wantL = true;
+          else if (a === "-w" || a === "--words") wantW = true;
+          else if (a === "-c" || a === "--bytes" || a === "-m" || a === "--chars") wantC = true;
+          else if (a === "--") continue;
+          else files.push(a);
+        }
+        if (!wantL && !wantW && !wantC) {
+          wantL = true;
+          wantW = true;
+          wantC = true;
+        }
+        const collected = virtCollectInput(files, input);
+        const countOne = function (text) {
+          const l = text === "" ? 0 : (text.match(/\n/g) || []).length;
+          const w = text.trim() === "" ? 0 : text.trim().split(/\s+/).length;
+          const c = global.Buffer.byteLength(text);
+          const cols = [];
+          if (wantL) cols.push(String(l));
+          if (wantW) cols.push(String(w));
+          if (wantC) cols.push(String(c));
+          return cols.join(" ");
+        };
+        let stdout;
+        if (files.length <= 1) {
+          const line = countOne(collected.text);
+          stdout = line + (files.length === 1 && !collected.missing.length ? " " + files[0] : "") + "\n";
+        } else {
+          const parts = [];
+          let tl = 0, tw = 0, tc = 0;
+          for (const f of files) {
+            const content = vfsRead(f);
+            if (content == null) continue;
+            const text = String(content);
+            const cols = countOne(text).split(" ");
+            let idx = 0;
+            if (wantL) tl += Number(cols[idx++]);
+            if (wantW) tw += Number(cols[idx++]);
+            if (wantC) tc += Number(cols[idx++]);
+            parts.push(countOne(text) + " " + f);
+          }
+          const totalCols = [];
+          if (wantL) totalCols.push(String(tl));
+          if (wantW) totalCols.push(String(tw));
+          if (wantC) totalCols.push(String(tc));
+          parts.push(totalCols.join(" ") + " total");
+          stdout = parts.map(function (l) { return l + "\n"; }).join("");
+        }
+        const errs = collected.missing.map(function (f) { return "wc: " + f + ": No such file or directory"; });
+        return { stdout: stdout, stderr: errs.length ? errs.join("\n") + "\n" : "", exitCode: errs.length ? 1 : 0 };
+      }
+      case "grep": {
+        let ignoreCase = false, invert = false, countOnly = false, showLineNo = false, extended = false, quiet = false;
+        let pattern = null;
+        const files = [];
+        for (let i = 0; i < args.length; i++) {
+          const a = String(args[i]);
+          if (a === "-i" || a === "--ignore-case") ignoreCase = true;
+          else if (a === "-v" || a === "--invert-match") invert = true;
+          else if (a === "-c" || a === "--count") countOnly = true;
+          else if (a === "-n" || a === "--line-number") showLineNo = true;
+          else if (a === "-E" || a === "--extended-regexp") extended = true;
+          else if (a === "-q" || a === "--quiet" || a === "--silent") quiet = true;
+          else if (a === "-e" || a === "--regexp") {
+            pattern = String(args[++i]);
+          } else if (a === "--") continue;
+          else if (pattern === null && a.startsWith("-") && a.length > 1 && !/^-\d/.test(a)) {
+            // unknown flag cluster: ignore
+          } else if (pattern === null) {
+            pattern = a;
+          } else {
+            files.push(a);
+          }
+        }
+        if (pattern === null) return { stdout: "", stderr: "usage: grep [-iENvqn] pattern [file ...]\n", exitCode: 2 };
+        const re = virtGrepRegExp(pattern, ignoreCase, extended);
+        if (re === null) return { stdout: "", stderr: "grep: invalid regular expression\n", exitCode: 2 };
+        const sources = [];
+        const missing = [];
+        if (files.length === 0) {
+          sources.push({ label: null, text: input });
+        } else {
+          for (const f of files) {
+            const content = vfsRead(f);
+            if (content == null) missing.push(f);
+            else sources.push({ label: files.length > 1 ? f : null, text: String(content) });
+          }
+        }
+        const out = [];
+        let matched = 0;
+        let counts = [];
+        for (const src of sources) {
+          const lines = src.text.split("\n");
+          let fileMatched = 0;
+          for (let li = 0; li < lines.length; li++) {
+            const line = lines[li];
+            const isMatch = re.test(line) !== invert;
+            if (isMatch && (invert || re.test(line))) {
+              fileMatched++;
+              if (!quiet && !countOnly) {
+                let prefix = "";
+                if (src.label) prefix += src.label + ":";
+                if (showLineNo) prefix += String(li + 1) + ":";
+                out.push(prefix + line);
+              }
+            }
+          }
+          if (countOnly && !quiet) {
+            const prefix = src.label ? src.label + ":" : "";
+            out.push(prefix + String(fileMatched));
+          }
+          matched += fileMatched;
+        }
+        const errs = missing.map(function (f) { return "grep: " + f + ": No such file or directory"; });
+        const code = missing.length ? 2 : matched > 0 ? 0 : 1;
+        return {
+          stdout: out.map(function (l) { return l + "\n"; }).join(""),
+          stderr: errs.length ? errs.join("\n") + "\n" : "",
+          exitCode: code,
+        };
+      }
+      case "sort": {
+        let reverse = false, unique = false, numeric = false;
+        const files = [];
+        for (const a of args) {
+          if (a === "-r" || a === "--reverse") reverse = true;
+          else if (a === "-u" || a === "--unique") unique = true;
+          else if (a === "-n" || a === "--numeric-sort") numeric = true;
+          else files.push(a);
+        }
+        const collected = virtCollectInput(files, input);
+        let lines = collected.text.split("\n");
+        if (lines.length && lines[lines.length - 1] === "") lines.pop();
+        if (numeric) {
+          lines.sort(function (a, b) {
+            const na = parseFloat(a), nb = parseFloat(b);
+            const va = isNaN(na) ? Number.MAX_VALUE : na;
+            const vb = isNaN(nb) ? Number.MAX_VALUE : nb;
+            return va === vb ? (a > b ? 1 : a < b ? -1 : 0) : va - vb;
+          });
+        } else {
+          lines.sort();
+        }
+        if (unique) {
+          const deduped = [];
+          for (const l of lines) if (deduped.length === 0 || deduped[deduped.length - 1] !== l) deduped.push(l);
+          lines = deduped;
+        }
+        if (reverse) lines.reverse();
+        return { stdout: lines.map(function (l) { return l + "\n"; }).join(""), stderr: "", exitCode: 0 };
+      }
+      case "uniq": {
+        let counts = false;
+        const files = [];
+        for (const a of args) {
+          if (a === "-c" || a === "--count") counts = true;
+          else files.push(a);
+        }
+        const collected = virtCollectInput(files, input);
+        let lines = collected.text.split("\n");
+        if (lines.length && lines[lines.length - 1] === "") lines.pop();
+        const out = [];
+        let i = 0;
+        while (i < lines.length) {
+          let j = i + 1;
+          while (j < lines.length && lines[j] === lines[i]) j++;
+          if (counts) out.push(virtPad(j - i, 7) + " " + lines[i]);
+          else out.push(lines[i]);
+          i = j;
+        }
+        return { stdout: out.map(function (l) { return l + "\n"; }).join(""), stderr: "", exitCode: 0 };
+      }
+      case "tr": {
+        const sets = args.filter(function (a) { return !a.startsWith("-") || a === "-"; });
+        if (sets.length < 1) return { stdout: input, stderr: "usage: tr set1 [set2]\n", exitCode: 1 };
+        const expand = function (s) {
+          const out = [];
+          for (let i = 0; i < s.length; i++) {
+            if (s.charAt(i) === "-" && i > 0 && i + 1 < s.length && out.length > 0) {
+              const from = out[out.length - 1].charCodeAt(0) + 1;
+              const to = s.charCodeAt(i + 1);
+              for (let c = from; c <= to; c++) out.push(String.fromCharCode(c));
+              i++;
+            } else {
+              out.push(s.charAt(i));
+            }
+          }
+          return out;
+        };
+        const set1 = expand(String(sets[0]));
+        let set2 = sets.length > 1 ? expand(String(sets[1])) : null;
+        if (set2 === null) {
+          return { stdout: "", stderr: "tr: missing set2\n", exitCode: 1 };
+        }
+        while (set2.length < set1.length) set2.push(set2[set2.length - 1]);
+        if (set2.length > set1.length) set2 = set2.slice(0, set1.length);
+        const map = {};
+        for (let i = 0; i < set1.length; i++) map[set1[i]] = set2[i];
+        let out = "";
+        for (const ch of input) out += map[ch] !== undefined ? map[ch] : ch;
+        return { stdout: out, stderr: "", exitCode: 0 };
+      }
+      case "base64": {
+        let decode = false;
+        const files = [];
+        for (const a of args) {
+          if (a === "-d" || a === "--decode" || a === "-D") decode = true;
+          else if (a === "-w" || a === "--wrap") { /* ignore width arg */ }
+          else files.push(a);
+        }
+        const collected = virtCollectInput(files, input);
+        if (decode) {
+          const clean = collected.text.replace(/\s+/g, "");
+          try {
+            return { stdout: global.Buffer.from(clean, "base64").toString("utf8"), stderr: "", exitCode: 0 };
+          } catch (_) {
+            return { stdout: "", stderr: "base64: invalid input\n", exitCode: 1 };
+          }
+        }
+        return { stdout: global.Buffer.from(collected.text, "utf8").toString("base64"), stderr: "", exitCode: 0 };
+      }
+      case "mkdir": {
+        let parents = false;
+        const targets = [];
+        for (const a of args) {
+          if (a === "-p" || a === "--parents") parents = true;
+          else if (a === "-m" || a === "--mode") { /* skip mode arg */ }
+          else targets.push(a);
+        }
+        if (targets.length === 0) return { stdout: "", stderr: "mkdir: missing operand\n", exitCode: 1 };
+        const errs = [];
+        for (const t of targets) {
+          if (vfsExists(t)) {
+            if (!parents) errs.push("mkdir: cannot create directory '" + String(t) + "': File exists");
+            else if (!vfsIsDir(t)) errs.push("mkdir: cannot create directory '" + String(t) + "': File exists");
+            continue;
+          }
+          if (!parents) {
+            const parent = dirname(vfsResolve(t));
+            if (!vfsIsDir(parent)) {
+              errs.push("mkdir: cannot create directory '" + String(t) + "': No such file or directory");
+              continue;
+            }
+          }
+          vfsMkdir(t, true);
+        }
+        return { stdout: "", stderr: errs.length ? errs.join("\n") + "\n" : "", exitCode: errs.length ? 1 : 0 };
+      }
+      case "rmdir": {
+        const errs = [];
+        for (const t of args) {
+          if (t.startsWith("-")) continue;
+          if (!vfsIsDir(t)) errs.push("rmdir: failed to remove '" + String(t) + "': Not a directory");
+          else vfsDelete(t, false);
+        }
+        return { stdout: "", stderr: errs.length ? errs.join("\n") + "\n" : "", exitCode: errs.length ? 1 : 0 };
+      }
+      case "rm": {
+        let recursive = false, force = false;
+        const targets = [];
+        for (const a of args) {
+          if (a.startsWith("-") && a.length > 1) {
+            if (a === "--") continue;
+            for (const ch of a.slice(1)) {
+              if (ch === "r" || ch === "R") recursive = true;
+              else if (ch === "f") force = true;
+            }
+            continue;
+          }
+          targets.push(a);
+        }
+        const errs = [];
+        for (const t of targets) {
+          if (!vfsExists(t)) {
+            if (!force) errs.push("rm: cannot remove '" + String(t) + "': No such file or directory");
+            continue;
+          }
+          if (vfsIsDir(t) && !recursive) {
+            if (!force) errs.push("rm: cannot remove '" + String(t) + "': Is a directory");
+            continue;
+          }
+          vfsDelete(t, recursive);
+        }
+        return { stdout: "", stderr: errs.length ? errs.join("\n") + "\n" : "", exitCode: errs.length ? 1 : 0 };
+      }
+      case "touch": {
+        for (const t of args) {
+          if (t.startsWith("-")) continue;
+          if (!vfsExists(t)) vfsWrite(t, "");
+        }
+        return { stdout: "", stderr: "", exitCode: 0 };
+      }
+      case "cp":
+      case "mv": {
+        let recursive = false;
+        const rest = [];
+        for (const a of args) {
+          if (a === "-r" || a === "-R" || a === "--recursive" || a === "-rf" || a === "-fr") recursive = true;
+          else if (a === "-f" || a === "--force" || a === "-p" || a === "--preserve") { /* ignore */ }
+          else rest.push(a);
+        }
+        if (rest.length < 2) {
+          return { stdout: "", stderr: name + ": missing destination file operand\n", exitCode: 1 };
+        }
+        const dest = rest[rest.length - 1];
+        const srcs = rest.slice(0, -1);
+        const errs = [];
+        for (const src of srcs) {
+          const content = vfsRead(src);
+          if (content == null) {
+            errs.push(name + ": cannot stat '" + String(src) + "': No such file or directory");
+            continue;
+          }
+          if (vfsIsDir(src)) {
+            errs.push(name + ": -r not specified; omitting directory '" + String(src) + "'");
+            continue;
+          }
+          let target = dest;
+          if (vfsIsDir(dest)) {
+            target = vfsResolve(dest) === "/" ? "/" + nodePath.basename(vfsResolve(src)) : vfsResolve(dest) + "/" + nodePath.basename(vfsResolve(src));
+          }
+          vfsWrite(target, String(content));
+          if (name === "mv") vfsDelete(src, false);
+        }
+        return { stdout: "", stderr: errs.length ? errs.join("\n") + "\n" : "", exitCode: errs.length ? 1 : 0 };
+      }
+      case "sleep": {
+        const m = /^([\d.]+)([smh]?)$/.exec(String(args[0] || ""));
+        if (!m) return { stdout: "", stderr: "sleep: invalid time interval '" + String(args[0] || "") + "'\n", exitCode: 1 };
+        let ms = parseFloat(m[1]) * 1000;
+        if (m[2] === "m") ms *= 60;
+        else if (m[2] === "h") ms *= 3600;
+        if (!(ms >= 0)) ms = 0;
+        if (ms > 30000) ms = 30000;
+        return {
+          promise: new Promise(function (resolve) {
+            global.setTimeout(function () {
+              resolve({ stdout: "", stderr: "", exitCode: 0 });
+            }, ms);
+          }),
+        };
+      }
+      case "osascript":
+        return { stdout: "", stderr: "osascript is not available on Android\n", exitCode: 1 };
+      case "defaults":
+      case "caffeinate":
+      case "mdfind":
+      case "mdls":
+        return { stdout: "", stderr: name + " is not available on Android\n", exitCode: 1 };
+      case "open":
+      case "xdg-open":
+      case "start":
+      case "explorer": {
+        let target = null;
+        for (const a of args) {
+          if (a === "" || a.startsWith("-")) continue;
+          if (target === null) target = String(a);
+        }
+        if (target !== null) {
+          hostCall("system.open", { target: virtTranslatePath(target) }).then(function () {}, function () {});
+        }
+        return { stdout: "", stderr: "", exitCode: 0 };
+      }
+      case "pbcopy":
+      case "clip":
+      case "wl-copy": {
+        hostCall("clipboard.copy", { text: input }).then(function () {}, function () {});
+        return { stdout: "", stderr: "", exitCode: 0 };
+      }
+      case "pbpaste":
+      case "wl-paste": {
+        return {
+          promise: hostCall("clipboard.readText", {}).then(function (text) {
+            return { stdout: text == null ? "" : String(text), stderr: "", exitCode: 0 };
+          }, function () {
+            return { stdout: "", stderr: "", exitCode: 0 };
+          }),
+        };
+      }
+      case "xclip":
+      case "xsel": {
+        const wantsOut = args.some(function (a) { return a === "-o" || a === "--output" || a === "-read" || a === "-r"; });
+        if (wantsOut) return emulateCommand("pbpaste", [], stdinText);
+        return emulateCommand("pbcopy", [], stdinText);
+      }
+      case "wget": {
+        let url = null;
+        let outFile = null;
+        for (let i = 0; i < args.length; i++) {
+          const a = String(args[i]);
+          if (a === "-O" || a === "--output-document") {
+            outFile = args[++i];
+            continue;
+          }
+          if (a === "-q" || a === "--quiet" || a === "-nv" || a.startsWith("-")) continue;
+          url = a;
+        }
+        if (!url) return { stdout: "", stderr: "wget: missing URL\n", exitCode: 1 };
+        const target = outFile === "-" ? null : outFile;
+        return {
+          promise: global.fetch(url, { method: "GET" }).then(function (res) {
+            return res.text().then(function (body) {
+              if (res.status >= 200 && res.status < 400) {
+                if (target !== null && target !== undefined) vfsWrite(target, body);
+                return { stdout: target !== null && target !== undefined ? "" : body, stderr: "", exitCode: 0 };
+              }
+              return { stdout: "", stderr: "wget: server returned error: HTTP " + res.status + "\n", exitCode: 8 };
+            });
+          }, function () {
+            return { stdout: "", stderr: "wget: unable to resolve host address\n", exitCode: 4 };
+          }),
+        };
+      }
+      case "curl": {
+        let url = null, method = null, outFile = null, writeOut = null, head = false, failFlag = false;
+        const headers = [];
+        const data = [];
+        const argFlags = ["-X", "--request", "-H", "--header", "-d", "--data", "--data-raw", "--data-binary", "--data-urlencode", "-o", "--output", "-w", "--write-out", "-u", "--user", "-A", "--user-agent", "-e", "--referer", "--url", "-m", "--max-time", "--connect-timeout", "--retry", "-T", "--upload-file", "--cert", "--key", "-b", "--cookie", "-x", "--proxy"];
+        for (let i = 0; i < args.length; i++) {
+          const a = String(args[i]);
+          if (a === "-I" || a === "--head") {
+            head = true;
+            continue;
+          }
+          if (a === "-f" || a === "--fail") {
+            failFlag = true;
+            continue;
+          }
+          if (["-s", "--silent", "-S", "--show-error", "-L", "--location", "-k", "--insecure", "-v", "--verbose", "--compressed", "-G", "--get", "-4", "-6", "--http1.1", "--no-buffer", "-N", "-i", "--include", "-#", "--progress-bar"].indexOf(a) !== -1) continue;
+          if (argFlags.indexOf(a) !== -1) {
+            const v = args[++i];
+            if (a === "-X" || a === "--request") method = v;
+            else if (a === "-H" || a === "--header") headers.push(String(v));
+            else if (a === "-d" || a === "--data" || a === "--data-raw" || a === "--data-binary" || a === "--data-urlencode") data.push(String(v));
+            else if (a === "-o" || a === "--output") outFile = String(v);
+            else if (a === "-w" || a === "--write-out") writeOut = String(v);
+            else if (a === "-u" || a === "--user") {
+              if (v && String(v).indexOf(":") !== -1) headers.push("Authorization: Basic " + global.Buffer.from(String(v)).toString("base64"));
+            } else if (a === "-A" || a === "--user-agent") headers.push("User-Agent: " + v);
+            else if (a === "-e" || a === "--referer") headers.push("Referer: " + v);
+            else if (a === "--url") url = String(v);
+            continue;
+          }
+          if (a.startsWith("-") && a.length > 1) continue;
+          url = a;
+        }
+        if (!url) return { stdout: "", stderr: "curl: no URL specified\n", exitCode: 2 };
+        const fetchHeaders = {};
+        let contentType = "";
+        for (const h of headers) {
+          const idx = h.indexOf(":");
+          if (idx > 0) {
+            const key = h.slice(0, idx).trim();
+            const val = h.slice(idx + 1).trim();
+            fetchHeaders[key] = val;
+            if (key.toLowerCase() === "content-type") contentType = val;
+          }
+        }
+        const init = {
+          method: String(method || (data.length ? "POST" : head ? "HEAD" : "GET")).toUpperCase(),
+          headers: fetchHeaders,
+        };
+        if (data.length) init.body = data.join("&");
+        return {
+          promise: global.fetch(url, init).then(function (res) {
+            return res.text().then(function (body) {
+              try {
+                if (res.headers && typeof res.headers.forEach === "function") {
+                  res.headers.forEach(function (v, k) {
+                    if (String(k).toLowerCase() === "content-type") contentType = String(v);
+                  });
+                }
+              } catch (_) {}
+              const okStatus = res.status >= 200 && res.status < 300;
+              if (failFlag && res.status >= 400) {
+                return { stdout: "", stderr: "curl: (22) The requested URL returned error: " + res.status + "\n", exitCode: 22 };
+              }
+              let out = "";
+              if (head) {
+                out = "HTTP/1.1 " + res.status + " " + (res.statusText || "") + "\n";
+                try {
+                  res.headers.forEach(function (v, k) { out += k + ": " + v + "\n"; });
+                } catch (_) {}
+                out += "\n";
+              }
+              if (outFile !== null && outFile !== undefined) {
+                if (outFile !== "/dev/null") vfsWrite(outFile, body);
+              } else if (!head) {
+                out += body;
+              }
+              if (writeOut !== null && writeOut !== undefined) {
+                out += String(writeOut)
+                  .replace(/%\{http_code\}/g, String(res.status))
+                  .replace(/%\{url_effective\}/g, String(url))
+                  .replace(/%\{content_type\}/g, contentType)
+                  .replace(/%\{size_download\}/g, String(global.Buffer.byteLength(body)))
+                  .replace(/%\{num_redirects\}/g, "0")
+                  .replace(/%\{redirect_url\}/g, "")
+                  .replace(/%\{remote_ip\}/g, "127.0.0.1");
+              }
+              return { stdout: out, stderr: "", exitCode: okStatus ? 0 : 22 };
+            });
+          }, function () {
+            return { stdout: "", stderr: "curl: (6) Could not resolve host: " + String(url) + "\n", exitCode: 6 };
+          }),
+        };
+      }
+      default:
+        return null;
+    }
+  }
+
+  // Shared child-event emission for both the host CliBridge path and the
+  // VirtShell emulator path: identical ordering and payloads either way.
+  function emitChildResult(child, callback, result, cmd) {
+    const err = cliErrorFromResult(cmd, result);
+    if (result.stdout) child.stdout.emit("data", String(result.stdout));
+    if (result.stderr) child.stderr.emit("data", String(result.stderr));
+    child.stdout.emit("end");
+    child.stderr.emit("end");
+    if (typeof callback === "function") callback(err, result.stdout || "", result.stderr || "");
+    child.emit("close", result.exitCode || 0);
+    if (err) child.emit("error", err);
+  }
+
   const nodeChildProcess = {
     exec: function (cmd, opts, cb) {
       const callback = typeof opts === "function" ? opts : cb;
@@ -3282,15 +4942,18 @@
       child.stderr = new Readable();
       child.stdin = new Writable();
       child.kill = function () { return true; };
+      const emulated = virtTryEmulate(cmd);
+      if (emulated) {
+        Promise.resolve(emulated.promise || emulated).then(function (result) {
+          emitChildResult(child, callback, result, String(cmd));
+        }, function (err) {
+          if (typeof callback === "function") callback(err, "", String(err && err.message || err));
+          child.emit("error", err);
+        });
+        return child;
+      }
       cliHostCall(cmd, opts).then(function (result) {
-        const err = cliErrorFromResult(cmd, result);
-        if (result.stdout) child.stdout.emit("data", String(result.stdout));
-        if (result.stderr) child.stderr.emit("data", String(result.stderr));
-        child.stdout.emit("end");
-        child.stderr.emit("end");
-        if (typeof callback === "function") callback(err, result.stdout || "", result.stderr || "");
-        child.emit("close", result.exitCode || 0);
-        if (err) child.emit("error", err);
+        emitChildResult(child, callback, result, String(cmd));
       }).catch(function (err) {
         if (typeof callback === "function") callback(err, "", String(err && err.message || err));
         child.emit("error", err);
@@ -3301,20 +4964,38 @@
       const callback = typeof args === "function" ? args : (typeof opts === "function" ? opts : cb);
       const realArgs = Array.isArray(args) ? args : [];
       const realOpts = typeof args === "function" ? undefined : (typeof opts === "function" ? undefined : opts);
+      const translated = virtTranslateExecFile(file, realArgs);
+      if (virtIsEmulatedCommand(translated.name, translated.args)) {
+        return nodeChildProcess.exec(cliCommandFromFile(translated.name, translated.args), realOpts, callback);
+      }
       return nodeChildProcess.exec(cliCommandFromFile(file, realArgs), realOpts, callback);
     },
     execSync: function (cmd, opts) {
-      const result = cliHostCallSync(cmd, opts);
+      const emulated = virtTryEmulate(cmd);
+      const result = emulated && !emulated.promise ? emulated : cliHostCallSync(cmd, opts);
       const err = cliErrorFromResult(cmd, result);
       if (err) throw err;
       return result.stdout || "";
     },
     execFileSync: function (file, args, opts) {
+      const translated = virtTranslateExecFile(file, Array.isArray(args) ? args : []);
+      if (virtIsEmulatedCommand(translated.name, translated.args)) {
+        return nodeChildProcess.execSync(cliCommandFromFile(translated.name, translated.args), opts);
+      }
       return nodeChildProcess.execSync(cliCommandFromFile(file, args), opts);
     },
     spawnSync: function (file, args, opts) {
-      const command = Array.isArray(args) ? cliCommandFromFile(file, args) : String(file);
-      const result = cliHostCallSync(command, opts);
+      let command;
+      if (Array.isArray(args)) {
+        const translated = virtTranslateExecFile(file, args);
+        command = virtIsEmulatedCommand(translated.name, translated.args)
+          ? cliCommandFromFile(translated.name, translated.args)
+          : cliCommandFromFile(file, args);
+      } else {
+        command = String(file);
+      }
+      const emulated = virtTryEmulate(command);
+      const result = emulated && !emulated.promise ? emulated : cliHostCallSync(command, opts);
       const err = cliErrorFromResult(command, result);
       return {
         pid: 0,
@@ -3327,20 +5008,36 @@
       };
     },
     spawn: function (cmd, args, opts) {
-      const command = Array.isArray(args) ? cliCommandFromFile(cmd, args) : String(cmd);
+      let command;
+      if (Array.isArray(args)) {
+        const translated = virtTranslateExecFile(cmd, args);
+        command = virtIsEmulatedCommand(translated.name, translated.args)
+          ? cliCommandFromFile(translated.name, translated.args)
+          : cliCommandFromFile(cmd, args);
+      } else {
+        command = String(cmd);
+      }
       const child = new EventEmitter();
       child.stdout = new Readable();
       child.stderr = new Readable();
       child.stdin = new Writable();
       child.pid = 0;
       child.kill = function () { return true; };
-      cliHostCall(command, opts).then(function (result) {
+      const emitSpawnResult = function (result) {
         if (result.stdout) child.stdout.emit("data", String(result.stdout));
         if (result.stderr) child.stderr.emit("data", String(result.stderr));
         child.stdout.emit("end");
         child.stderr.emit("end");
         child.emit("close", result.exitCode || 0);
-      }).catch(function (err) {
+      };
+      const emulated = virtTryEmulate(command);
+      if (emulated) {
+        Promise.resolve(emulated.promise || emulated).then(emitSpawnResult, function (err) {
+          child.emit("error", err);
+        });
+        return child;
+      }
+      cliHostCall(command, opts).then(emitSpawnResult).catch(function (err) {
         child.emit("error", err);
       });
       return child;
@@ -3377,6 +5074,661 @@
     stdout: new Writable(),
     stderr: new Writable(),
   };
+  for (const k of Object.keys(VirtShell.env)) {
+    if (nodeProcess.env[k] === undefined) nodeProcess.env[k] = VirtShell.env[k];
+  }
+
+  function dequalEqual(a, b, seenA, seenB) {
+    if (a === b) return true;
+    if (a !== a && b !== b) return true;
+    if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
+
+    const tag = Object.prototype.toString.call(a);
+    if (tag !== Object.prototype.toString.call(b)) return false;
+
+    if (tag === "[object Date]") return a.getTime() === b.getTime();
+    if (tag === "[object RegExp]") return String(a) === String(b);
+    if (tag === "[object ArrayBuffer]" || tag === "[object SharedArrayBuffer]") {
+      return dequalEqual(new Uint8Array(a), new Uint8Array(b), seenA, seenB);
+    }
+    if (ArrayBuffer.isView(a)) {
+      if (a.byteLength !== b.byteLength) return false;
+      const aBytes = new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
+      const bBytes = new Uint8Array(b.buffer, b.byteOffset, b.byteLength);
+      for (let i = 0; i < aBytes.length; i++) {
+        if (aBytes[i] !== bBytes[i]) return false;
+      }
+      return true;
+    }
+
+    const seenIndex = seenA.indexOf(a);
+    if (seenIndex !== -1) return seenB[seenIndex] === b;
+    seenA.push(a);
+    seenB.push(b);
+
+    if (tag === "[object Array]") {
+      if (a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i++) {
+        if (!dequalEqual(a[i], b[i], seenA, seenB)) return false;
+      }
+      return true;
+    }
+
+    if (tag === "[object Map]") {
+      if (a.size !== b.size) return false;
+      const aEntries = Array.prototype.slice.call(a.entries());
+      const bEntries = Array.prototype.slice.call(b.entries());
+      const used = new Array(bEntries.length);
+      for (let i = 0; i < aEntries.length; i++) {
+        let found = false;
+        for (let j = 0; j < bEntries.length; j++) {
+          if (used[j]) continue;
+          const markA = seenA.length;
+          const markB = seenB.length;
+          if (dequalEqual(aEntries[i][0], bEntries[j][0], seenA, seenB) &&
+              dequalEqual(aEntries[i][1], bEntries[j][1], seenA, seenB)) {
+            used[j] = true;
+            found = true;
+            break;
+          }
+          seenA.length = markA;
+          seenB.length = markB;
+        }
+        if (!found) return false;
+      }
+      return true;
+    }
+
+    if (tag === "[object Set]") {
+      if (a.size !== b.size) return false;
+      const aValues = Array.prototype.slice.call(a.values());
+      const bValues = Array.prototype.slice.call(b.values());
+      const used = new Array(bValues.length);
+      for (let i = 0; i < aValues.length; i++) {
+        let found = false;
+        for (let j = 0; j < bValues.length; j++) {
+          if (used[j]) continue;
+          const markA = seenA.length;
+          const markB = seenB.length;
+          if (dequalEqual(aValues[i], bValues[j], seenA, seenB)) {
+            used[j] = true;
+            found = true;
+            break;
+          }
+          seenA.length = markA;
+          seenB.length = markB;
+        }
+        if (!found) return false;
+      }
+      return true;
+    }
+
+    if (tag === "[object WeakMap]" || tag === "[object WeakSet]" || tag === "[object Promise]") return false;
+
+    const keysA = Object.keys(a);
+    const keysB = Object.keys(b);
+    if (keysA.length !== keysB.length) return false;
+    for (let i = 0; i < keysA.length; i++) {
+      const key = keysA[i];
+      if (!Object.prototype.hasOwnProperty.call(b, key)) return false;
+      if (!dequalEqual(a[key], b[key], seenA, seenB)) return false;
+    }
+    return true;
+  }
+
+  function dequal(a, b) {
+    return dequalEqual(a, b, [], []);
+  }
+  dequal.dequal = dequal;
+  dequal.default = dequal;
+
+  const nodeStreamPromises = {
+    finished: function (stream) {
+      return new Promise(function (resolve, reject) {
+        if (!stream || typeof stream.on !== "function") {
+          queueMicrotask(function () { resolve(); });
+          return;
+        }
+        if (stream.readableEnded || stream.writableFinished || stream.destroyed) {
+          queueMicrotask(function () { resolve(); });
+          return;
+        }
+        let settled = false;
+        function cleanup() {
+          if (typeof stream.removeListener === "function") {
+            stream.removeListener("finish", onFinish);
+            stream.removeListener("end", onEnd);
+            stream.removeListener("close", onClose);
+            stream.removeListener("error", onError);
+          }
+        }
+        function done(err) {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          if (err) reject(err);
+          else resolve();
+        }
+        function onFinish() { done(); }
+        function onEnd() { done(); }
+        function onClose() { done(); }
+        function onError(err) { done(err); }
+        stream.on("finish", onFinish);
+        stream.on("end", onEnd);
+        stream.on("close", onClose);
+        stream.on("error", onError);
+      });
+    },
+    pipeline: function () {
+      const args = Array.prototype.slice.call(arguments);
+      const callback = typeof args[args.length - 1] === "function" ? args.pop() : null;
+      const streams = args;
+      const promise = new Promise(function (resolve, reject) {
+        if (streams.length === 0) {
+          resolve();
+          return;
+        }
+        const last = streams[streams.length - 1];
+        const finishedPromise = last && typeof last.on === "function"
+          ? nodeStreamPromises.finished(last)
+          : null;
+        try {
+          for (let i = 0; i < streams.length - 1; i++) {
+            if (streams[i] && typeof streams[i].pipe === "function") {
+              streams[i].pipe(streams[i + 1]);
+            }
+          }
+        } catch (e) {
+          reject(e);
+          return;
+        }
+        if (finishedPromise) {
+          finishedPromise.then(function () { resolve(last); }, reject);
+        } else {
+          queueMicrotask(function () { resolve(last); });
+        }
+      });
+      if (callback) {
+        promise.then(function (value) { callback(null, value); }, function (err) { callback(err); });
+      }
+      return promise;
+    },
+  };
+
+  const nodeStreamWeb = {
+    ReadableStream: global.ReadableStream,
+    WritableStream: global.WritableStream,
+    TransformStream: global.TransformStream,
+    ByteLengthQueuingStrategy: global.ByteLengthQueuingStrategy,
+    CountQueuingStrategy: global.CountQueuingStrategy,
+  };
+
+  const nodeStatusCodes = {
+    100: "Continue", 101: "Switching Protocols", 102: "Processing", 103: "Early Hints",
+    200: "OK", 201: "Created", 202: "Accepted", 203: "Non-Authoritative Information",
+    204: "No Content", 205: "Reset Content", 206: "Partial Content", 207: "Multi-Status",
+    208: "Already Reported", 226: "IM Used",
+    300: "Multiple Choices", 301: "Moved Permanently", 302: "Found", 303: "See Other",
+    304: "Not Modified", 305: "Use Proxy", 307: "Temporary Redirect", 308: "Permanent Redirect",
+    400: "Bad Request", 401: "Unauthorized", 402: "Payment Required", 403: "Forbidden",
+    404: "Not Found", 405: "Method Not Allowed", 406: "Not Acceptable",
+    407: "Proxy Authentication Required", 408: "Request Timeout", 409: "Conflict",
+    410: "Gone", 411: "Length Required", 412: "Precondition Failed", 413: "Payload Too Large",
+    414: "URI Too Long", 415: "Unsupported Media Type", 416: "Range Not Satisfiable",
+    417: "Expectation Failed", 418: "I'm a Teapot", 421: "Misdirected Request",
+    422: "Unprocessable Entity", 423: "Locked", 424: "Failed Dependency", 425: "Too Early",
+    426: "Upgrade Required", 428: "Precondition Required", 429: "Too Many Requests",
+    431: "Request Header Fields Too Large", 451: "Unavailable For Legal Reasons",
+    500: "Internal Server Error", 501: "Not Implemented", 502: "Bad Gateway",
+    503: "Service Unavailable", 504: "Gateway Timeout", 505: "HTTP Version Not Supported",
+    506: "Variant Also Negotiates", 507: "Insufficient Storage", 508: "Loop Detected",
+    509: "Bandwidth Limit Exceeded", 510: "Not Extended", 511: "Network Authentication Required",
+  };
+
+  function HttpAgent(options) {
+    this.options = options || {};
+    this.maxSockets = Infinity;
+    this.maxFreeSockets = 256;
+    this.sockets = {};
+    this.freeSockets = {};
+    this.requests = {};
+  }
+  HttpAgent.prototype.destroy = function () {};
+  HttpAgent.prototype.addRequest = function (req) { return req; };
+
+  function buildHttpUrl(defaultProtocol, opts) {
+    const o = opts || {};
+    const protocol = String(o.protocol || defaultProtocol).replace(/:$/, "");
+    let hostname = String(o.hostname || o.host || "localhost").replace(/:[0-9]+$/, "");
+    if (o.port) hostname += ":" + String(o.port);
+    let pathname = o.path || o.pathname || "/";
+    if (pathname.charAt(0) !== "/") pathname = "/" + pathname;
+    return protocol + "://" + hostname + pathname;
+  }
+
+  function createHttpModule(defaultProtocol) {
+    const globalAgent = new HttpAgent();
+
+    function request(urlOrOptions, optionsOrCb, maybeCb) {
+      let url;
+      let opts;
+      let callback;
+      if (typeof urlOrOptions === "string") {
+        url = urlOrOptions;
+        opts = (optionsOrCb && typeof optionsOrCb === "object") ? optionsOrCb : {};
+        callback = typeof optionsOrCb === "function" ? optionsOrCb : maybeCb;
+      } else {
+        opts = urlOrOptions || {};
+        url = typeof opts.href === "string" ? opts.href : buildHttpUrl(defaultProtocol, opts);
+        callback = typeof optionsOrCb === "function" ? optionsOrCb : maybeCb;
+      }
+
+      const headers = {};
+      function addHeader(name, value) {
+        if (name === undefined || name === null) return;
+        if (Array.isArray(name)) {
+          for (let i = 0; i < name.length; i++) addHeader(name[i][0], name[i][1]);
+          return;
+        }
+        headers[String(name).toLowerCase()] = Array.isArray(value) ? value.join(", ") : String(value);
+      }
+      if (opts && opts.headers) {
+        if (Array.isArray(opts.headers)) addHeader(opts.headers);
+        else {
+          const hk = Object.keys(opts.headers);
+          for (let i = 0; i < hk.length; i++) addHeader(hk[i], opts.headers[hk[i]]);
+        }
+      }
+
+      const req = new EventEmitter();
+      const bodyParts = [];
+      let ended = false;
+      req.method = String((opts && opts.method) || "GET").toUpperCase();
+      req.path = (opts && opts.path) || "/";
+      req.headers = headers;
+      req.aborted = false;
+      req.reusedSocket = false;
+      req.setHeader = function (name, value) { addHeader(name, value); return req; };
+      req.getHeader = function (name) { return headers[String(name).toLowerCase()]; };
+      req.removeHeader = function (name) { delete headers[String(name).toLowerCase()]; return req; };
+      req.write = function (chunk) {
+        if (chunk !== undefined && chunk !== null) bodyParts.push(chunk);
+        return true;
+      };
+      req.addTrailers = function () {};
+      req.flushHeaders = function () { return req; };
+      req.setTimeout = function (ms, cb) {
+        if (typeof cb === "function") req.once("timeout", cb);
+        return req;
+      };
+      req.destroy = function (err) {
+        req.aborted = true;
+        if (err) req.emit("error", err);
+        return req;
+      };
+      req.abort = function () {
+        req.aborted = true;
+        req.emit("abort");
+        return req;
+      };
+
+      if (typeof callback === "function") req.once("response", callback);
+
+      req.end = function (chunk) {
+        if (chunk !== undefined && chunk !== null) bodyParts.push(chunk);
+        if (ended) return req;
+        ended = true;
+
+        let body;
+        if (bodyParts.length > 0) {
+          const bufs = [];
+          for (let i = 0; i < bodyParts.length; i++) {
+            const part = bodyParts[i];
+            bufs.push(part instanceof Uint8Array ? global.Buffer.from(part) : global.Buffer.from(String(part)));
+          }
+          body = global.Buffer.concat(bufs);
+        } else if (opts && opts.body !== undefined) {
+          body = opts.body;
+        }
+
+        const fetchOptions = { method: req.method, headers: headers };
+        if (body !== undefined && req.method !== "GET" && req.method !== "HEAD") fetchOptions.body = body;
+
+        global.fetch(url, fetchOptions).then(function (res) {
+          const response = new Readable();
+          response.statusCode = res.status;
+          response.statusMessage = res.statusText || "";
+          response.headers = {};
+          response.url = url;
+          if (res.headers && typeof res.headers.forEach === "function") {
+            res.headers.forEach(function (value, key) {
+              response.headers[String(key).toLowerCase()] = value;
+            });
+          }
+          response.setEncoding = function (encoding) {
+            response._encoding = encoding;
+            return response;
+          };
+          req.emit("response", response);
+          return res.arrayBuffer().then(function (ab) {
+            if (req.aborted) return;
+            let chunk = global.Buffer.from(ab);
+            if (response._encoding) chunk = chunk.toString(response._encoding);
+            if (typeof chunk === "string" ? chunk.length > 0 : chunk.length > 0) response.emit("data", chunk);
+            response.emit("end");
+            response.emit("close");
+          });
+        }).catch(function (err) {
+          req.emit("error", err);
+        });
+        return req;
+      };
+
+      return req;
+    }
+
+    function get(urlOrOptions, optionsOrCb, maybeCb) {
+      const req = request(urlOrOptions, optionsOrCb, maybeCb);
+      req.end();
+      return req;
+    }
+
+    return {
+      request: request,
+      get: get,
+      Agent: HttpAgent,
+      globalAgent: globalAgent,
+      STATUS_CODES: nodeStatusCodes,
+    };
+  }
+
+  const nodeHttp = createHttpModule("http:");
+  const nodeHttps = createHttpModule("https:");
+
+  function NetSocket() { StreamBase.call(this); }
+  NetSocket.prototype = Object.create(StreamBase.prototype);
+  NetSocket.prototype.constructor = NetSocket;
+  NetSocket.prototype.connect = function () {
+    const self = this;
+    queueMicrotask(function () { self.emit("connect"); });
+    return this;
+  };
+  NetSocket.prototype.write = function () { return true; };
+  NetSocket.prototype.end = function () { this.emit("end"); return this; };
+  NetSocket.prototype.destroy = function () { return this; };
+  NetSocket.prototype.setTimeout = function () { return this; };
+  NetSocket.prototype.setNoDelay = function () { return this; };
+  NetSocket.prototype.setKeepAlive = function () { return this; };
+  NetSocket.prototype.ref = function () { return this; };
+  NetSocket.prototype.unref = function () { return this; };
+  NetSocket.prototype.address = function () { return { address: "127.0.0.1", family: "IPv4", port: 0 }; };
+
+  function isIpValue(value) {
+    if (typeof value !== "string") return 0;
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(value)) return 4;
+    if (value.indexOf(":") !== -1) return 6;
+    return 0;
+  }
+
+  function NetServer() { EventEmitter.call(this); }
+  NetServer.prototype = Object.create(EventEmitter.prototype);
+  NetServer.prototype.listen = function () { return this; };
+  NetServer.prototype.close = function () { return this; };
+  NetServer.prototype.address = function () { return { address: "127.0.0.1", family: "IPv4", port: 0 }; };
+
+  const nodeNet = {
+    Socket: NetSocket,
+    Stream: StreamBase,
+    Server: NetServer,
+    connect: function (port, host, connectListener) {
+      const socket = new NetSocket();
+      if (typeof connectListener === "function") socket.on("connect", connectListener);
+      socket.connect();
+      return socket;
+    },
+    createConnection: function (port, host, connectListener) {
+      return nodeNet.connect(port, host, connectListener);
+    },
+    createServer: function (listener) {
+      const server = new NetServer();
+      if (typeof listener === "function") server.on("connection", listener);
+      return server;
+    },
+    isIP: isIpValue,
+    isIPv4: function (value) { return isIpValue(value) === 4; },
+    isIPv6: function (value) { return isIpValue(value) === 6; },
+  };
+
+  function TLSSocket() { NetSocket.call(this); }
+  TLSSocket.prototype = Object.create(NetSocket.prototype);
+  TLSSocket.prototype.constructor = TLSSocket;
+  TLSSocket.prototype.getPeerCertificate = function () { return {}; };
+  TLSSocket.prototype.getProtocol = function () { return null; };
+
+  const nodeTls = {
+    TLSSocket: TLSSocket,
+    connect: function (options, connectListener) {
+      const socket = new TLSSocket();
+      if (typeof connectListener === "function") socket.on("connect", connectListener);
+      socket.connect();
+      return socket;
+    },
+    createConnection: function (options, connectListener) {
+      return nodeTls.connect(options, connectListener);
+    },
+    createSecureContext: function () { return { context: {} }; },
+    getCiphers: function () { return []; },
+    rootCertificates: [],
+    DEFAULT_MIN_VERSION: "TLSv1.2",
+    DEFAULT_MAX_VERSION: "TLSv1.3",
+  };
+
+  function zlibUnsupported(name) {
+    return function () {
+      throw new Error("node:zlib " + name + " is not implemented in the Android Raycast runtime.");
+    };
+  }
+
+  const nodeZlib = {
+    inflateSync: zlibUnsupported("inflateSync"),
+    deflateSync: zlibUnsupported("deflateSync"),
+    gzipSync: zlibUnsupported("gzipSync"),
+    gunzipSync: zlibUnsupported("gunzipSync"),
+    inflateRawSync: zlibUnsupported("inflateRawSync"),
+    deflateRawSync: zlibUnsupported("deflateRawSync"),
+    brotliDecompressSync: zlibUnsupported("brotliDecompressSync"),
+    brotliCompressSync: zlibUnsupported("brotliCompressSync"),
+    inflate: zlibUnsupported("inflate"),
+    deflate: zlibUnsupported("deflate"),
+    gzip: zlibUnsupported("gzip"),
+    gunzip: zlibUnsupported("gunzip"),
+    createInflate: zlibUnsupported("createInflate"),
+    createDeflate: zlibUnsupported("createDeflate"),
+    createGzip: zlibUnsupported("createGzip"),
+    createGunzip: zlibUnsupported("createGunzip"),
+    createInflateRaw: zlibUnsupported("createInflateRaw"),
+    createDeflateRaw: zlibUnsupported("createDeflateRaw"),
+    createBrotliDecompress: zlibUnsupported("createBrotliDecompress"),
+    createBrotliCompress: zlibUnsupported("createBrotliCompress"),
+    constants: {},
+  };
+
+  function TtyReadStream() { Readable.call(this); }
+  TtyReadStream.prototype = Object.create(Readable.prototype);
+  TtyReadStream.prototype.constructor = TtyReadStream;
+  function TtyWriteStream() { Writable.call(this); }
+  TtyWriteStream.prototype = Object.create(Writable.prototype);
+  TtyWriteStream.prototype.constructor = TtyWriteStream;
+
+  const nodeTty = {
+    isatty: function () { return false; },
+    ReadStream: TtyReadStream,
+    WriteStream: TtyWriteStream,
+  };
+
+  function Worker() {
+    throw new Error("node:worker_threads Worker is not supported in the Android Raycast runtime.");
+  }
+
+  const nodeWorkerThreads = {
+    Worker: Worker,
+    isMainThread: true,
+    parentPort: null,
+    workerData: null,
+    threadId: 0,
+    resourceLimits: {},
+    MessageChannel: global.MessageChannel,
+    MessagePort: global.MessagePort,
+  };
+
+  const nodeHttp2 = {
+    constants: {},
+    connect: function () {
+      throw new Error("node:http2 is not supported in the Android Raycast runtime.");
+    },
+    createServer: function () {
+      throw new Error("node:http2 is not supported in the Android Raycast runtime.");
+    },
+    createSecureServer: function () {
+      throw new Error("node:http2 is not supported in the Android Raycast runtime.");
+    },
+    Http2ServerRequest: function Http2ServerRequest() {},
+    Http2ServerResponse: function Http2ServerResponse() {},
+  };
+
+  const nodeV8 = {
+    serialize: function (value) {
+      return global.Buffer.from(JSON.stringify(value));
+    },
+    deserialize: function (buffer) {
+      const text = buffer instanceof Uint8Array || (buffer && buffer.buffer instanceof ArrayBuffer)
+        ? global.Buffer.from(buffer).toString("utf8")
+        : String(buffer);
+      return JSON.parse(text);
+    },
+    cachedDataVersionTag: function () { return 0; },
+    getHeapStatistics: function () {
+      return {
+        total_heap_size: 0,
+        total_heap_size_executable: 0,
+        total_physical_size: 0,
+        total_available_size: 0,
+        used_heap_size: 0,
+        heap_size_limit: 0,
+        malloced_memory: 0,
+        peak_malloced_memory: 0,
+        does_zap_garbage: 0,
+        number_of_native_contexts: 1,
+        number_of_detached_contexts: 0,
+      };
+    },
+    getHeapSpaceStatistics: function () { return []; },
+  };
+
+  function AsyncLocalStorage() {
+    this._store = undefined;
+  }
+  AsyncLocalStorage.prototype.run = function (store, callback) {
+    const prev = this._store;
+    this._store = store;
+    try {
+      return callback.apply(null, Array.prototype.slice.call(arguments, 2));
+    } finally {
+      this._store = prev;
+    }
+  };
+  AsyncLocalStorage.prototype.getStore = function () { return this._store; };
+  AsyncLocalStorage.prototype.enterWith = function (store) { this._store = store; };
+  AsyncLocalStorage.prototype.exit = function (callback) {
+    const prev = this._store;
+    this._store = undefined;
+    try {
+      return callback.apply(null, Array.prototype.slice.call(arguments, 1));
+    } finally {
+      this._store = prev;
+    }
+  };
+  AsyncLocalStorage.prototype.disable = function () { this._store = undefined; };
+
+  function AsyncResource(type, opts) {
+    this.type = type || "AsyncResource";
+    this._opts = opts || {};
+  }
+  AsyncResource.prototype.runInAsyncScope = function (fn, thisArg) {
+    return fn.apply(thisArg, Array.prototype.slice.call(arguments, 2));
+  };
+  AsyncResource.prototype.emitDestroy = function () { return this; };
+  AsyncResource.bind = function (fn, thisArg) {
+    return function () { return fn.apply(thisArg || this, arguments); };
+  };
+
+  const nodeAsyncHooks = {
+    AsyncLocalStorage: AsyncLocalStorage,
+    AsyncResource: AsyncResource,
+    createHook: function () {
+      return { enable: function () {}, disable: function () {} };
+    },
+    executionAsyncId: function () { return 0; },
+    triggerAsyncId: function () { return 0; },
+  };
+
+  const nodeDiagnosticsChannel = {
+    channel: function (name) {
+      return {
+        name: name,
+        hasSubscribers: false,
+        subscribe: function () {},
+        unsubscribe: function () {},
+        publish: function () {},
+      };
+    },
+    subscribe: function () {},
+    unsubscribe: function () {},
+    hasSubscribers: function () { return false; },
+  };
+
+  function StringDecoder(encoding) {
+    this.encoding = String(encoding || "utf8").toLowerCase();
+    this._decoder = null;
+    const useTextDecoder = this.encoding === "utf8" || this.encoding === "utf-8";
+    if (useTextDecoder && typeof global.TextDecoder !== "undefined") {
+      try { this._decoder = new global.TextDecoder("utf-8"); } catch (_) { this._decoder = null; }
+    }
+  }
+  StringDecoder.prototype.write = function (buffer) {
+    if (buffer === undefined || buffer === null) return "";
+    const bytes = buffer instanceof Uint8Array || ArrayBuffer.isView(buffer)
+      ? buffer
+      : (buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : global.Buffer.from(String(buffer)));
+    if (this._decoder) return this._decoder.decode(bytes, { stream: true });
+    return global.Buffer.from(bytes).toString(this.encoding);
+  };
+  StringDecoder.prototype.end = function (buffer) {
+    let out = "";
+    if (buffer !== undefined && buffer !== null) out += this.write(buffer);
+    if (this._decoder) {
+      try { out += this._decoder.decode(); } catch (_) {}
+    }
+    return out;
+  };
+  StringDecoder.prototype.text = StringDecoder.prototype.write;
+
+  const nodeStringDecoder = { StringDecoder: StringDecoder };
+
+  function isTypedArrayValue(value) {
+    return typeof ArrayBuffer !== "undefined" && ArrayBuffer.isView
+      ? ArrayBuffer.isView(value) && Object.prototype.toString.call(value) !== "[object DataView]"
+      : false;
+  }
+  const nodeUtilTypes = {
+    isPromise: function (value) { return value instanceof Promise; },
+    isDate: function (value) { return value instanceof Date; },
+    isRegExp: function (value) { return value instanceof RegExp; },
+    isArrayBuffer: function (value) { return value instanceof ArrayBuffer; },
+    isTypedArray: isTypedArrayValue,
+    isUint8Array: function (value) { return value instanceof Uint8Array; },
+  };
+  nodeUtil.types = nodeUtilTypes;
 
   const builtinModules = {
     react: React,
@@ -3428,11 +5780,33 @@
     "node:fs": nodeFsSync,
     "node:fs/promises": nodeFsPromises,
     "fs/promises": nodeFsPromises,
+    "node:constants": nodeConstants,
+    "node:http": nodeHttp,
+    "node:https": nodeHttps,
+    "node:net": nodeNet,
+    "node:tls": nodeTls,
+    "node:zlib": nodeZlib,
+    "node:tty": nodeTty,
+    "node:worker_threads": nodeWorkerThreads,
+    "node:http2": nodeHttp2,
+    "node:v8": nodeV8,
     "node:events": { EventEmitter: EventEmitter, default: EventEmitter },
     "node:process": nodeProcess,
     "node:util": nodeUtil,
     "node:querystring": nodeQuerystring,
-    "node:stream": { Stream: StreamBase, Readable: Readable, Writable: Writable, Duplex: PassThrough, Transform: PassThrough, PassThrough: PassThrough },
+    "node:stream": { Stream: StreamBase, Readable: Readable, Writable: Writable, Duplex: PassThrough, Transform: PassThrough, PassThrough: PassThrough, promises: nodeStreamPromises, pipeline: nodeStreamPromises.pipeline, finished: nodeStreamPromises.finished },
+    "node:stream/promises": nodeStreamPromises,
+    "node:stream/web": nodeStreamWeb,
+    "node:async_hooks": nodeAsyncHooks,
+    "node:diagnostics_channel": nodeDiagnosticsChannel,
+    "node:string_decoder": nodeStringDecoder,
+    "node:util/types": nodeUtilTypes,
+    "@komorebi/health": {
+      availability: function () { return hostCall("health.availability", {}); },
+      summary: function () { return hostCall("health.summary", {}); },
+      sleep: function () { return hostCall("health.sleep", {}); },
+      steps: function () { return hostCall("health.steps", {}); },
+    },
     "node:child_process": nodeChildProcess,
     "node:perf_hooks": { performance: global.performance },
     "node:assert": Object.assign(
@@ -3447,11 +5821,25 @@
       createRequire: function (filename) { return createRequire(dirname(String(filename || "/"))); },
       builtinModules: [],
     },
+    dequal: dequal,
+    "dequal/lite": dequal,
+  };
+  const knownNodeBuiltins = {
+    assert: true, async_hooks: true, buffer: true, child_process: true, cluster: true,
+    console: true, constants: true, crypto: true, dgram: true, diagnostics_channel: true,
+    dns: true, domain: true, events: true, fs: true, http: true, http2: true, https: true,
+    inspector: true, module: true, net: true, os: true, path: true, perf_hooks: true,
+    process: true, punycode: true, querystring: true, readline: true, repl: true,
+    stream: true, string_decoder: true, sys: true, timers: true, tls: true,
+    trace_events: true, tty: true, url: true, util: true, v8: true, vm: true,
+    wasi: true, worker_threads: true, zlib: true, test: true, sea: true, sqlite: true,
   };
   for (const k of Object.keys(builtinModules)) {
     if (k.startsWith("node:")) builtinModules[k.slice(5)] = builtinModules[k];
   }
-  builtinModules["node:module"].builtinModules = Object.keys(builtinModules);
+  builtinModules["node:module"].builtinModules = Object.keys(builtinModules).filter(function (k) {
+    return knownNodeBuiltins.hasOwnProperty(k) || knownNodeBuiltins.hasOwnProperty("node:" + k);
+  });
   global.process = nodeProcess;
 
   function readExtensionSource(relPath) {
@@ -3486,6 +5874,100 @@
     ];
   }
 
+  function exportTargetValue(value) {
+    if (typeof value === "string") return value;
+    if (Array.isArray(value)) {
+      for (let i = 0; i < value.length; i++) {
+        const fromArray = exportTargetValue(value[i]);
+        if (fromArray) return fromArray;
+      }
+      return null;
+    }
+    if (value && typeof value === "object") {
+      const preferred = ["require", "node", "default"];
+      for (let i = 0; i < preferred.length; i++) {
+        if (Object.prototype.hasOwnProperty.call(value, preferred[i])) {
+          const fromCondition = exportTargetValue(value[preferred[i]]);
+          if (fromCondition) return fromCondition;
+        }
+      }
+      const keys = Object.keys(value);
+      for (let i = 0; i < keys.length; i++) {
+        const fromKey = exportTargetValue(value[keys[i]]);
+        if (fromKey) return fromKey;
+      }
+    }
+    return null;
+  }
+
+  function resolvePackageExports(exportsValue, subpath) {
+    if (exportsValue === undefined || exportsValue === null) return null;
+    if (typeof exportsValue === "string" || Array.isArray(exportsValue)) {
+      return subpath ? null : exportTargetValue(exportsValue);
+    }
+    if (typeof exportsValue !== "object") return null;
+
+    const keys = Object.keys(exportsValue);
+    let hasSubpathKeys = false;
+    for (let i = 0; i < keys.length; i++) {
+      if (keys[i] === "." || keys[i].indexOf("./") === 0) {
+        hasSubpathKeys = true;
+        break;
+      }
+    }
+    if (!hasSubpathKeys) {
+      return subpath ? null : exportTargetValue(exportsValue);
+    }
+    if (!subpath) {
+      if (Object.prototype.hasOwnProperty.call(exportsValue, ".")) {
+        return exportTargetValue(exportsValue["."]);
+      }
+      return null;
+    }
+
+    const directKeys = ["./" + subpath, "./" + subpath + ".js", "./" + subpath + "/index.js"];
+    for (let i = 0; i < directKeys.length; i++) {
+      if (Object.prototype.hasOwnProperty.call(exportsValue, directKeys[i])) {
+        const direct = exportTargetValue(exportsValue[directKeys[i]]);
+        if (direct) return direct;
+      }
+    }
+
+    const request = "./" + subpath;
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      const star = key.indexOf("*");
+      if (star === -1) continue;
+      const prefix = key.slice(0, star);
+      const suffix = key.slice(star + 1);
+      if (request.indexOf(prefix) !== 0) continue;
+      if (suffix && request.slice(-suffix.length) !== suffix) continue;
+      const matched = request.slice(prefix.length, suffix ? request.length - suffix.length : request.length);
+      const wildcardTarget = exportTargetValue(exportsValue[key]);
+      if (wildcardTarget) return wildcardTarget.replace("*", matched);
+    }
+    return null;
+  }
+
+  function stripLeadingDotSlash(target) {
+    let value = String(target || "");
+    while (value.indexOf("./") === 0) value = value.slice(2);
+    if (value.charAt(0) === "/") value = value.slice(1);
+    return value;
+  }
+
+  function isWithinPackage(base, target) {
+    return target === base || target.indexOf(base + "/") === 0;
+  }
+
+  function splitPackageId(id) {
+    const parts = String(id).split("/");
+    if (parts[0].charAt(0) === "@" && parts.length >= 2) {
+      return { name: parts[0] + "/" + parts[1], subpath: parts.slice(2).join("/") };
+    }
+    return { name: parts[0], subpath: parts.slice(1).join("/") };
+  }
+
   function createRequire(baseDir) {
     return function require(id) {
       if (id in builtinModules) return builtinModules[id];
@@ -3495,21 +5977,44 @@
         const base = id.startsWith("/") ? normalizePath(id) : normalizePath(baseDir + "/" + id);
         candidates.push.apply(candidates, resolveFileCandidates(base));
       } else {
-        // Walk up directories looking for node_modules/<id>
+        // Walk up directories looking for node_modules/<package>[/<subpath>]
+        const parsed = splitPackageId(id);
         let dir = normalizePath(baseDir || "/");
         while (true) {
-          const nmBase = (dir === "/" ? "" : dir) + "/node_modules/" + id;
+          const nmBase = normalizePath((dir === "/" ? "" : dir) + "/node_modules/" + parsed.name);
+          let pkg = null;
           const pkgRaw = readExtensionSource(nmBase + "/package.json");
           if (typeof pkgRaw === "string") {
-            try {
-              const pkg = JSON.parse(pkgRaw);
-              if (pkg && pkg.main) {
-                const mainTarget = normalizePath(nmBase + "/" + pkg.main);
+            try { pkg = JSON.parse(pkgRaw); } catch (_) { pkg = null; }
+          }
+
+          if (pkg && pkg.exports !== undefined && pkg.exports !== null) {
+            const exportTarget = resolvePackageExports(pkg.exports, parsed.subpath);
+            if (exportTarget) {
+              const resolvedExport = normalizePath(nmBase + "/" + stripLeadingDotSlash(exportTarget));
+              if (isWithinPackage(nmBase, resolvedExport)) {
+                candidates.push.apply(candidates, resolveFileCandidates(resolvedExport));
+              }
+            }
+          }
+
+          if (parsed.subpath) {
+            candidates.push.apply(candidates, resolveFileCandidates(nmBase + "/" + parsed.subpath));
+            candidates.push.apply(candidates, resolveFileCandidates(nmBase + "/__subpath/" + parsed.subpath));
+            candidates.push.apply(candidates, resolveFileCandidates(nmBase + "/__bundle"));
+            candidates.push.apply(candidates, resolveFileCandidates(nmBase + "/__subpath.js"));
+          } else {
+            if (pkg && pkg.main) {
+              const mainTarget = normalizePath(nmBase + "/" + stripLeadingDotSlash(String(pkg.main)));
+              if (isWithinPackage(nmBase, mainTarget)) {
                 candidates.push.apply(candidates, resolveFileCandidates(mainTarget));
               }
-            } catch (_) {}
+            }
+            candidates.push.apply(candidates, resolveFileCandidates(nmBase + "/__bundle"));
+            candidates.push.apply(candidates, resolveFileCandidates(nmBase + "/__subpath"));
+            candidates.push.apply(candidates, resolveFileCandidates(nmBase));
           }
-          candidates.push.apply(candidates, resolveFileCandidates(nmBase));
+
           if (dir === "/") break;
           dir = dirname(dir);
         }
@@ -3535,7 +6040,12 @@
           return mod.exports;
         }
       }
-      throw new Error("Cannot find module '" + id + "' from '" + baseDir + "'. If this extension uses external npm dependencies, ensure it is compiled as a self-contained bundle.");
+      const bareId = id.startsWith("node:") ? id.slice(5) : id;
+      const rootId = bareId.split("/")[0];
+      const hint = knownNodeBuiltins[rootId]
+        ? " '" + bareId + "' is a known Node.js builtin module, so this extension depends on Node APIs that are not available in the Android Raycast runtime; the extension is likely not Android-compatible."
+        : " If this extension uses external npm dependencies, ensure it is compiled as a self-contained bundle.";
+      throw new Error("Cannot find module '" + id + "' from '" + baseDir + "'." + hint);
     };
   }
 

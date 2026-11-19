@@ -494,6 +494,13 @@ class SettingsRepository(
         const val KEY_PIXEL_SEARCH_REACHABILITY = "pixel_search_reachability"
         const val KEY_PIXEL_SEARCH_USAGE_RANKING = "pixel_search_usage_ranking"
         const val KEY_PIXEL_SEARCH_TYPO_TOLERANCE = "pixel_search_typo_tolerance"
+        const val KEY_PIXEL_SEARCH_MAX_RESULTS = "pixel_search_max_results"
+        const val KEY_PIXEL_SEARCH_HIDE_INITIAL_RESULTS = "pixel_search_hide_initial_results"
+        const val KEY_PIXEL_SEARCH_RESULT_NOTIFICATIONS = "pixel_search_result_notifications"
+        const val KEY_PIXEL_SEARCH_ASSISTANT_ENABLED = "pixel_search_assistant_enabled"
+        const val KEY_VOICE_SEARCH_ENABLED = "voice_search_enabled"
+        const val KEY_VOICE_TTS_ENABLED = "voice_tts_enabled"
+        const val KEY_VOICE_TTS_PRESET = "voice_tts_preset"
         const val KEY_HOME_ADDRESS = "pixel_search_home_address"
         const val KEY_WORK_ADDRESS = "pixel_search_work_address"
         const val KEY_AUTO_ACCESSIBILITY_ENABLED = "auto_accessibility_enabled"
@@ -3862,6 +3869,32 @@ class SettingsRepository(
 
     fun isPixelSearchTypoToleranceEnabled(): Boolean = getBoolean(KEY_PIXEL_SEARCH_TYPO_TOLERANCE, true)
     fun setPixelSearchTypoToleranceEnabled(enabled: Boolean) = putBoolean(KEY_PIXEL_SEARCH_TYPO_TOLERANCE, enabled)
+
+    fun getPixelSearchMaxResults(): Int = getInt(KEY_PIXEL_SEARCH_MAX_RESULTS, 8)
+    fun setPixelSearchMaxResults(limit: Int) = putInt(KEY_PIXEL_SEARCH_MAX_RESULTS, limit.coerceIn(0, 50))
+
+    fun isPixelSearchHideInitialResultsEnabled(): Boolean =
+        getBoolean(KEY_PIXEL_SEARCH_HIDE_INITIAL_RESULTS, false)
+    fun setPixelSearchHideInitialResultsEnabled(enabled: Boolean) =
+        putBoolean(KEY_PIXEL_SEARCH_HIDE_INITIAL_RESULTS, enabled)
+
+    fun isPixelSearchResultNotificationsEnabled(): Boolean =
+        getBoolean(KEY_PIXEL_SEARCH_RESULT_NOTIFICATIONS, true)
+    fun setPixelSearchResultNotificationsEnabled(enabled: Boolean) =
+        putBoolean(KEY_PIXEL_SEARCH_RESULT_NOTIFICATIONS, enabled)
+
+    fun isPixelSearchAssistantEnabled(): Boolean = getBoolean(KEY_PIXEL_SEARCH_ASSISTANT_ENABLED, false)
+    fun setPixelSearchAssistantEnabled(enabled: Boolean) = putBoolean(KEY_PIXEL_SEARCH_ASSISTANT_ENABLED, enabled)
+
+    fun isVoiceSearchEnabled(): Boolean = getBoolean(KEY_VOICE_SEARCH_ENABLED, true)
+    fun setVoiceSearchEnabled(enabled: Boolean) = putBoolean(KEY_VOICE_SEARCH_ENABLED, enabled)
+
+    fun isVoiceTtsEnabled(): Boolean = getBoolean(KEY_VOICE_TTS_ENABLED, true)
+    fun setVoiceTtsEnabled(enabled: Boolean) = putBoolean(KEY_VOICE_TTS_ENABLED, enabled)
+
+    fun getVoiceTtsPreset(): String = getString(KEY_VOICE_TTS_PRESET, "default") ?: "default"
+    fun setVoiceTtsPreset(preset: String) = putString(KEY_VOICE_TTS_PRESET, preset)
+
 
     fun getHomeAddress(): String? = getString(KEY_HOME_ADDRESS, null)
     fun setHomeAddress(address: String?) = putString(KEY_HOME_ADDRESS, address)
