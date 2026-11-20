@@ -266,7 +266,7 @@
     <string name="dns_preset_cleanbrowsing">Navegação limpa</string>
     <string name="dns_preset_cleanbrowsing_hostname">adult-filter-dns.cleanbrowsing.org</string>
     <string name="tile_charge_optimization">Carregando</string>
-    <string name="limit_to_80">Limite a 80%</string>
+    <string name="limit_to_80" formatted="false">Limite a 80%</string>
     <string name="adaptive_charging">Adaptativo</string>
     <string name="deactivated">Não otimizado</string>
     <string name="permission_missing">Permissão ausente</string>
@@ -1083,7 +1083,7 @@
     <string name="instruction_section_freeze_title">O que é congelar?</string>
     <string name="instruction_section_freeze_desc">Faça uma pausa e fique longe das distrações dos aplicativos enquanto economiza um pouco de energia, evitando que os aplicativos sejam executados em segundo plano. Adequado para aplicativos raramente usados. \n\nNão recomendado para quaisquer serviços de comunicação, pois eles não irão notificá-lo em caso de emergência, a menos que você os descongele. \n\nAltamente recomendado não congelar aplicativos do sistema, pois eles podem levar à instabilidade do sistema. Prossiga com cautela, você foi avisado. \n\nInspirado por Hail &lt;3</string>
     <string name="instruction_section_security_title">O bloqueio de aplicativos e a segurança de tela bloqueada são realmente seguros?</string>
-    <string name="instruction_section_security_desc">Absolutamente não. \n\nQualquer aplicativo de terceiros não pode interferir 100% nas interações regulares do dispositivo e até mesmo o bloqueio do aplicativo é apenas uma sobreposição acima dos aplicativos selecionados para evitar a interação com eles. Existem soluções alternativas e não são infalíveis. \n\nO mesmo acontece com o recurso de segurança de tela bloqueada que detecta alguém tentando interagir com os blocos de rede que, por algum motivo, ainda estão acessíveis para qualquer pessoa em Pixels. Portanto, se eles se esforçarem o suficiente, ainda poderão alterá-los e, especialmente, se você tiver um bloco QS de modo de voo adicionado, este aplicativo não poderá impedir interações com ele. \n\nEsses recursos são feitos apenas como experimentos para uso leve e nunca seriam recomendados como soluções fortes de segurança e privacidade. \n\nSeguro alternativas:\n - Bloqueio de aplicativo: espaço privado e pasta segura em Pixels e Samsung\n - Impedir o acesso a redes móveis: certifique-se de que a proteção contra roubo e as configurações off-line/desligamento encontre meu dispositivo estejam ativadas. Você também pode pesquisar o Graphene OS.</string>
+    <string name="instruction_section_security_desc" formatted="false">Absolutamente não. \n\nQualquer aplicativo de terceiros não pode interferir 100% nas interações regulares do dispositivo e até mesmo o bloqueio do aplicativo é apenas uma sobreposição acima dos aplicativos selecionados para evitar a interação com eles. Existem soluções alternativas e não são infalíveis. \n\nO mesmo acontece com o recurso de segurança de tela bloqueada que detecta alguém tentando interagir com os blocos de rede que, por algum motivo, ainda estão acessíveis para qualquer pessoa em Pixels. Portanto, se eles se esforçarem o suficiente, ainda poderão alterá-los e, especialmente, se você tiver um bloco QS de modo de voo adicionado, este aplicativo não poderá impedir interações com ele. \n\nEsses recursos são feitos apenas como experimentos para uso leve e nunca seriam recomendados como soluções fortes de segurança e privacidade. \n\nSeguro alternativas:\n - Bloqueio de aplicativo: espaço privado e pasta segura em Pixels e Samsung\n - Impedir o acesso a redes móveis: certifique-se de que a proteção contra roubo e as configurações off-line/desligamento encontre meu dispositivo estejam ativadas. Você também pode pesquisar o Graphene OS.</string>
     <string name="instruction_section_lighting_title">A iluminação de notificação não funciona</string>
     <string name="instruction_section_lighting_desc">Depende do OEM. Alguns, como o OneUI, parecem não permitir sobreposições acima do AOD, impedindo a exibição dos efeitos de iluminação. Nesse caso, tente a exibição do ambiente como solução alternativa.</string>
     <string name="instruction_section_button_title">O remapeamento do botão não funciona enquanto a exibição está desligada</string>
@@ -1647,7 +1647,7 @@
     <string name="island_battery_only_low_title">Só mostrar quando baixo</string>
     <string name="island_battery_style_title">Estilo da bateria</string>
     <string name="island_battery_percentage_title">Mostrar porcentagem </string>
-    <string name="island_battery_percentage_conditional_title">Apenas para as condições abaixo</string>
+    <string name="island_battery_percentage_conditional_title" formatted="false">Apenas para as condições abaixo</string>
     <string name="island_launcher_only_title">Só aparece no iniciador</string>
     <string name="island_show_on_update_title">Periodically show on updates</string>
     <string name="island_media_peek_song_change_title">Prévia ao mudar de música</string>

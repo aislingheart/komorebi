@@ -19,8 +19,6 @@ import android.os.SystemClock
 import android.view.Display
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
-import com.sameerasw.essentials.assistant.AssistantAiMode
-import com.sameerasw.essentials.assistant.AssistantAiSettings
 import com.sameerasw.essentials.assistant.ScreenContextExtractor
 import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.ui.activities.PixelSearchResultsActivity
@@ -93,9 +91,7 @@ class SearchGestureAccessibilityService : AccessibilityService() {
             return
         }
         ScreenContextExtractor.capture(this)
-        if (!SettingsRepository(this).getPixelSearchOverlayEnabled() ||
-            AssistantAiSettings.getMode(this) == AssistantAiMode.ON_DEVICE
-        ) {
+        if (!SettingsRepository(this).getPixelSearchOverlayEnabled()) {
             launchSearchActivity()
             return
         }

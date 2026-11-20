@@ -200,7 +200,6 @@ class SettingsRepository(
 
         // Keys
         const val KEY_DEBUGGING_TILE_TAP_ACTION = "debugging_tile_tap_action"
-        const val KEY_GENAI_AUTOMATION_ENABLED = "genai_automation_enabled"
         const val KEY_SMART_PIXELS_ENABLED = "smart_pixels_enabled"
         const val KEY_SMART_PIXELS_INTENSITY = "smart_pixels_intensity"
         const val KEY_SMART_PIXELS_DISABLE_ON_CAST = "smart_pixels_disable_on_cast"
@@ -501,6 +500,8 @@ class SettingsRepository(
         const val KEY_VOICE_SEARCH_ENABLED = "voice_search_enabled"
         const val KEY_VOICE_TTS_ENABLED = "voice_tts_enabled"
         const val KEY_VOICE_TTS_PRESET = "voice_tts_preset"
+        const val KEY_LOCAL_DECISION_MODEL = "pixel_search_local_decision_model"
+        const val KEY_LOCAL_SYSTEMONE_URL = "pixel_search_local_systemone_url"
         const val KEY_HOME_ADDRESS = "pixel_search_home_address"
         const val KEY_WORK_ADDRESS = "pixel_search_work_address"
         const val KEY_AUTO_ACCESSIBILITY_ENABLED = "auto_accessibility_enabled"
@@ -944,18 +945,39 @@ class SettingsRepository(
         const val KEY_EXTERNAL_CONTROL_TOKEN = "external_control_token"
     }
 
-    fun getExternalControlToken(): String? = prefs.getString(KEY_EXTERNAL_CONTROL_TOKEN, null)?.takeIf { it.isNotBlank() }
+    fun getExternalControlToken(): String? =
+        com.sameerasw.essentials.utils.security.SecretStore.getOrMigrateSecret(
+            context = context,
+            key = KEY_EXTERNAL_CONTROL_TOKEN,
+            legacyPrefsName = PREFS_NAME,
+            legacyKey = KEY_EXTERNAL_CONTROL_TOKEN,
+        )
 
-    fun setExternalControlToken(token: String) = putString(KEY_EXTERNAL_CONTROL_TOKEN, token.trim())
+    fun setExternalControlToken(token: String) {
+        val clean = token.trim()
+        prefs.edit().remove(KEY_EXTERNAL_CONTROL_TOKEN).apply()
+        com.sameerasw.essentials.utils.security.SecretStore.putSecret(
+            context = context,
+            key = KEY_EXTERNAL_CONTROL_TOKEN,
+            value = clean,
+        )
+    }
 
-    fun getUnsplashAccessKey(): String? = prefs.getString(KEY_UNSPLASH_ACCESS_KEY, null)
+    fun getUnsplashAccessKey(): String? =
+        com.sameerasw.essentials.utils.security.SecretStore.getOrMigrateSecret(
+            context = context,
+            key = KEY_UNSPLASH_ACCESS_KEY,
+            legacyPrefsName = PREFS_NAME,
+            legacyKey = KEY_UNSPLASH_ACCESS_KEY,
+        )
 
     fun setUnsplashAccessKey(key: String?) {
-        if (key.isNullOrBlank()) {
-            prefs.edit().remove(KEY_UNSPLASH_ACCESS_KEY).apply()
-        } else {
-            prefs.edit().putString(KEY_UNSPLASH_ACCESS_KEY, key.trim()).apply()
-        }
+        prefs.edit().remove(KEY_UNSPLASH_ACCESS_KEY).apply()
+        com.sameerasw.essentials.utils.security.SecretStore.putSecret(
+            context = context,
+            key = KEY_UNSPLASH_ACCESS_KEY,
+            value = key,
+        )
     }
 
     fun isSimNamesApplyOnBootEnabled(): Boolean = getBoolean(KEY_SIM_NAMES_APPLY_ON_BOOT, false)
@@ -3894,6 +3916,17 @@ class SettingsRepository(
 
     fun getVoiceTtsPreset(): String = getString(KEY_VOICE_TTS_PRESET, "default") ?: "default"
     fun setVoiceTtsPreset(preset: String) = putString(KEY_VOICE_TTS_PRESET, preset)
+
+    fun getLocalDecisionModelId(): String =
+        getString(KEY_LOCAL_DECISION_MODEL, "builtin_lexical") ?: "builtin_lexical"
+
+    fun setLocalDecisionModelId(modelId: String) = putString(KEY_LOCAL_DECISION_MODEL, modelId)
+
+    fun getLocalSystemOneUrl(): String =
+        getString(KEY_LOCAL_SYSTEMONE_URL, "http://127.0.0.1:9931/v1/systemone")
+            ?: "http://127.0.0.1:9931/v1/systemone"
+
+    fun setLocalSystemOneUrl(url: String) = putString(KEY_LOCAL_SYSTEMONE_URL, url.trim())
 
 
     fun getHomeAddress(): String? = getString(KEY_HOME_ADDRESS, null)

@@ -88,31 +88,6 @@ object AssistantMemoryRepository {
             load(context).values.sortedByDescending { it.updatedAt }
         }
 
-    fun toolSpecs(): List<AiToolSpec> =
-        listOf(
-            AiToolSpec(
-                name = "save_memory",
-                description = "Save or update a durable fact about the user.",
-                parametersJson = """
-                    {"type":"object","properties":{"key":{"type":"string","description":"Short unique label"},"value":{"type":"string","description":"Fact to remember"},"kind":{"type":"string","description":"Category such as fact, preference, or contact"}},"required":["key","value"]}
-                """.trimIndent(),
-            ),
-            AiToolSpec(
-                name = "recall_memory",
-                description = "Search saved memories by fuzzy query.",
-                parametersJson = """
-                    {"type":"object","properties":{"query":{"type":"string","description":"What to search for"},"limit":{"type":"integer","description":"Maximum number of matches","minimum":1,"maximum":20}},"required":["query"]}
-                """.trimIndent(),
-            ),
-            AiToolSpec(
-                name = "forget_memory",
-                description = "Delete a saved memory by its key.",
-                parametersJson = """
-                    {"type":"object","properties":{"key":{"type":"string","description":"Key of the memory to delete"}},"required":["key"]}
-                """.trimIndent(),
-            ),
-        )
-
     private fun load(context: Context): MutableMap<String, MemoryEntry> {
         val raw = prefs(context).getString(KEY_ENTRIES, null) ?: return mutableMapOf()
         return runCatching {

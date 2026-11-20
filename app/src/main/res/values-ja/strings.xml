@@ -266,7 +266,7 @@
     <string name="dns_preset_cleanbrowsing">CleanBrowsing</string>
     <string name="dns_preset_cleanbrowsing_hostname">adult-filter-dns.cleanbrowsing.org</string>
     <string name="tile_charge_optimization">充電中</string>
-    <string name="limit_to_80"> 80%に制限</string>
+    <string name="limit_to_80" formatted="false"> 80%に制限</string>
     <string name="adaptive_charging">適応型</string>
     <string name="deactivated">最適化なし</string>
     <string name="permission_missing">Permission missing</string>
@@ -1085,7 +1085,7 @@
     <string name="instruction_section_freeze_title">フリーズとは？</string>
     <string name="instruction_section_freeze_desc">一時停止してアプリを邪魔することなく、バックグラウンドでアプリが動作しないようにすることで、電力を少し節約できます。あまり使用しないアプリに適しています。\n\nSNSなどの通信サービスは、フリーズを解除しない限り、緊急時に通知されないため、推奨されません。\n\nシステムアプリをフリーズするとシステムが不安定になる可能性があるため、フリーズしないことを強くおすすめします。注意して操作してください。警告しましたからね！\n\nInspired by Hail &lt;3</string>
     <string name="instruction_section_security_title">アプリロックとロック画面セキュリティは本当に安全ですか？</string>
-    <string name="instruction_section_security_desc">絶対に安全とは限りません。\n\nサードパーティ製アプリは、通常のデバイス操作を100％妨害することはできません。アプリロックでさえ、特定のアプリとのやり取りを阻止するためのオーバーレイにすぎません。回避策としては有効でありますが、万全ではありません。\n\nロック画面セキュリティ機能も同様です。この機能は、ネットワークタイルへの操作を試みる人物を検出しますが、何らかの理由でPixelでは誰でもアクセスできます。そのため、十分に試行錯誤すれば、タイルを変更できる可能性があります。特に、機内モードのクイック設定タイルを追加している場合は、このアプリでタイルとのやり取りを阻止することはできません。\n\nこれらの機能は、軽い使用のための実験として作成されており、強力なセキュリティおよびプライバシーソリューションとして推奨されていません。\n\n安全な代替手段：\n・アプリロック：PixelやSamsungにあるプライベートスペースやセキュアフォルダ\n・ロック画面セキュリティ：盗難防止機能とオフラインや電源オフ時のデバイスを探す設定がオンになっていることを確認してください。Graphene OSも検討してみてください。</string>
+    <string name="instruction_section_security_desc" formatted="false">絶対に安全とは限りません。\n\nサードパーティ製アプリは、通常のデバイス操作を100％妨害することはできません。アプリロックでさえ、特定のアプリとのやり取りを阻止するためのオーバーレイにすぎません。回避策としては有効でありますが、万全ではありません。\n\nロック画面セキュリティ機能も同様です。この機能は、ネットワークタイルへの操作を試みる人物を検出しますが、何らかの理由でPixelでは誰でもアクセスできます。そのため、十分に試行錯誤すれば、タイルを変更できる可能性があります。特に、機内モードのクイック設定タイルを追加している場合は、このアプリでタイルとのやり取りを阻止することはできません。\n\nこれらの機能は、軽い使用のための実験として作成されており、強力なセキュリティおよびプライバシーソリューションとして推奨されていません。\n\n安全な代替手段：\n・アプリロック：PixelやSamsungにあるプライベートスペースやセキュアフォルダ\n・ロック画面セキュリティ：盗難防止機能とオフラインや電源オフ時のデバイスを探す設定がオンになっていることを確認してください。Graphene OSも検討してみてください。</string>
     <string name="instruction_section_lighting_title">通知ライトが機能しません</string>
     <string name="instruction_section_lighting_desc">OEMによって動作が異なります。OneUIなど、一部のOEMでは常時表示ディスプレイの上にオーバーレイを許可していないため、通知ライトが表示されません。この場合、回避策として、アンビエントディスプレイを試してください。 </string>
     <string name="instruction_section_button_title">画面がオフのときのボタンリマップが機能しません</string>
@@ -1559,7 +1559,7 @@
     <string name="label_thermal_gpu">GPU温度</string>
     <string name="label_battery_status">状態</string>
     <string name="label_auto_reset_battery_stats_title">自動リセット</string>
-    <string name="label_auto_reset_battery_stats_desc">充電量が90%を超えている状態でデバイスの電源ケーブルを抜いた際、バッテリーの統計情報を自動的にリセットします。</string>
+    <string name="label_auto_reset_battery_stats_desc" formatted="false">充電量が90%を超えている状態でデバイスの電源ケーブルを抜いた際、バッテリーの統計情報を自動的にリセットします。</string>
     <string name="label_device_battery">バッテリー</string>
     <string name="label_battery_tab_info">情報</string>
     <string name="label_battery_section_health">状態</string>
@@ -1877,7 +1877,7 @@
     <string name="island_battery_only_low_title">残量が低下しているときのみ表示</string>
     <string name="island_battery_style_title">バッテリースタイル</string>
     <string name="island_battery_percentage_title">パーセントを表示</string>
-    <string name="island_battery_percentage_conditional_title">以下の条件のみ</string>
+    <string name="island_battery_percentage_conditional_title" formatted="false">以下の条件のみ</string>
     <string name="island_battery_idle_color_title">アイドル時の色</string>
     <string name="island_launcher_only_title">ランチャーにいるときのみ表示</string>
     <string name="island_show_on_update_title">Periodically show on updates</string>

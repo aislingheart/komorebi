@@ -266,7 +266,7 @@
     <string name="dns_preset_cleanbrowsing">Temiz Tarama</string>
     <string name="dns_preset_cleanbrowsing_hostname">adult-filter-dns.cleanbrowsing.org</string>
     <string name="tile_charge_optimization">Şarj</string>
-    <string name="limit_to_80">%80 ile sınırla</string>
+    <string name="limit_to_80" formatted="false">%80 ile sınırla</string>
     <string name="adaptive_charging">Uyarlanabilir</string>
     <string name="deactivated">Optimize edilmemiş</string>
     <string name="permission_missing">İzin eksik</string>
@@ -1102,7 +1102,7 @@ Bu özelliği etkinleştirmek için güvenli ayarlar yazma izni, zorla kapatma s
     <string name="instruction_section_freeze_title">Dondurmak nedir?</string>
     <string name="instruction_section_freeze_desc">Uygulamaları duraklatın ve dikkatinizi dağıtacak şeylerden uzak durun, aynı zamanda arka planda çalışan uygulamaları önleyerek biraz güç tasarrufu yapın. Nadiren kullanılan uygulamalar için uygundur. \n\nSiz dondurmayı çözmediğiniz sürece acil bir durumda sizi bilgilendirmeyecekleri için herhangi bir iletişim hizmeti için önerilmez. \n\nSistem kararsızlığına yol açabileceğinden sistem uygulamalarını dondurmamanız önemle tavsiye edilir. Dikkatli ilerleyin, Uyarıldınız. \n\nDolu\'dan İlham Alındı ​​&lt;3</string>
     <string name="instruction_section_security_title">Uygulama kilidi ve ekran kilitli güvenlik gerçekten güvenli midir?</string>
-    <string name="instruction_section_security_desc">Kesinlikle hayır. \n\nHerhangi bir 3. parti uygulama, normal cihaz etkileşimlerine %%100 müdahale edemez ve hatta uygulama kilidi bile, onlarla etkileşimi önlemek için yalnızca seçilen uygulamaların üzerinde bir kaplamadır. Geçici çözümler var ve kusursuz değil. \n\nAynı şey, herhangi bir nedenle Pixels\'teki herkes için hala erişilebilir olan ağ döşemeleriyle etkileşime girmeye çalışan birini algılayan ekran kilitli güvenlik özelliği için de geçerlidir. Yani yeterince uğraşırlarsa yine de onları değiştirebilirler ve özellikle de uçuş modu QS kutucuğu eklediyseniz, bu uygulama onunla etkileşimi engelleyemez. \n\nBu özellikler hafif kullanım için yapılan deneylerdir ve hiçbir zaman güçlü güvenlik ve gizlilik çözümleri olarak önerilmez. \n\nGüvenli alternatifler:\n - Uygulama kilidi: Pixels ve Samsung\'da Özel Alan ve Güvenli klasör\n - Mobil ağ erişimini engelleme: Hırsızlığa karşı koruma ve çevrimdışı/kapat cihazımı bul ayarlarınızın açık olduğundan emin olun. Graphene Os\'ye de bakabilirsiniz.</string>
+    <string name="instruction_section_security_desc" formatted="false">Kesinlikle hayır. \n\nHerhangi bir 3. parti uygulama, normal cihaz etkileşimlerine %%100 müdahale edemez ve hatta uygulama kilidi bile, onlarla etkileşimi önlemek için yalnızca seçilen uygulamaların üzerinde bir kaplamadır. Geçici çözümler var ve kusursuz değil. \n\nAynı şey, herhangi bir nedenle Pixels\'teki herkes için hala erişilebilir olan ağ döşemeleriyle etkileşime girmeye çalışan birini algılayan ekran kilitli güvenlik özelliği için de geçerlidir. Yani yeterince uğraşırlarsa yine de onları değiştirebilirler ve özellikle de uçuş modu QS kutucuğu eklediyseniz, bu uygulama onunla etkileşimi engelleyemez. \n\nBu özellikler hafif kullanım için yapılan deneylerdir ve hiçbir zaman güçlü güvenlik ve gizlilik çözümleri olarak önerilmez. \n\nGüvenli alternatifler:\n - Uygulama kilidi: Pixels ve Samsung\'da Özel Alan ve Güvenli klasör\n - Mobil ağ erişimini engelleme: Hırsızlığa karşı koruma ve çevrimdışı/kapat cihazımı bul ayarlarınızın açık olduğundan emin olun. Graphene Os\'ye de bakabilirsiniz.</string>
     <string name="instruction_section_lighting_title">Bildirim aydınlatması çalışmıyor</string>
     <string name="instruction_section_lighting_desc">OEM\'e bağlıdır. OneUI gibi bazıları, AOD\'nin üzerinde aydınlatma efektlerinin gösterilmesini engelleyen kaplamalara izin vermiyor gibi görünüyor. Bu durumda geçici çözüm olarak ortam görüntüsünü deneyin. </string>
     <string name="instruction_section_button_title">Düğme yeniden eşlemesi ekran kapalıyken çalışmıyor</string>
@@ -1573,7 +1573,7 @@ Ve ayarın etkili olması için birden fazla kez uygulanması gerekebilir.</stri
     <string name="label_thermal_throttling_status">Kısıtlama Durumu</string>
     <string name="label_battery_current_now">Canlı Akım</string>
     <string name="label_battery_current_avg">Ortalama Akım</string>
-    <string name="label_auto_reset_battery_stats_desc">Cihazın şarj seviyesi şarjda değilken %90\'ın üzerinde olduğunda pil istatistikleri otomatik olarak sıfırlanır.</string>
+    <string name="label_auto_reset_battery_stats_desc" formatted="false">Cihazın şarj seviyesi şarjda değilken %90\'ın üzerinde olduğunda pil istatistikleri otomatik olarak sıfırlanır.</string>
     <string name="label_auto_reset_battery_stats_title">Otomatik sıfırlama</string>
     <string name="about_desc_networks">Ağ indirme hızı sınırlarını yapılandırın, Wi-Fi\'a bağlıyken bile mobil veriyi sürekli aktif tutun ve kablosuz ekran sertifikasyon ayarlarını etkinleştirin.</string>
     <string name="watch_call_sync_title">Çağrılar</string>

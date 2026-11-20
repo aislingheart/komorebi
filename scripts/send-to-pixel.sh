@@ -4,7 +4,16 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ADB="${ADB:-$HOME/Android/Sdk/platform-tools/adb}"
 TARGET="${KOMOREBI_PIXEL_TARGET:-100.95.41.47:5555}"
-APK="${1:-$ROOT/app/build/outputs/apk/release/app-release.apk}"
+RELEASE_DIR="$ROOT/app/build/outputs/apk/release"
+if [ -n "${1:-}" ]; then
+  APK="$1"
+elif [ -f "$RELEASE_DIR/app-arm64-v8a-release.apk" ]; then
+  APK="$RELEASE_DIR/app-arm64-v8a-release.apk"
+elif [ -f "$RELEASE_DIR/app-universal-release.apk" ]; then
+  APK="$RELEASE_DIR/app-universal-release.apk"
+else
+  APK="$RELEASE_DIR/app-release.apk"
+fi
 
 if [ ! -x "$ADB" ]; then
   echo "adb not found or not executable: $ADB" >&2

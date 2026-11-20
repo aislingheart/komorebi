@@ -280,7 +280,7 @@
     <string name="dns_preset_cleanbrowsing">CleanBrowsing</string>
     <string name="dns_preset_cleanbrowsing_hostname">adult-filter-dns.cleanbrowsing.org</string>
     <string name="tile_charge_optimization">充電最佳化</string>
-    <string name="limit_to_80">限制到80%</string>
+    <string name="limit_to_80" formatted="false">限制到80%</string>
     <string name="adaptive_charging">動態</string>
     <string name="deactivated">未最佳化</string>
     <string name="charge_opt_long_press_title">充電模式選項</string>
@@ -1162,7 +1162,7 @@
     <string name="instruction_section_freeze_title">什麼是凍結？</string>
     <string name="instruction_section_freeze_desc">暫停並遠離應用程式干擾，同時通過阻止應用程式在後台執行來節省一點電量。適用於不常用的應用程式。\n\n不建議用於任何通訊服務，因為除非您解凍它們，否則它們在緊急情況下不會通知您。\n\n強烈建議不要凍結系統應用程式，因為它們可能導致系統不穩定。請謹慎操作，您已被警告。\n\n靈感來自Hail &lt;3</string>
     <string name="instruction_section_security_title">應用程式鎖和鎖定畫面安全真的安全嗎？</string>
-    <string name="instruction_section_security_desc">絕對不安全。\n\n任何第三方應用程式都無法100%干預常規設備交互，即使應用程式鎖也只是在選定應用程式上方的一個覆蓋層，以防止與它們交互。存在解決方法，並非萬無一失。\n\n鎖定畫面安全功能也是如此，它檢測到有人試圖與網路磁貼交互（由於某些原因，在Pixel上這些磁貼對任何人都可存取）。因此，如果他們足夠努力，仍然可能變更它們，特別是如果您新增了飛航模式QS磁貼，此應用程式無法阻止與其交互。\n\n這些功能只是作為輕量級使用的實驗而製作，絕不推薦作為強大的安全和隱私解決方案。\n\n安全的替代方案：\n- 應用程式鎖：Pixel和三星上的私人空間和安全資料夾\n- 防止行動網路存取：確保您的防盜保護和離線/關機查找設備設定已開啟。您也可以考慮Graphene OS。</string>
+    <string name="instruction_section_security_desc" formatted="false">絕對不安全。\n\n任何第三方應用程式都無法100%干預常規設備交互，即使應用程式鎖也只是在選定應用程式上方的一個覆蓋層，以防止與它們交互。存在解決方法，並非萬無一失。\n\n鎖定畫面安全功能也是如此，它檢測到有人試圖與網路磁貼交互（由於某些原因，在Pixel上這些磁貼對任何人都可存取）。因此，如果他們足夠努力，仍然可能變更它們，特別是如果您新增了飛航模式QS磁貼，此應用程式無法阻止與其交互。\n\n這些功能只是作為輕量級使用的實驗而製作，絕不推薦作為強大的安全和隱私解決方案。\n\n安全的替代方案：\n- 應用程式鎖：Pixel和三星上的私人空間和安全資料夾\n- 防止行動網路存取：確保您的防盜保護和離線/關機查找設備設定已開啟。您也可以考慮Graphene OS。</string>
     <string name="instruction_section_battery_saver_title">電源和電池設定如何運作？ </string>
     <string name="instruction_section_battery_saver_desc">這些設定會直接覆寫 Android 內部的省電模式策略常數（具體來說是全域設定表屬性：battery_saver_constants）。 \n\n當 Android 啟動省電模式時，它會讀取這些鍵值來確定應該限制哪些系統功能（例如降低螢幕亮度、停用 AOD、限制 GPS 位置存取或使應用程式進入睡眠狀態）。 \n\n如果您修改這些值，您的自訂省電策略將在下次啟用省電模式時生效。您可以隨時使用螢幕底部的按鈕將其重設為預設值。寫入這些系統配置需要 WRITE_SECURE_SETTINGS 權限。 </string>
     <string name="about_desc_power_battery">Fine-tune Android「s internal Battery Saver constants policy. Customize behavior such as brightness limit, location throttling, vibration toggle, background sync deferrals, and sensor states when battery saver is turned on.</string>

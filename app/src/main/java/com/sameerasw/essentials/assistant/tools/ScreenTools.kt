@@ -4,7 +4,7 @@
  *
  * Feature Module: Assistant Tools
  * File: ScreenTools.kt
- * Description: Screen text capture and AI summarization tools.
+ * Description: Screen text capture and local extractive summarization tools.
  */
 
 package com.sameerasw.essentials.assistant.tools
@@ -12,17 +12,20 @@ package com.sameerasw.essentials.assistant.tools
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import com.sameerasw.essentials.assistant.AiMessage
-import com.sameerasw.essentials.assistant.AiProviderManager
-import com.sameerasw.essentials.assistant.AssistantAiMode
-import com.sameerasw.essentials.assistant.AssistantAiSettings
 import com.sameerasw.essentials.assistant.ScreenTextGrabber
 import com.sameerasw.essentials.launcher.ClipboardHistoryManager
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 object ScreenTools {
     private const val EMPTY_SCHEMA = """{"type":"object","properties":{}}"""
+
+    private val STOP_WORDS = setOf(
+        "the", "and", "for", "that", "with", "this", "from", "have", "are", "was", "were",
+        "been", "your", "you", "about", "into", "more", "some", "will", "just", "than",
+        "then", "them", "they", "their", "what", "when", "where", "which", "while", "also",
+    )
 
     fun tools(): List<AssistantTool> = listOf(
         AssistantTool(
@@ -35,11 +38,11 @@ object ScreenTools {
         ),
         AssistantTool(
             id = "summarize_screen",
-            title = "Summarize Screen",
-            description = "Read the visible screen text and summarize it with AI",
-            keywords = listOf("summarize screen", "screen summary", "tldr screen", "summarize"),
+            title = "Screen Highlights",
+            description = "Extract key lines and highlights from the visible screen locally",
+            keywords = listOf("summarize screen", "screen summary", "tldr screen", "screen highlights", "key points"),
             parametersJson = EMPTY_SCHEMA,
-            execute = { context, _ -> summarizeScreen(context) },
+            execute = { context, _ -> summarizeScreenLocally(context) },
         ),
     )
 
@@ -65,7 +68,7 @@ object ScreenTools {
         )
     }
 
-    private suspend fun summarizeScreen(context: Context): ToolResult {
+    private suspend fun summarizeScreenLocally(context: Context): ToolResult {
         val grabbed = runCatching { ScreenTextGrabber.grabScreenText(context) }.getOrNull()
         if (grabbed == null || grabbed.text.isBlank()) {
             return ToolResult(
@@ -73,27 +76,47 @@ object ScreenTools {
                 "No screen text available. Open search over the content using the accessibility gesture first.",
             )
         }
-        val mode = AssistantAiSettings.getMode(context)
-        if (mode == AssistantAiMode.OFF || !AssistantAiSettings.isConfigured(context)) {
-            return ToolResult(
-                false,
-                "Screen summaries need an AI backend. Enable one in Pixel Search settings > AI assistant.",
-            )
+        val highlights = extractHighlights(grabbed.text, maxLines = 6)
+        if (highlights.isEmpty()) {
+            return ToolResult(true, "Captured screen text (${grabbed.source}):", grabbed.text.take(600))
         }
-        val system = "You summarize screen content concisely. Reply with at most six short " +
-            "bullet-style lines of the key information, no preamble."
-        val response = AiProviderManager.complete(
-            context = context,
-            systemPrompt = system,
-            messages = listOf(AiMessage("user", "Summarize this screen text:\n" + grabbed.text.take(6000))),
+        val body = highlights.joinToString("\n") { "• $it" }
+        return ToolResult(
+            true,
+            "Screen highlights (${grabbed.source}, ${grabbed.text.length} chars):",
+            body,
         )
-        if (response.error != null) {
-            return ToolResult(false, "AI summary failed: ${response.error}")
+    }
+
+    internal fun extractHighlights(text: String, maxLines: Int = 6): List<String> {
+        val candidates = text
+            .split(Regex("(?<=[.!?])\\s+|\\n+"))
+            .map { it.trim().replace(Regex("\\s+"), " ") }
+            .filter { it.length >= 12 }
+            .distinctBy { it.lowercase(Locale.US) }
+        if (candidates.size <= maxLines) return candidates
+
+        val tokenFreq = mutableMapOf<String, Int>()
+        val tokenized = candidates.map { line ->
+            val tokens = line.lowercase(Locale.US)
+                .split(Regex("[^a-z0-9]+"))
+                .filter { it.length >= 3 && it !in STOP_WORDS }
+            tokens.forEach { t -> tokenFreq[t] = (tokenFreq[t] ?: 0) + 1 }
+            tokens
         }
-        val answer = response.text?.trim().orEmpty()
-        if (answer.isBlank()) {
-            return ToolResult(false, "The AI returned an empty summary.")
+
+        val scored = candidates.mapIndexed { idx, line ->
+            val tokens = tokenized[idx]
+            val tfScore = tokens.sumOf { tokenFreq[it] ?: 0 }.toDouble() / (tokens.size + 2)
+            val positionBoost = if (idx < 2) 1.2 else 1.0
+            val lengthPenalty = if (line.length > 220) 0.7 else 1.0
+            Triple(idx, line, tfScore * positionBoost * lengthPenalty)
         }
-        return ToolResult(true, "Screen summary (${grabbed.source} text, ${grabbed.text.length} chars):", answer)
+
+        return scored
+            .sortedByDescending { it.third }
+            .take(maxLines)
+            .sortedBy { it.first }
+            .map { it.second }
     }
 }

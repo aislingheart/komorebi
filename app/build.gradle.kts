@@ -91,14 +91,23 @@ android {
         applicationId = "com.aislingheart.komorebi"
         minSdk = 26
         targetSdk = 37
-        versionCode = 101
-        versionName = "0.11.3"
+        versionCode = 102
+        versionName = "0.12.0"
 
-        val whatsNewCounter = 10
+        val whatsNewCounter = 11
         buildConfigField("int", "WHATS_NEW_COUNTER", whatsNewCounter.toString())
         buildConfigField("int", "REQUIRED_WEAR_VERSION_CODE", "8")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = true
+        }
     }
 
     signingConfigs {
@@ -115,18 +124,6 @@ android {
     }
 
     buildTypes {
-//        optimized dev build
-//           debug {
-//              isMinifyEnabled = true
-//              isShrinkResources = true
-//              isDebuggable = false
-//              proguardFiles(
-//                  getDefaultProguardFile("proguard-android-optimize.txt"),
-//                  "proguard-rules.pro"
-//              )
-//           }
-//        end
-
         release {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -190,19 +187,12 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.gif)
     implementation(libs.androidx.compose.foundation.layout)
-    implementation(libs.androidx.ui)
     implementation(libs.androidx.compose.foundation)
-    implementation(libs.genai.schema)
     implementation(libs.material)
-    implementation(libs.androidx.material3)
-    implementation(libs.androidx.foundation.layout)
-    implementation(libs.androidx.foundation)
     implementation(libs.shizuku.api)
     implementation(libs.shizuku.provider)
     implementation("com.github.d4rken-org.porter-api:shizuku-bridge:+")
-    implementation(libs.api.v1315)
     implementation(libs.hiddenapibypass)
-    implementation(libs.gson.v2140)
     implementation(libs.gson)
     implementation(libs.reorderable)
     implementation(libs.kotlinx.coroutines.android)
@@ -219,8 +209,6 @@ dependencies {
     implementation(libs.androidx.media3.common)
     implementation(libs.androidx.media3.ui)
     implementation(libs.lottie.compose)
-    implementation(libs.mlkit.genai.prompt)
-    ksp(libs.mlkit.genai.schema.compiler)
     implementation(libs.androidx.appfunctions)
     ksp(libs.androidx.appfunctions.compiler)
     implementation(libs.zxing.core)
@@ -231,9 +219,8 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
-    implementation(libs.mlkit.text.recognition)
+    implementation(libs.play.services.mlkit.text.recognition)
     implementation(libs.androidx.health.connect.client)
-    implementation(libs.litert)
     implementation(libs.commons.compress)
 
     testImplementation(libs.junit)
@@ -248,7 +235,7 @@ tasks.register<Exec>("deliverReleaseToPixel") {
     group = "delivery"
     description = "Installs the release APK on the Pixel 9 Pro over Tailscale (best effort)."
     workingDir = rootProject.projectDir
-    commandLine("bash", "scripts/send-to-pixel.sh", "app/build/outputs/apk/release/app-release.apk")
+    commandLine("bash", "scripts/send-to-pixel.sh")
     isIgnoreExitValue = true
 }
 

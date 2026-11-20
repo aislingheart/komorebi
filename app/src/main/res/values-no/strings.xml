@@ -266,7 +266,7 @@
     <string name="dns_preset_cleanbrowsing">CleanBrowsing</string>
     <string name="dns_preset_cleanbrowsing_hostname">adult-filter-dns.cleanbrowsing.org</string>
     <string name="tile_charge_optimization">Lader</string>
-    <string name="limit_to_80">Begrens til 80 %</string>
+    <string name="limit_to_80" formatted="false">Begrens til 80 %</string>
     <string name="adaptive_charging">Adaptiv</string>
     <string name="deactivated">Ikke optimalisert</string>
     <string name="permission_missing">Tillatelse mangler</string>
@@ -1083,7 +1083,7 @@
     <string name="instruction_section_freeze_title">Hva er fryse?</string>
     <string name="instruction_section_freeze_desc">Sett på pause og hold deg unna appdistraksjoner mens du sparer litt strøm og forhindrer at apper kjører i bakgrunnen. Passer for sjelden brukte apper. \n\nAnbefales ikke for noen kommunikasjonstjenester, da de ikke vil varsle deg i en nødsituasjon med mindre du låser dem opp. \n\nDet anbefales på det sterkeste å ikke fryse systemapper, da de kan føre til ustabilitet i systemet. Fortsett med forsiktighet, du ble advart. \n\nInspirert av Hail &lt;3</string>
     <string name="instruction_section_security_title">Er applås og skjermlåst sikkerhet faktisk sikker?</string>
-    <string name="instruction_section_security_desc">Absolutt ikke. \n\nEnhver tredjepartsapplikasjon kan ikke 100 % forstyrre vanlige enhetsinteraksjoner, og til og med applåsen er bare et overlegg over valgte apper for å forhindre interaksjon med dem. Det finnes løsninger, og det er ikke idiotsikkert. \n\nDet samme gjelder den skjermlåste sikkerhetsfunksjonen som oppdager noen som prøver å samhandle med nettverksflisene som av en eller annen grunn fortsatt er tilgjengelige for alle på Pixels. Så hvis de prøver hardt nok, kan de fortsatt være i stand til å endre dem, og spesielt hvis du har lagt til en QS-flise for flymodus, kan ikke denne appen forhindre interaksjoner med den. \n\nDisse funksjonene er laget bare som eksperimenter for lett bruk og vil aldri anbefale like sterke sikkerhets- og personvernløsninger. \n\nSikre alternativer:\n - Applås: Private Space og Secure-mappe på Pixels og Samsung\n - Forhindrer tilgang til mobilnettverk: Sørg for at tyveribeskyttelsen og frakoblet/slått av innstillingene for enheten min er på. Du kan også se på Graphene OS.</string>
+    <string name="instruction_section_security_desc" formatted="false">Absolutt ikke. \n\nEnhver tredjepartsapplikasjon kan ikke 100 % forstyrre vanlige enhetsinteraksjoner, og til og med applåsen er bare et overlegg over valgte apper for å forhindre interaksjon med dem. Det finnes løsninger, og det er ikke idiotsikkert. \n\nDet samme gjelder den skjermlåste sikkerhetsfunksjonen som oppdager noen som prøver å samhandle med nettverksflisene som av en eller annen grunn fortsatt er tilgjengelige for alle på Pixels. Så hvis de prøver hardt nok, kan de fortsatt være i stand til å endre dem, og spesielt hvis du har lagt til en QS-flise for flymodus, kan ikke denne appen forhindre interaksjoner med den. \n\nDisse funksjonene er laget bare som eksperimenter for lett bruk og vil aldri anbefale like sterke sikkerhets- og personvernløsninger. \n\nSikre alternativer:\n - Applås: Private Space og Secure-mappe på Pixels og Samsung\n - Forhindrer tilgang til mobilnettverk: Sørg for at tyveribeskyttelsen og frakoblet/slått av innstillingene for enheten min er på. Du kan også se på Graphene OS.</string>
     <string name="instruction_section_lighting_title">Varslingsbelysning fungerer ikke</string>
     <string name="instruction_section_lighting_desc">Det avhenger av OEM. Noen som OneUI ser ikke ut til å tillate overlegg over AOD-en som forhindrer at lyseffektene vises. I dette tilfellet kan du prøve omgivelsesskjermen som en løsning.</string>
     <string name="instruction_section_button_title">Tilordning av knapp fungerer ikke mens skjermen er av</string>
@@ -1516,7 +1516,7 @@
     <string name="feat_wireless_display_certification_title">Trådløs skjermsertifisering</string>
     <string name="feat_wireless_display_certification_desc">Vis alternativer for trådløs skjermsertifisering</string>
     <string name="label_auto_reset_battery_stats_title">Tilbakestill automatisk</string>
-    <string name="label_auto_reset_battery_stats_desc">Tilbakestill automatisk batteristatistikk når enheten er koblet fra laderen og har over 90 % strøm.</string>
+    <string name="label_auto_reset_battery_stats_desc" formatted="false">Tilbakestill automatisk batteristatistikk når enheten er koblet fra laderen og har over 90 % strøm.</string>
     <string name="label_device_battery">Batteri</string>
     <string name="label_battery_current_avg">Gjennomsnittlig strøm</string>
     <string name="label_thermal_gpu">GPU-temperatur</string>

@@ -82,6 +82,125 @@ class RaycastRuntimeEngine(
                 .followRedirects(true)
                 .build()
         }
+
+        private val warmPoolScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        private val warmLock = Any()
+
+        @Volatile
+        private var cachedRuntimeJs: String? = null
+
+        private data class WarmIsolate(
+            val quickJs: QuickJs,
+            val engineRef: java.util.concurrent.atomic.AtomicReference<RaycastRuntimeEngine?>,
+        )
+
+        @Volatile
+        private var standbyIsolate: WarmIsolate? = null
+
+        @Volatile
+        private var warmingInProgress = false
+
+        private fun loadRuntimeJs(context: Context): String {
+            cachedRuntimeJs?.let { return it }
+            val loaded = context.applicationContext.assets
+                .open("raycast/runtime.js")
+                .bufferedReader()
+                .use { it.readText() }
+            cachedRuntimeJs = loaded
+            return loaded
+        }
+
+        /**
+         * Pre-boots a single QuickJS isolate with `runtime.js` already evaluated in the background
+         * so subsequent extension launches skip parsing the 6K-line runtime on the critical path.
+         */
+        fun prewarm(context: Context) {
+            val appContext = context.applicationContext
+            synchronized(warmLock) {
+                if (standbyIsolate != null || warmingInProgress) return
+                warmingInProgress = true
+            }
+            warmPoolScope.launch {
+                val created = runCatching { buildWarmIsolate(appContext) }.getOrNull()
+                synchronized(warmLock) {
+                    warmingInProgress = false
+                    if (created != null) {
+                        if (standbyIsolate == null) {
+                            standbyIsolate = created
+                        } else {
+                            runCatching { created.quickJs.close() }
+                        }
+                    }
+                }
+            }
+        }
+
+        private suspend fun buildWarmIsolate(appContext: Context): WarmIsolate {
+            val engineRef = java.util.concurrent.atomic.AtomicReference<RaycastRuntimeEngine?>(null)
+            val qjs = QuickJs.create(Dispatchers.IO)
+            qjs.memoryLimit = 64L * 1024L * 1024L
+            qjs.maxStackSize = 1024L * 1024L
+            registerDelegatingBindings(qjs, engineRef)
+            val runtimeJs = loadRuntimeJs(appContext)
+            qjs.evaluate<Any?>(runtimeJs, "runtime.js", false)
+            return WarmIsolate(qjs, engineRef)
+        }
+
+        private fun claimStandby(engine: RaycastRuntimeEngine): QuickJs? {
+            val claimed = synchronized(warmLock) {
+                val iso = standbyIsolate
+                standbyIsolate = null
+                iso
+            } ?: return null
+            claimed.engineRef.set(engine)
+            return claimed.quickJs
+        }
+
+        private fun registerDelegatingBindings(
+            qjs: QuickJs,
+            engineRef: java.util.concurrent.atomic.AtomicReference<RaycastRuntimeEngine?>,
+        ) {
+            qjs.function("__nativeLog") { args ->
+                val level = args.getOrNull(0)?.toString() ?: "LOG"
+                val msg = args.getOrNull(1)?.toString() ?: ""
+                Log.d("RaycastRuntime/$level", msg)
+                null
+            }
+
+            qjs.function("__emitRender") { args ->
+                val engine = engineRef.get() ?: return@function null
+                val treeJson = args.getOrNull(0)?.toString() ?: return@function null
+                engine.onEmitRender(treeJson)
+                null
+            }
+
+            qjs.asyncFunction("__scheduleTimeout") { args ->
+                val ms = (args.getOrNull(1) as? Number)?.toLong() ?: 0L
+                if (ms > 0) delay(ms)
+                true
+            }
+
+            qjs.asyncFunction("__nativeFetch") { args ->
+                val engine = engineRef.get()
+                    ?: return@asyncFunction """{"error":"Runtime not attached"}"""
+                val reqJson = args.getOrNull(0)?.toString() ?: "{}"
+                engine.executeHttpFetch(reqJson)
+            }
+
+            qjs.function("__hostCallSync") { args ->
+                val engine = engineRef.get() ?: return@function null
+                val method = args.getOrNull(0)?.toString() ?: ""
+                val payloadJson = args.getOrNull(1)?.toString() ?: "{}"
+                engine.handleSyncHostCall(method, payloadJson)
+            }
+
+            qjs.asyncFunction("__hostCall") { args ->
+                val engine = engineRef.get() ?: return@asyncFunction null
+                val method = args.getOrNull(0)?.toString() ?: ""
+                val payloadJson = args.getOrNull(1)?.toString() ?: "{}"
+                engine.handleAsyncHostCall(method, payloadJson)
+            }
+        }
     }
 
     private val tag = "RaycastRuntime"
@@ -117,6 +236,11 @@ class RaycastRuntimeEngine(
     private val _openPreferencesRequests = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val openPreferencesRequests = _openPreferencesRequests.asSharedFlow()
 
+    internal fun onEmitRender(treeJson: String) {
+        val screens = RaycastTreeParser.parseViewStack(treeJson)
+        _viewStack.value = screens
+    }
+
     fun start(
         arguments: Map<String, String> = emptyMap(),
         isDarkTheme: Boolean = true,
@@ -130,19 +254,24 @@ class RaycastRuntimeEngine(
                     return@launch
                 }
 
-                val qjs = QuickJs.create(Dispatchers.IO)
+                val warmQjs = claimStandby(this@RaycastRuntimeEngine)
+                val qjs = if (warmQjs != null) {
+                    warmQjs
+                } else {
+                    val fresh = QuickJs.create(Dispatchers.IO)
+                    fresh.memoryLimit = 64L * 1024L * 1024L
+                    fresh.maxStackSize = 1024L * 1024L
+                    registerBindings(fresh)
+                    val runtimeJs = loadRuntimeJs(context)
+                    fresh.evaluate<Any?>(runtimeJs, "runtime.js", false)
+                    fresh
+                }
                 if (closed) {
                     runCatching { qjs.close() }
                     return@launch
                 }
                 quickJs = qjs
-                qjs.memoryLimit = 64L * 1024L * 1024L
-                qjs.maxStackSize = 1024L * 1024L
-
-                registerBindings(qjs)
-
-                val runtimeJs = context.assets.open("raycast/runtime.js").bufferedReader().use { it.readText() }
-                qjs.evaluate<Any?>(runtimeJs, "runtime.js", false)
+                prewarm(context.applicationContext)
 
                 val supportDir = RaycastExtensionRepository.supportDir(context, extension.id)
                 val assetsDir = File(extension.dirPath, "assets")
@@ -175,42 +304,7 @@ class RaycastRuntimeEngine(
     }
 
     private fun registerBindings(qjs: QuickJs) {
-        qjs.function("__nativeLog") { args ->
-            val level = args.getOrNull(0)?.toString() ?: "LOG"
-            val msg = args.getOrNull(1)?.toString() ?: ""
-            Log.d("$tag/$level", msg)
-            null
-        }
-
-        qjs.function("__emitRender") { args ->
-            val treeJson = args.getOrNull(0)?.toString() ?: return@function null
-            val screens = RaycastTreeParser.parseViewStack(treeJson)
-            _viewStack.value = screens
-            null
-        }
-
-        qjs.asyncFunction("__scheduleTimeout") { args ->
-            val ms = (args.getOrNull(1) as? Number)?.toLong() ?: 0L
-            if (ms > 0) delay(ms)
-            true
-        }
-
-        qjs.asyncFunction("__nativeFetch") { args ->
-            val reqJson = args.getOrNull(0)?.toString() ?: "{}"
-            executeHttpFetch(reqJson)
-        }
-
-        qjs.function("__hostCallSync") { args ->
-            val method = args.getOrNull(0)?.toString() ?: ""
-            val payloadJson = args.getOrNull(1)?.toString() ?: "{}"
-            handleSyncHostCall(method, payloadJson)
-        }
-
-        qjs.asyncFunction("__hostCall") { args ->
-            val method = args.getOrNull(0)?.toString() ?: ""
-            val payloadJson = args.getOrNull(1)?.toString() ?: "{}"
-            handleAsyncHostCall(method, payloadJson)
-        }
+        registerDelegatingBindings(qjs, java.util.concurrent.atomic.AtomicReference(this))
     }
 
     fun invokeCallback(callbackId: String, vararg callbackArgs: Any?) {
@@ -270,6 +364,9 @@ class RaycastRuntimeEngine(
     }
 
     private fun executeHttpFetch(reqJson: String): String {
+        if (!ExtensionPermissionManager.isAllowed(context, extension.id, ExtensionCapability.NETWORK)) {
+            return gson.toJson(mapOf("error" to "Network access is disabled for ${extension.manifest.title}. Enable it in Extensions permissions."))
+        }
         return try {
             val obj = gson.fromJson(reqJson, JsonObject::class.java)
             val url = obj.get("url")?.asString ?: throw IllegalArgumentException("Missing URL")
@@ -338,6 +435,11 @@ class RaycastRuntimeEngine(
         val obj = runCatching { gson.fromJson(payloadJson, JsonObject::class.java) }.getOrNull() ?: JsonObject()
         return when (method) {
             "cli.exec" -> {
+                if (!ExtensionPermissionManager.isAllowed(context, extension.id, ExtensionCapability.CLI_BRIDGE)) {
+                    return gson.toJson(
+                        CliResult("", "CLI/Shell access is disabled for ${extension.manifest.title}. Enable it in Extensions permissions.", 126),
+                    )
+                }
                 val command = obj.get("command")?.asString
                     ?: return gson.toJson(CliResult("", "No command provided", 1))
                 val cwd = obj.get("cwd")?.asString
@@ -817,6 +919,7 @@ class RaycastRuntimeEngine(
     }
 
     private fun resolveSandboxedFile(rawPath: String?): File? {
+        if (!ExtensionPermissionManager.isAllowed(context, extension.id, ExtensionCapability.FILES)) return null
         if (rawPath.isNullOrBlank()) return null
         val supportRoot = RaycastExtensionRepository.supportDir(context, extension.id).canonicalFile
         val extRoot = File(extension.dirPath).canonicalFile
@@ -825,6 +928,7 @@ class RaycastRuntimeEngine(
     }
 
     private fun resolveWritableSandboxedFile(rawPath: String?): File? {
+        if (!ExtensionPermissionManager.isAllowed(context, extension.id, ExtensionCapability.FILES)) return null
         if (rawPath.isNullOrBlank()) return null
         val supportRoot = RaycastExtensionRepository.supportDir(context, extension.id).canonicalFile
         val f = File(rawPath).canonicalFile
@@ -835,6 +939,11 @@ class RaycastRuntimeEngine(
         val obj = runCatching { gson.fromJson(payloadJson, JsonObject::class.java) }.getOrNull() ?: JsonObject()
         return when (method) {
             "cli.exec" -> {
+                if (!ExtensionPermissionManager.isAllowed(context, extension.id, ExtensionCapability.CLI_BRIDGE)) {
+                    return gson.toJson(
+                        CliResult("", "CLI/Shell access is disabled for ${extension.manifest.title}. Enable it in Extensions permissions.", 126),
+                    )
+                }
                 val command = obj.get("command")?.asString
                     ?: return gson.toJson(CliResult("", "No command provided", 1))
                 val cwd = obj.get("cwd")?.asString
@@ -885,6 +994,9 @@ class RaycastRuntimeEngine(
                 gson.toJson(out)
             }
             "clipboard.copy", "clipboard.paste" -> {
+                if (!ExtensionPermissionManager.isAllowed(context, extension.id, ExtensionCapability.CLIPBOARD)) {
+                    return "false"
+                }
                 val text = obj.get("text")?.asString ?: ""
                 val concealed = obj.get("concealed")?.asBoolean ?: false
                 withContext(Dispatchers.Main) {
@@ -909,6 +1021,9 @@ class RaycastRuntimeEngine(
                 "true"
             }
             "clipboard.readText" -> {
+                if (!ExtensionPermissionManager.isAllowed(context, extension.id, ExtensionCapability.CLIPBOARD)) {
+                    return gson.toJson("")
+                }
                 val text = withContext(Dispatchers.Main) {
                     runCatching {
                         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
@@ -923,6 +1038,9 @@ class RaycastRuntimeEngine(
                 gson.toJson(text)
             }
             "clipboard.clear" -> {
+                if (!ExtensionPermissionManager.isAllowed(context, extension.id, ExtensionCapability.CLIPBOARD)) {
+                    return "false"
+                }
                 withContext(Dispatchers.Main) {
                     val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     cm.setPrimaryClip(ClipData.newPlainText("", ""))

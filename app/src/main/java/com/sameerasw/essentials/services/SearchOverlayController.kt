@@ -4,36 +4,21 @@
  *
  * Feature Module: Background Services & Receivers
  * File: SearchOverlayController.kt
- * Description: Accessibility overlay host for the Komorebi search surface.
+ * Description: Accessibility overlay host for the Komorebi search surface, built on UnifiedOverlayWindowHost.
  */
 
 package com.sameerasw.essentials.services
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
-import android.content.ContextWrapper
-import android.content.Intent
-import android.net.Uri
 import android.graphics.Bitmap
-import android.graphics.PixelFormat
-import android.os.Build
-import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
-import android.view.ContextThemeWrapper
-import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
-import android.view.ViewGroup
 import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
-import androidx.activity.OnBackPressedDispatcher
-import androidx.activity.OnBackPressedDispatcherOwner
-import androidx.activity.result.ActivityResultLauncher
-import androidx.activity.result.ActivityResultRegistry
-import androidx.activity.result.ActivityResultRegistryOwner
-import androidx.activity.result.contract.ActivityResultContract
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.Image
@@ -51,25 +36,16 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.LifecycleRegistry
-import androidx.lifecycle.ViewModelStore
-import androidx.lifecycle.ViewModelStoreOwner
-import androidx.lifecycle.setViewTreeLifecycleOwner
-import androidx.lifecycle.setViewTreeViewModelStoreOwner
-import androidx.savedstate.SavedStateRegistry
-import androidx.savedstate.SavedStateRegistryController
-import androidx.savedstate.SavedStateRegistryOwner
-import androidx.savedstate.setViewTreeSavedStateRegistryOwner
-import com.sameerasw.essentials.R
 import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.ui.activities.PixelSearchResultsScreen
 import com.sameerasw.essentials.ui.theme.EssentialsTheme
+import com.sameerasw.essentials.utils.overlay.OverlayVisibilityCoordinator
+import com.sameerasw.essentials.utils.overlay.UnifiedOverlayWindowHost
 
 object SearchOverlayController {
     private const val TAG = "SearchOverlayController"
-    private var host: SearchOverlayHost? = null
+    private const val OVERLAY_ID = "komorebi_search_overlay"
+    private var host: UnifiedOverlayWindowHost? = null
     private var windowView: View? = null
     private var windowManager: WindowManager? = null
 
@@ -102,22 +78,12 @@ object SearchOverlayController {
         backdrop: Bitmap?,
     ): Boolean {
         val appContext = context.applicationContext ?: context
-        val windowContext = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            runCatching {
-                context.createWindowContext(windowType, null)
-            }.getOrNull()
-        } else {
-            null
-        }
-        val themedContext = ContextThemeWrapper(windowContext ?: context, R.style.Theme_Komorebi)
-        val overlayContext = OverlayContext(themedContext, windowType)
-        val overlayHost = SearchOverlayHost(appContext)
-        overlayHost.onCreate()
+        val overlayContext = UnifiedOverlayWindowHost.createThemedOverlayContext(context, windowType)
+        val overlayHost = UnifiedOverlayWindowHost(appContext).apply { onCreateAndResume() }
+
         val content = ComposeView(overlayContext).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
-            setViewTreeLifecycleOwner(overlayHost)
-            setViewTreeViewModelStoreOwner(overlayHost)
-            setViewTreeSavedStateRegistryOwner(overlayHost)
+            overlayHost.attachToView(this)
             setContent {
                 val repository = remember { SettingsRepository(appContext) }
                 val isPitchBlack by repository.isPitchBlackThemeEnabled.collectAsState(initial = false)
@@ -148,6 +114,7 @@ object SearchOverlayController {
                 }
             }
         }
+
         val view = object : FrameLayout(overlayContext) {
             override fun dispatchKeyEvent(event: KeyEvent): Boolean {
                 if (event.keyCode == KeyEvent.KEYCODE_BACK) {
@@ -163,9 +130,7 @@ object SearchOverlayController {
                 return super.dispatchKeyEvent(event)
             }
         }.apply {
-            setViewTreeLifecycleOwner(overlayHost)
-            setViewTreeViewModelStoreOwner(overlayHost)
-            setViewTreeSavedStateRegistryOwner(overlayHost)
+            overlayHost.attachToView(this)
             isFocusable = true
             isFocusableInTouchMode = true
             addView(
@@ -176,33 +141,12 @@ object SearchOverlayController {
                 ),
             )
         }
-        val baseFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
-        } else {
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR or
-                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
-        }
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
-            windowType,
-            baseFlags,
-            PixelFormat.TRANSLUCENT,
-        ).apply {
-            gravity = Gravity.TOP or Gravity.START
-            softInputMode =
-                WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
-                WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                layoutInDisplayCutoutMode =
-                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                fitInsetsTypes = 0
-            }
-        }
+
+        val params = UnifiedOverlayWindowHost.buildFullScreenParams(
+            windowType = windowType,
+            focusable = true,
+            enableIme = true,
+        )
         val added = runCatching {
             wm.addView(view, params)
         }.onFailure { error ->
@@ -216,6 +160,7 @@ object SearchOverlayController {
         windowView = view
         windowManager = wm
         isShowing = true
+        OverlayVisibilityCoordinator.markVisible(OVERLAY_ID)
         runCatching { view.requestFocus() }
             .onFailure { error -> Log.w(TAG, "Search overlay focus request failed", error) }
         return true
@@ -229,9 +174,10 @@ object SearchOverlayController {
         windowManager = null
         host = null
         isShowing = false
+        OverlayVisibilityCoordinator.markHidden(OVERLAY_ID)
         if (view != null) {
             runCatching {
-                val imm = view.context.getSystemService(android.view.inputmethod.InputMethodManager::class.java)
+                val imm = view.context.getSystemService(InputMethodManager::class.java)
                 imm?.hideSoftInputFromWindow(view.windowToken, 0)
             }
         }
@@ -241,120 +187,5 @@ object SearchOverlayController {
         }
         runCatching { overlayHost?.onDestroy() }
             .onFailure { error -> Log.w(TAG, "Failed to destroy search overlay host", error) }
-    }
-
-    private class OverlayContext(
-        base: Context,
-        private val windowType: Int,
-    ) : ContextWrapper(base) {
-        private val overlayWindowManager =
-            OverlayWindowManager(base.getSystemService(WindowManager::class.java), windowType)
-
-        override fun getSystemService(name: String): Any? =
-            if (name == Context.WINDOW_SERVICE) overlayWindowManager else super.getSystemService(name)
-
-        override fun startActivity(intent: Intent) {
-            super.startActivity(Intent(intent).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        }
-
-        override fun startActivity(intent: Intent, options: Bundle?) {
-            super.startActivity(Intent(intent).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), options)
-        }
-    }
-
-    private class OverlayWindowManager(
-        private val delegate: WindowManager,
-        private val windowType: Int,
-    ) : WindowManager by delegate {
-        override fun addView(view: View, params: ViewGroup.LayoutParams) {
-            if (params is WindowManager.LayoutParams && params.token == null) {
-                params.type = windowType
-            }
-            delegate.addView(view, params)
-        }
-
-        override fun updateViewLayout(view: View, params: ViewGroup.LayoutParams) {
-            if (params is WindowManager.LayoutParams && params.token == null) {
-                params.type = windowType
-            }
-            delegate.updateViewLayout(view, params)
-        }
-    }
-
-    private class SearchOverlayHost(private val appContext: Context) :
-        LifecycleOwner,
-        SavedStateRegistryOwner,
-        ViewModelStoreOwner,
-        OnBackPressedDispatcherOwner,
-        ActivityResultRegistryOwner {
-        private val lifecycleRegistry = LifecycleRegistry(this)
-        private val savedStateRegistryController = SavedStateRegistryController.create(this)
-        private val store = ViewModelStore()
-
-        override val lifecycle: Lifecycle = lifecycleRegistry
-        override val savedStateRegistry: SavedStateRegistry =
-            savedStateRegistryController.savedStateRegistry
-        override val viewModelStore: ViewModelStore = store
-        override val onBackPressedDispatcher = OnBackPressedDispatcher()
-        override val activityResultRegistry: ActivityResultRegistry =
-            OverlayActivityResultRegistry(appContext)
-
-        fun onCreate() {
-            savedStateRegistryController.performRestore(null)
-            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
-            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
-            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
-        }
-
-        fun onDestroy() {
-            val state = lifecycleRegistry.currentState
-            if (state == Lifecycle.State.DESTROYED || state == Lifecycle.State.INITIALIZED) return
-            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
-            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
-            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
-            store.clear()
-        }
-    }
-
-    /**
-     * ActivityResultRegistry for the accessibility overlay window. The overlay has no Activity,
-     * so runtime permission dialogs cannot be shown; requests resolve against the current state
-     * and otherwise route the user to the app's permission settings. This keeps Compose calls
-     * like rememberLauncherForActivityResult from crashing overlay composition.
-     */
-    private class OverlayActivityResultRegistry(
-        private val appContext: Context,
-    ) : ActivityResultRegistry() {
-        override fun <I : Any?, O : Any?> onLaunch(
-            requestCode: Int,
-            contract: ActivityResultContract<I, O>,
-            input: I,
-            options: androidx.core.app.ActivityOptionsCompat?,
-        ) {
-            if (contract is ActivityResultContracts.RequestPermission &&
-                input is String &&
-                androidx.core.content.ContextCompat.checkSelfPermission(
-                    appContext,
-                    input,
-                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-            ) {
-                @Suppress("UNCHECKED_CAST")
-                dispatchResult(requestCode, true as O)
-                return
-            }
-            if (contract is ActivityResultContracts.RequestPermission) {
-                runCatching {
-                    appContext.startActivity(
-                        android.content.Intent(
-                            android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                            Uri.parse("package:" + appContext.packageName),
-                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                    )
-                }
-            }
-            @Suppress("UNCHECKED_CAST")
-            dispatchResult(requestCode, android.app.Activity.RESULT_CANCELED as O)
-        }
-
     }
 }

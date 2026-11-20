@@ -186,6 +186,8 @@ object RaycastExtensionRepository {
         if (!dir.exists()) return false
         context.getSharedPreferences(STORAGE_PREFIX + extensionId, Context.MODE_PRIVATE).edit().clear().apply()
         context.getSharedPreferences(CACHE_PREFIX + extensionId, Context.MODE_PRIVATE).edit().clear().apply()
+        com.sameerasw.essentials.utils.security.SecretStore.removeByPrefix(context, "raycast_pref::$extensionId::")
+        ExtensionPermissionManager.clearForExtension(context, extensionId)
         return dir.deleteRecursively()
     }
 
@@ -199,6 +201,19 @@ object RaycastExtensionRepository {
         val allDefs = (extension.manifest.preferences.orEmpty()) + (command?.preferences.orEmpty())
         for (def in allDefs) {
             val key = "${extension.id}::${def.name}"
+            val isPassword = def.type.equals("password", ignoreCase = true)
+            if (isPassword) {
+                val secret = com.sameerasw.essentials.utils.security.SecretStore.getOrMigrateSecret(
+                    context = context,
+                    key = "raycast_pref::$key",
+                    legacyPrefsName = PREF_FILE,
+                    legacyKey = key,
+                )
+                if (secret != null) {
+                    result[def.name] = secret
+                    continue
+                }
+            }
             if (prefs.contains(key)) {
                 when (def.type.lowercase()) {
                     "checkbox" -> result[def.name] = prefs.getBoolean(key, false)
@@ -237,6 +252,15 @@ object RaycastExtensionRepository {
     fun setPreferenceValue(context: Context, extensionId: String, def: RaycastPreferenceDef, value: Any) {
         val prefs = context.getSharedPreferences(PREF_FILE, Context.MODE_PRIVATE).edit()
         val key = "$extensionId::${def.name}"
+        if (def.type.equals("password", ignoreCase = true)) {
+            prefs.remove(key).apply()
+            com.sameerasw.essentials.utils.security.SecretStore.putSecret(
+                context = context,
+                key = "raycast_pref::$key",
+                value = value.toString(),
+            )
+            return
+        }
         when (def.type.lowercase()) {
             "checkbox" -> prefs.putBoolean(key, value as? Boolean ?: (value.toString() == "true"))
             else -> prefs.putString(key, value.toString())

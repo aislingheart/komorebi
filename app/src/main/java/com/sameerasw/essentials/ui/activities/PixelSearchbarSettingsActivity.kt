@@ -10,7 +10,6 @@
 package com.sameerasw.essentials.ui.activities
 
 import com.sameerasw.essentials.assistant.AssistantTts
-import com.sameerasw.essentials.assistant.ui.AssistantSettingsActivity
 import com.sameerasw.essentials.translation.TranslatableText
 import com.sameerasw.essentials.ui.navigation.ProvideBottomBar
 import com.sameerasw.essentials.ui.navigation.BottomBarSpec
@@ -29,6 +28,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -40,15 +40,23 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -62,7 +70,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sameerasw.essentials.R
+import com.sameerasw.essentials.assistant.decision.LocalDecisionModel
+import com.sameerasw.essentials.assistant.decision.LocalDecisionModelManager
+import com.sameerasw.essentials.assistant.decision.ModelDownloadState
 import com.sameerasw.essentials.data.repository.SettingsRepository
+import kotlinx.coroutines.launch
 import com.sameerasw.essentials.domain.model.Feature
 import com.sameerasw.essentials.ui.components.animations.LottieFeatureAnimation
 import com.sameerasw.essentials.ui.components.menus.SegmentedDropdownMenuItem
@@ -284,6 +296,18 @@ fun PixelSearchbarSettingsUI(
     var voiceSearchEnabled by remember { mutableStateOf(overlayRepository.isVoiceSearchEnabled()) }
     var voiceTtsEnabled by remember { mutableStateOf(overlayRepository.isVoiceTtsEnabled()) }
     var voicePreset by remember { mutableStateOf(overlayRepository.getVoiceTtsPreset()) }
+    var selectedDecisionModel by remember {
+        mutableStateOf(LocalDecisionModel.fromId(overlayRepository.getLocalDecisionModelId()))
+    }
+    var localSystemOneUrl by remember {
+        mutableStateOf(overlayRepository.getLocalSystemOneUrl())
+    }
+    var endpointTestStatus by remember { mutableStateOf<String?>(null) }
+    val modelDownloadStates by LocalDecisionModelManager.states.collectAsState()
+    val settingsScope = rememberCoroutineScope()
+    LaunchedEffect(Unit) {
+        LocalDecisionModelManager.refreshStates(context)
+    }
     val view = LocalView.current
     var requestingPermissionKey by remember { mutableStateOf<String?>(null) }
 
@@ -406,8 +430,8 @@ fun PixelSearchbarSettingsUI(
             )
             IconToggleItem(
                 iconRes = R.drawable.rounded_record_voice_over_24,
-                title = "Speak assistant responses",
-                description = "Read AI answers aloud after a voice search",
+                title = "Speak matched action responses",
+                description = "Read matched local action responses aloud after a voice search",
                 isChecked = voiceTtsEnabled,
                 onCheckedChange = { checked ->
                     HapticUtil.performVirtualKeyHaptic(view)
@@ -440,20 +464,186 @@ fun PixelSearchbarSettingsUI(
             }
         }
 
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = "Local Decision Fallback",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(start = 16.dp, top = 8.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
         RoundedCardContainer {
             ConfigPickerItem(
-                iconRes = R.drawable.rounded_robot_24,
-                title = "AI assistant",
-                description = "Off, Gemini Nano on-device, or bring your own OpenAI-compatible key",
-                selectedValue = "Configure",
+                iconRes = R.drawable.rounded_bolt_24,
+                title = "Decision model",
+                description = "Runs locally only when a search query has no direct matches",
+                selectedValue = selectedDecisionModel.shortLabel,
             ) {
-                SegmentedDropdownMenuItem(
-                    text = { Text("Open AI settings") },
-                    onClick = {
-                        HapticUtil.performVirtualKeyHaptic(view)
-                        context.startActivity(AssistantSettingsActivity.intent(context))
-                    },
-                )
+                LocalDecisionModel.entries.forEach { model ->
+                    val dlState = modelDownloadStates[model]
+                    val suffix = when {
+                        dlState is ModelDownloadState.Ready -> " · Downloaded"
+                        dlState is ModelDownloadState.Downloading -> " · ${(dlState.progress * 100).toInt()}%"
+                        else -> " · ${model.sizeBadge}"
+                    }
+                    SegmentedDropdownMenuItem(
+                        text = { Text("${model.label}$suffix") },
+                        onClick = {
+                            HapticUtil.performVirtualKeyHaptic(view)
+                            selectedDecisionModel = model
+                            overlayRepository.setLocalDecisionModelId(model.id)
+                            endpointTestStatus = null
+                            LocalDecisionModelManager.refreshStates(context)
+                        },
+                    )
+                }
+            }
+
+            if (selectedDecisionModel.requiresDownload) {
+                val dlState = modelDownloadStates[selectedDecisionModel]
+                    ?: LocalDecisionModelManager.getState(context, selectedDecisionModel)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = selectedDecisionModel.description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    when (dlState) {
+                        is ModelDownloadState.Downloading -> {
+                            Text(
+                                text = "Downloading local weights… ${(dlState.progress * 100).toInt()}%",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            LinearProgressIndicator(
+                                progress = { dlState.progress.coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                        is ModelDownloadState.Ready -> {
+                            val mb = dlState.sizeBytes / (1024f * 1024f)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Text(
+                                    text = String.format(java.util.Locale.US, "Ready on device (%.1f MB)", mb),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                                OutlinedButton(
+                                    onClick = {
+                                        HapticUtil.performVirtualKeyHaptic(view)
+                                        settingsScope.launch {
+                                            LocalDecisionModelManager.deleteModel(context, selectedDecisionModel)
+                                        }
+                                    },
+                                ) {
+                                    Text("Delete")
+                                }
+                            }
+                        }
+                        is ModelDownloadState.Error -> {
+                            Text(
+                                text = "Download failed: ${dlState.message}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                            Button(
+                                onClick = {
+                                    HapticUtil.performVirtualKeyHaptic(view)
+                                    settingsScope.launch {
+                                        LocalDecisionModelManager.downloadModel(context, selectedDecisionModel)
+                                    }
+                                },
+                            ) {
+                                Text("Retry download (${selectedDecisionModel.sizeBadge})")
+                            }
+                        }
+                        else -> {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Text(
+                                    text = "Not downloaded · ${selectedDecisionModel.sizeBadge}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Button(
+                                    onClick = {
+                                        HapticUtil.performVirtualKeyHaptic(view)
+                                        settingsScope.launch {
+                                            LocalDecisionModelManager.downloadModel(context, selectedDecisionModel)
+                                        }
+                                    },
+                                ) {
+                                    Text("Download")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (selectedDecisionModel.isLocalEndpoint) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = "Point at a local or Tailscale /v1/systemone server (e.g., llama-server with Kev or laya serve).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedTextField(
+                        value = localSystemOneUrl,
+                        onValueChange = { updated ->
+                            localSystemOneUrl = updated
+                            overlayRepository.setLocalSystemOneUrl(updated)
+                        },
+                        label = { Text("Local /v1/systemone URL") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            text = endpointTestStatus ?: "Falls back to Fast Local if offline",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f),
+                        )
+                        OutlinedButton(
+                            onClick = {
+                                HapticUtil.performVirtualKeyHaptic(view)
+                                endpointTestStatus = "Testing…"
+                                settingsScope.launch {
+                                    val res = LocalDecisionModelManager.testLocalSystemOne(localSystemOneUrl)
+                                    endpointTestStatus = res.fold(
+                                        onSuccess = { ms -> "Connected (${ms}ms)" },
+                                        onFailure = { err -> "Offline: ${err.message?.take(48) ?: "unreachable"}" },
+                                    )
+                                }
+                            },
+                        ) {
+                            Text("Test")
+                        }
+                    }
+                }
             }
         }
 

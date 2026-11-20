@@ -329,7 +329,7 @@
     <string name="dns_preset_cleanbrowsing">CleanBrowsing</string>
     <string name="dns_preset_cleanbrowsing_hostname">adult-filter-dns.cleanbrowsing.org</string>
     <string name="tile_charge_optimization">充电</string>
-    <string name="limit_to_80">限制到 80%</string>
+    <string name="limit_to_80" formatted="false">限制到 80%</string>
     <string name="adaptive_charging">自适应</string>
     <string name="deactivated">未优化</string>
     <string name="charge_opt_long_press_title">切换选项</string>
@@ -1320,7 +1320,7 @@
     <string name="instruction_section_freeze_desc">暂停并远离应用干扰，同时节省一点电量，防止应用在后台运行。适合不常用的应用。\n\n不建议用于任何通讯服务，除非你解冻它们，否则它们在紧急情况下不会通知你。\n\n强烈建议不要冻结系统应用，因为它们可能导致系统不稳定。请谨慎操作，你已经受到警告。\n\n灵感来自 Hail &lt;3</string>
 
     <string name="instruction_section_security_title">应用锁和锁定安全真的安全吗？</string>
-    <string name="instruction_section_security_desc">绝对不是。\n\n任何第三方应用都无法 100% 干预正常的设备交互，即使是应用锁也只是一个覆盖在所选应用之上的浮层，用于防止与它们交互。有变通方法，并非万无一失。\n\n锁定安全功能也是如此，它会检测有人试图与网络磁贴交互，在 Pixel 上这些磁贴出于某种原因仍然对任何人开放。所以如果他们足够努力，仍然可能更改它们，尤其是如果你添加了飞行模式 QS 磁贴，此应用无法防止与它交互。\n\n这些功能只是为轻度使用而做的实验，绝不会推荐作为强大的安全和隐私解决方案。\n\n安全替代方案：\n - 应用锁：Pixel 和三星上的隐私空间和安全文件夹\n - 防止移动网络访问：确保你的防盗保护和离线/关机查找我的设备设置已开启。你也可以考虑使用 Graphene OS。</string>
+    <string name="instruction_section_security_desc" formatted="false">绝对不是。\n\n任何第三方应用都无法 100% 干预正常的设备交互，即使是应用锁也只是一个覆盖在所选应用之上的浮层，用于防止与它们交互。有变通方法，并非万无一失。\n\n锁定安全功能也是如此，它会检测有人试图与网络磁贴交互，在 Pixel 上这些磁贴出于某种原因仍然对任何人开放。所以如果他们足够努力，仍然可能更改它们，尤其是如果你添加了飞行模式 QS 磁贴，此应用无法防止与它交互。\n\n这些功能只是为轻度使用而做的实验，绝不会推荐作为强大的安全和隐私解决方案。\n\n安全替代方案：\n - 应用锁：Pixel 和三星上的隐私空间和安全文件夹\n - 防止移动网络访问：确保你的防盗保护和离线/关机查找我的设备设置已开启。你也可以考虑使用 Graphene OS。</string>
 
 
     <string name="instruction_section_battery_saver_title">电源和电池设置如何工作？</string>
@@ -1814,7 +1814,7 @@
     <string name="label_reset_battery_stats_title">重置电池统计</string>
     <string name="label_reset_battery_stats_desc">重置系统电池统计（dumpsys batterystats --reset）。这会清除历史电池使用和应用耗电数据，使跟踪从当前电量重新开始。</string>
     <string name="label_auto_reset_battery_stats_title">自动重置</string>
-    <string name="label_auto_reset_battery_stats_desc">设备在电量高于 90% 时拔掉电源后自动重置电池统计。</string>
+    <string name="label_auto_reset_battery_stats_desc" formatted="false">设备在电量高于 90% 时拔掉电源后自动重置电池统计。</string>
     <string name="label_battery_graph_title">电池消耗与预测</string>
     <string name="label_battery_graph_actual">实际消耗</string>
     <string name="label_battery_graph_predicted">预测</string>

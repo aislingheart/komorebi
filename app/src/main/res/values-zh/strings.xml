@@ -265,7 +265,7 @@
     <string name="dns_preset_cleanbrowsing">CleanBrowsing</string>
     <string name="dns_preset_cleanbrowsing_hostname">adult-filter-dns.cleanbrowsing.org</string>
     <string name="tile_charge_optimization">充电优化</string>
-    <string name="limit_to_80">限制到80%</string>
+    <string name="limit_to_80" formatted="false">限制到80%</string>
     <string name="adaptive_charging">自适应</string>
     <string name="deactivated">未优化</string>
     <string name="permission_missing">缺少权限</string>
@@ -1079,7 +1079,7 @@
     <string name="instruction_section_freeze_title">什么是冻结？</string>
     <string name="instruction_section_freeze_desc">暂停并远离应用干扰，同时通过阻止应用在后台运行来节省一点电量。适用于不常用的应用。\n\n不建议用于任何通讯服务，因为除非您解冻它们，否则它们在紧急情况下不会通知您。\n\n强烈建议不要冻结系统应用，因为它们可能导致系统不稳定。请谨慎操作，您已被警告。\n\n灵感来自Hail &lt;3</string>
     <string name="instruction_section_security_title">应用锁和锁屏安全真的安全吗？</string>
-    <string name="instruction_section_security_desc">绝对不安全。\n\n任何第三方应用都无法100%干预常规设备交互，即使应用锁也只是在选定应用上方的一个覆盖层，以防止与它们交互。存在解决方法，并非万无一失。\n\n锁屏安全功能也是如此，它检测到有人试图与网络磁贴交互（由于某些原因，在Pixel上这些磁贴对任何人都可访问）。因此，如果他们足够努力，仍然可能更改它们，特别是如果您添加了飞行模式QS磁贴，此应用无法阻止与其交互。\n\n这些功能只是作为轻量级使用的实验而制作，绝不推荐作为强大的安全和隐私解决方案。\n\n安全的替代方案：\n- 应用锁：Pixel和三星上的私人空间和安全文件夹\n- 防止移动网络访问：确保您的防盗保护和离线/关机查找设备设置已开启。您也可以考虑Graphene OS。</string>
+    <string name="instruction_section_security_desc" formatted="false">绝对不安全。\n\n任何第三方应用都无法100%干预常规设备交互，即使应用锁也只是在选定应用上方的一个覆盖层，以防止与它们交互。存在解决方法，并非万无一失。\n\n锁屏安全功能也是如此，它检测到有人试图与网络磁贴交互（由于某些原因，在Pixel上这些磁贴对任何人都可访问）。因此，如果他们足够努力，仍然可能更改它们，特别是如果您添加了飞行模式QS磁贴，此应用无法阻止与其交互。\n\n这些功能只是作为轻量级使用的实验而制作，绝不推荐作为强大的安全和隐私解决方案。\n\n安全的替代方案：\n- 应用锁：Pixel和三星上的私人空间和安全文件夹\n- 防止移动网络访问：确保您的防盗保护和离线/关机查找设备设置已开启。您也可以考虑Graphene OS。</string>
     <string name="instruction_section_lighting_title">通知光效不起作用</string>
     <string name="instruction_section_lighting_desc">这取决于OEM。像OneUI似乎不允许在AOD上显示叠加层，从而阻止显示光效。在这种情况下，请尝试使用环境显示作为解决方法。</string>
     <string name="instruction_section_button_title">按键重映射在屏幕关闭时不起作用</string>
@@ -1552,7 +1552,7 @@
     <string name="label_thermal_gpu">GPU温度</string>
     <string name="label_battery_current_now">实时电流</string>
     <string name="label_auto_reset_battery_stats_title">自动重置</string>
-    <string name="label_auto_reset_battery_stats_desc">当电池电量在90%以上且未充电时自动重置电池状态</string>
+    <string name="label_auto_reset_battery_stats_desc" formatted="false">当电池电量在90%以上且未充电时自动重置电池状态</string>
     <string name="label_ripple_animation">涟漪动画效果</string>
     <string name="setting_app_icon_title">App 圖示</string>
     <string name="setting_app_icon_desc">自訂在主畫面啟動器上的圖示</string>

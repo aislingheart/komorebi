@@ -325,7 +325,7 @@
     <string name="dns_preset_cleanbrowsing">CleanBrowsing</string>
     <string name="dns_preset_cleanbrowsing_hostname">adult-filter-dns.cleanbrowsing.org</string>
     <string name="tile_charge_optimization">الشحن</string>
-    <string name="limit_to_80">الحد إلى 80%</string>
+    <string name="limit_to_80" formatted="false">الحد إلى 80%</string>
     <string name="adaptive_charging">تكيفي</string>
     <string name="deactivated">غير محسّن</string>
     <string name="charge_opt_long_press_title">خيارات التبديل</string>
@@ -1307,7 +1307,7 @@
     <string name="instruction_section_freeze_title">ما هو التجميد؟</string>
     <string name="instruction_section_freeze_desc">أوقف التطبيقات وابتعد عن مشتتاتها مع توفير القليل من الطاقة بمنع التطبيقات من العمل في الخلفية. مناسب للتطبيقات نادرة الاستخدام.\n\nغير موصى به لأي خدمات تواصل لأنها لن تنبهك في حالات الطوارئ إلا إذا قمت بإلغاء تجميدها.\n\nيُنصح بشدة بعدم تجميد تطبيقات النظام لأنها قد تؤدي إلى عدم استقرار النظام. تابع بحذر، لقد تم تحذيرك.\n\nمستوحى من Hail &lt;3</string>
     <string name="instruction_section_security_title">هل قفل التطبيقات وحماية الشاشة المقفلة آمنان فعلاً؟</string>
-    <string name="instruction_section_security_desc">بالتأكيد لا.\n\nلا يمكن لأي تطبيق تابع لجهة خارجية أن يتدخل بنسبة 100% في تفاعلات الجهاز العادية، وحتى قفل التطبيقات هو مجرد تراكب فوق التطبيقات المحددة لمنع التفاعل معها. توجد حلول بديلة وهي ليست مضمونة.\n\nالشيء نفسه ينطبق على ميزة حماية الشاشة المقفلة التي تكتشف شخصاً يحاول التفاعل مع بلاطات الشبكة التي لا يزال بإمكان أي شخص الوصول إليها على أجهزة Pixel لسبب ما. لذا إذا بذلوا جهداً كافياً فقد يتمكنون من تغييرها، خاصة إذا كان لديك بلاطة وضع الطائرة في الإعدادات السريعة، فلا يمكن لهذا التطبيق منع التفاعل معها.\n\nصُنعت هذه الميزات كتجارب للاستخدام الخفيف ولن يُوصى بها أبداً كحلول أمان وخصوصية قوية.\n\nبدائل آمنة:\n- قفل التطبيقات: المساحة الخاصة والمجلد الآمن على Pixel وSamsung\n- منع الوصول إلى شبكات الجوال: تأكد من تفعيل الحماية من السرقة وإعدادات إيقاف تشغيل "العثور على جهازي". يمكنك أيضاً الاطلاع على Graphene OS.</string>
+    <string name="instruction_section_security_desc" formatted="false">بالتأكيد لا.\n\nلا يمكن لأي تطبيق تابع لجهة خارجية أن يتدخل بنسبة 100% في تفاعلات الجهاز العادية، وحتى قفل التطبيقات هو مجرد تراكب فوق التطبيقات المحددة لمنع التفاعل معها. توجد حلول بديلة وهي ليست مضمونة.\n\nالشيء نفسه ينطبق على ميزة حماية الشاشة المقفلة التي تكتشف شخصاً يحاول التفاعل مع بلاطات الشبكة التي لا يزال بإمكان أي شخص الوصول إليها على أجهزة Pixel لسبب ما. لذا إذا بذلوا جهداً كافياً فقد يتمكنون من تغييرها، خاصة إذا كان لديك بلاطة وضع الطائرة في الإعدادات السريعة، فلا يمكن لهذا التطبيق منع التفاعل معها.\n\nصُنعت هذه الميزات كتجارب للاستخدام الخفيف ولن يُوصى بها أبداً كحلول أمان وخصوصية قوية.\n\nبدائل آمنة:\n- قفل التطبيقات: المساحة الخاصة والمجلد الآمن على Pixel وSamsung\n- منع الوصول إلى شبكات الجوال: تأكد من تفعيل الحماية من السرقة وإعدادات إيقاف تشغيل "العثور على جهازي". يمكنك أيضاً الاطلاع على Graphene OS.</string>
     <string name="instruction_section_lighting_title">إضاءة الإشعارات لا تعمل</string>
     <string name="instruction_section_lighting_desc">يعتمد ذلك على الشركة المصنعة. بعضها مثل OneUI لا يبدو أنه يسمح بالتراكبات فوق AOD مما يمنع ظهور تأثيرات الإضاءة. في هذه الحالة، جرب العرض المحيطي كحل بديل.</string>
     <string name="instruction_section_button_title">إعادة تعيين الزر لا تعمل أثناء إيقاف تشغيل الشاشة</string>
@@ -1740,7 +1740,7 @@
     <string name="label_reset_battery_stats_title">إعادة تعيين إحصائيات البطارية</string>
     <string name="label_reset_battery_stats_desc">إعادة تعيين إحصائيات بطارية النظام (dumpsys batterystats --reset). يمسح بيانات استهلاك البطارية التاريخية وبيانات استنزاف التطبيقات ليبدأ التتبع من جديد من الشحنة الحالية.</string>
     <string name="label_auto_reset_battery_stats_title">إعادة تعيين تلقائية</string>
-    <string name="label_auto_reset_battery_stats_desc">إعادة تعيين إحصائيات البطارية تلقائياً عند فصل الجهاز عن الشحن فوق 90%.</string>
+    <string name="label_auto_reset_battery_stats_desc" formatted="false">إعادة تعيين إحصائيات البطارية تلقائياً عند فصل الجهاز عن الشحن فوق 90%.</string>
     <string name="label_battery_graph_title">استنزاف البطارية والتنبؤ</string>
     <string name="label_battery_graph_actual">الاستنزاف الفعلي</string>
     <string name="label_battery_graph_predicted">المتوقع</string>

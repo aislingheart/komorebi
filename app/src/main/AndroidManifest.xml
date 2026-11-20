@@ -263,11 +263,9 @@
             android:theme="@style/Theme.Komorebi.WallpaperTranslucent"
             android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
 
-        <activity
-            android:name=".assistant.ui.AssistantSettingsActivity"
-            android:exported="false"
-            android:label="AI assistant"
-            android:theme="@style/Theme.Komorebi" />
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="ocr" />
 
         <receiver
             android:name=".assistant.TaskReminderReceiver"

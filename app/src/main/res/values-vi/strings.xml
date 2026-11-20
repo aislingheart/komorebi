@@ -266,7 +266,7 @@
     <string name="dns_preset_cleanbrowsing">Duyệt web sạch</string>
     <string name="dns_preset_cleanbrowsing_hostname">dành cho người lớn-filter-dns.cleanbrowsing.org</string>
     <string name="tile_charge_optimization">Sạc</string>
-    <string name="limit_to_80">Giới hạn ở mức 80%</string>
+    <string name="limit_to_80" formatted="false">Giới hạn ở mức 80%</string>
     <string name="adaptive_charging">Thích ứng</string>
     <string name="deactivated">Không được tối ưu hóa</string>
     <string name="permission_missing">Thiếu quyền</string>
@@ -1097,7 +1097,7 @@ Cần có quyền ghi cài đặt bảo mật để bật hoặc tắt tính nă
     <string name="instruction_section_freeze_title">Đóng băng là gì?</string>
     <string name="instruction_section_freeze_desc">Tạm dừng và tránh xa các ứng dụng gây phiền nhiễu đồng thời tiết kiệm một chút năng lượng để ngăn các ứng dụng chạy ẩn. Thích hợp cho các ứng dụng hiếm khi được sử dụng. \n\nKhông nên dùng cho bất kỳ dịch vụ liên lạc nào vì chúng sẽ không thông báo cho bạn trong trường hợp khẩn cấp trừ khi bạn giải phóng chúng. \n\nKhông nên đóng băng các ứng dụng hệ thống vì chúng có thể dẫn đến mất ổn định hệ thống. Hãy thận trọng, Bạn đã được cảnh báo. \n\nLấy cảm hứng từ Mưa đá &lt;3</string>
     <string name="instruction_section_security_title">Bảo mật khóa ứng dụng và khóa màn hình có thực sự an toàn không?</string>
-    <string name="instruction_section_security_desc">Hoàn toàn không. \n\nBất kỳ ứng dụng bên thứ 3 nào cũng không thể can thiệp 100% vào các tương tác thông thường của thiết bị và thậm chí khóa ứng dụng cũng chỉ là lớp phủ phía trên các ứng dụng đã chọn để ngăn tương tác với chúng. Có nhiều cách giải quyết và nó không phải là dễ dàng. \n\nĐiều tương tự cũng xảy ra với tính năng bảo mật bị khóa màn hình, tính năng này phát hiện ai đó đang cố gắng tương tác với các ô mạng mà vì lý do nào đó mà bất kỳ ai trên Pixels vẫn có thể truy cập được. Vì vậy, nếu họ cố gắng hết sức, họ vẫn có thể thay đổi chúng và đặc biệt nếu bạn đã thêm ô QS của chế độ máy bay, ứng dụng này không thể ngăn tương tác với nó. \n\nCác tính năng này được tạo ra giống như thử nghiệm về mức sử dụng nhẹ và sẽ không bao giờ được đề xuất là giải pháp bảo mật và quyền riêng tư mạnh mẽ. \n\nSecure các lựa chọn thay thế:\n - Khóa ứng dụng: Không gian riêng tư và thư mục Bảo mật trên Pixels và Samsung\n - Ngăn chặn truy cập mạng di động: Đảm bảo bật tính năng chống trộm và ngoại tuyến/tắt nguồn tìm thiết bị của tôi. Bạn cũng có thể xem xét hệ điều hành Graphene.</string>
+    <string name="instruction_section_security_desc" formatted="false">Hoàn toàn không. \n\nBất kỳ ứng dụng bên thứ 3 nào cũng không thể can thiệp 100% vào các tương tác thông thường của thiết bị và thậm chí khóa ứng dụng cũng chỉ là lớp phủ phía trên các ứng dụng đã chọn để ngăn tương tác với chúng. Có nhiều cách giải quyết và nó không phải là dễ dàng. \n\nĐiều tương tự cũng xảy ra với tính năng bảo mật bị khóa màn hình, tính năng này phát hiện ai đó đang cố gắng tương tác với các ô mạng mà vì lý do nào đó mà bất kỳ ai trên Pixels vẫn có thể truy cập được. Vì vậy, nếu họ cố gắng hết sức, họ vẫn có thể thay đổi chúng và đặc biệt nếu bạn đã thêm ô QS của chế độ máy bay, ứng dụng này không thể ngăn tương tác với nó. \n\nCác tính năng này được tạo ra giống như thử nghiệm về mức sử dụng nhẹ và sẽ không bao giờ được đề xuất là giải pháp bảo mật và quyền riêng tư mạnh mẽ. \n\nSecure các lựa chọn thay thế:\n - Khóa ứng dụng: Không gian riêng tư và thư mục Bảo mật trên Pixels và Samsung\n - Ngăn chặn truy cập mạng di động: Đảm bảo bật tính năng chống trộm và ngoại tuyến/tắt nguồn tìm thiết bị của tôi. Bạn cũng có thể xem xét hệ điều hành Graphene.</string>
     <string name="instruction_section_lighting_title">Đèn thông báo không hoạt động</string>
     <string name="instruction_section_lighting_desc">Nó phụ thuộc vào OEM. Một số như OneUI dường như không cho phép lớp phủ phía trên AOD ngăn hiệu ứng ánh sáng được hiển thị. Trong trường hợp này, hãy thử hiển thị xung quanh như một giải pháp thay thế.</string>
     <string name="instruction_section_button_title">Bản đồ lại nút không hoạt động khi màn hình tắt</string>
@@ -1618,7 +1618,7 @@ Cần có quyền quản trị thiết bị nếu sử dụng chế độ khóa.
     <string name="label_thermal_gpu">Nhiệt độ GPU</string>
     <string name="label_thermal_throttling_status">Trạng thái điều tiết</string>
     <string name="label_auto_reset_battery_stats_title">Tự động đặt lại</string>
-    <string name="label_auto_reset_battery_stats_desc">Tự động đặt lại thống kê pin khi thiết bị được rút phích cắm khi dung lượng pin còn trên 90%.</string>
+    <string name="label_auto_reset_battery_stats_desc" formatted="false">Tự động đặt lại thống kê pin khi thiết bị được rút phích cắm khi dung lượng pin còn trên 90%.</string>
     <string name="pixel_searchbar_style_empty">Không</string>
     <string name="pixel_searchbar_style_date">Ngày</string>
     <string name="pixel_searchbar_background_pill_desc">Hiển thị ngày tháng bên trong một vùng chứa.</string>
@@ -1940,7 +1940,7 @@ Nút Tiếp tục sẽ bị vô hiệu hóa trong vài giây để bạn có th�
     <string name="duo_action_horizontal_slide_brightness">Độ sáng</string>
     <string name="duo_slide_mirror_direction_title">Hướng phản chiếu</string>
     <string name="island_calendar_priority_title">Ưu tiên khi ở gần</string>
-    <string name="island_battery_percentage_conditional_title">Chỉ áp dụng trong các điều kiện dưới đây</string>
+    <string name="island_battery_percentage_conditional_title" formatted="false">Chỉ áp dụng trong các điều kiện dưới đây</string>
     <string name="island_call_sticky_title">Không tự động thu gọn</string>
     <string name="island_call_show_mode_title">Cách xem</string>
     <string name="island_media_show_previous_title">Hiển thị nút bài hát trước</string>

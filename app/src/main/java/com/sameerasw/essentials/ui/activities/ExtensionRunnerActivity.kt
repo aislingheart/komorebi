@@ -687,6 +687,42 @@ fun ExtensionPreferencesBottomSheet(
                         }
                     }
                 }
+                val permissionState = remember(extension.id) {
+                    mutableStateMapOf<com.sameerasw.essentials.raycast.ExtensionCapability, Boolean>().apply {
+                        putAll(com.sameerasw.essentials.raycast.ExtensionPermissionManager.getAll(context, extension.id))
+                    }
+                }
+                androidx.compose.material3.HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                Text(
+                    text = "Runtime Permissions",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                com.sameerasw.essentials.raycast.ExtensionCapability.entries.forEach { capability ->
+                    val allowed = permissionState[capability] ?: capability.defaultAllowed
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                            Text(
+                                text = capability.title,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Text(
+                                text = capability.description,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(
+                            checked = allowed,
+                            onCheckedChange = { permissionState[capability] = it },
+                        )
+                    }
+                }
                 Button(
                     onClick = {
                         defs.forEach { def ->
@@ -694,8 +730,16 @@ fun ExtensionPreferencesBottomSheet(
                                 RaycastExtensionRepository.setPreferenceValue(context, extension.id, def, v)
                             }
                         }
+                        permissionState.forEach { (capability, allowed) ->
+                            com.sameerasw.essentials.raycast.ExtensionPermissionManager.setAllowed(
+                                context,
+                                extension.id,
+                                capability,
+                                allowed,
+                            )
+                        }
                         onDismissRequest()
-                        Toast.makeText(context, "Preferences saved. Reopen command to apply.", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Preferences & permissions saved. Reopen command to apply.", Toast.LENGTH_SHORT).show()
                     },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
