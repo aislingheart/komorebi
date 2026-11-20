@@ -45,11 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.sameerasw.essentials.R
 import com.sameerasw.essentials.translation.TranslatableText
-import com.sameerasw.essentials.translation.TranslationManager
-import com.sameerasw.essentials.translation.ui.TranslationBottomSheet
 import com.sameerasw.essentials.ui.theme.Shapes
-import com.sameerasw.essentials.ui.components.menus.SegmentedDropdownMenu
-import com.sameerasw.essentials.ui.components.menus.SegmentedDropdownMenuItem
 import com.sameerasw.essentials.utils.HapticUtil
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -115,10 +111,6 @@ fun PermissionCard(
             else -> null
         }
 
-    var showMenu by remember { mutableStateOf(false) }
-    var translationSheetKey by remember { mutableStateOf<String?>(null) }
-    val isTranslationModeActive by TranslationManager.isTranslationModeEnabled
-
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = Shapes.extraSmall,
@@ -131,145 +123,65 @@ fun PermissionCard(
             modifier = Modifier.padding(bottom = 12.dp, start = 4.dp, end = 4.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Box {
-                ListItem(
-                    onClick = {
-                        if (isTranslationModeActive) {
-                            HapticUtil.performVirtualKeyHaptic(view)
-                            showMenu = true
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    colors =
-                        ListItemDefaults.colors(
-                            containerColor = Color.Transparent,
-                        ),
-                    leadingContent = {
-                        Icon(
-                            painter = painterResource(id = iconRes),
-                            contentDescription = null,
-                            tint = if (isGranted) grantedGreen else MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(36.dp),
-                        )
-                    },
-                    supportingContent =
-                        if (resolvedDescription != null || dependentFeatures.isNotEmpty()) {
-                            {
-                                Column {
+            ListItem(
+                onClick = {},
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                colors =
+                    ListItemDefaults.colors(
+                        containerColor = Color.Transparent,
+                    ),
+                leadingContent = {
+                    Icon(
+                        painter = painterResource(id = iconRes),
+                        contentDescription = null,
+                        tint = if (isGranted) grantedGreen else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(36.dp),
+                    )
+                },
+                supportingContent =
+                    if (resolvedDescription != null || dependentFeatures.isNotEmpty()) {
+                        {
+                            Column {
+                                if (resolvedDescription != null) {
+                                    Text(
+                                        text = resolvedDescription,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                if (dependentFeatures.isNotEmpty()) {
                                     if (resolvedDescription != null) {
-                                        Text(
-                                            text = resolvedDescription,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
                                     }
-                                    if (dependentFeatures.isNotEmpty()) {
-                                        if (resolvedDescription != null) {
-                                            Spacer(modifier = Modifier.height(8.dp))
-                                        }
-                                        TranslatableText(stringResId = R.string.permission_required_for, style = MaterialTheme.typography.bodySmall)
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        dependentFeatures.forEach { f ->
-                                            val resolvedFeature =
-                                                when (f) {
-                                                    is Int -> stringResource(id = f)
-                                                    is String -> f
-                                                    else -> ""
-                                                }
-                                            Text(
-                                                text = "• $resolvedFeature",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                            )
-                                        }
+                                    TranslatableText(stringResId = R.string.permission_required_for, style = MaterialTheme.typography.bodySmall)
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    dependentFeatures.forEach { f ->
+                                        val resolvedFeature =
+                                            when (f) {
+                                                is Int -> stringResource(id = f)
+                                                is String -> f
+                                                else -> ""
+                                            }
+                                        Text(
+                                            text = "• $resolvedFeature",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                        )
                                     }
                                 }
                             }
-                        } else {
-                            null
-                        },
-                    content = {
-                        Text(
-                            text = resolvedTitle,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                        )
+                        }
+                    } else {
+                        null
                     },
-                )
-
-                if (isTranslationModeActive) {
-                    SegmentedDropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { showMenu = false },
-                    ) {
-                        val context = LocalContext.current
-                        val keyTitle =
-                            remember(title) { TranslationManager.resolveKey(context, title) }
-                        val keyDesc =
-                            remember(description) {
-                                TranslationManager.resolveKey(
-                                    context,
-                                    description,
-                                )
-                            }
-                        val keyInst =
-                            remember(instructions) {
-                                TranslationManager.resolveKey(
-                                    context,
-                                    instructions,
-                                )
-                            }
-
-                        if (keyTitle != null) {
-                            SegmentedDropdownMenuItem(
-                                text = { Text(stringResource(R.string.translation_menu_translate_title, keyTitle)) },
-                                onClick = {
-                                    showMenu = false
-                                    translationSheetKey = keyTitle
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.rounded_translate_24),
-                                        contentDescription = null,
-                                    )
-                                },
-                            )
-                        }
-
-                        if (keyDesc != null) {
-                            SegmentedDropdownMenuItem(
-                                text = { Text(stringResource(R.string.translation_menu_translate_description, keyDesc)) },
-                                onClick = {
-                                    showMenu = false
-                                    translationSheetKey = keyDesc
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.rounded_translate_24),
-                                        contentDescription = null,
-                                    )
-                                },
-                            )
-                        }
-
-                        if (keyInst != null) {
-                            SegmentedDropdownMenuItem(
-                                text = { Text(stringResource(R.string.translation_menu_translate_instructions, keyInst)) },
-                                onClick = {
-                                    showMenu = false
-                                    translationSheetKey = keyInst
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.rounded_translate_24),
-                                        contentDescription = null,
-                                    )
-                                },
-                            )
-                        }
-                    }
-                }
-            }
+                content = {
+                    Text(
+                        text = resolvedTitle,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                },
+            )
 
             Box(modifier = Modifier.padding(horizontal = 12.dp)) {
                 if (isGranted) {
@@ -376,12 +288,5 @@ fun PermissionCard(
                 }
             }
         }
-    }
-
-    if (translationSheetKey != null) {
-        TranslationBottomSheet(
-            stringKey = translationSheetKey!!,
-            onDismissRequest = { translationSheetKey = null },
-        )
     }
 }

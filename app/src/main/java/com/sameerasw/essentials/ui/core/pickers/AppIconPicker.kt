@@ -49,10 +49,6 @@ import androidx.compose.ui.unit.dp
 import com.sameerasw.essentials.R
 import com.sameerasw.essentials.domain.model.AppIcon
 import com.sameerasw.essentials.translation.TranslatableText
-import com.sameerasw.essentials.translation.TranslationManager
-import com.sameerasw.essentials.translation.ui.TranslationBottomSheet
-import com.sameerasw.essentials.translation.ui.TranslationMenuItems
-import com.sameerasw.essentials.ui.components.menus.SegmentedDropdownMenu
 import com.sameerasw.essentials.utils.HapticUtil
 
 @Composable
@@ -64,22 +60,6 @@ fun AppIconPicker(
     onIconSelectedWithPosition: ((AppIcon, Offset) -> Unit)? = null,
 ) {
     val view = LocalView.current
-    val isTranslationModeActive by TranslationManager.isTranslationModeEnabled
-
-    var showMenu by remember { mutableStateOf(false) }
-    var translationSheetKey by remember { mutableStateOf<String?>(null) }
-
-    val onLongClickAction: (() -> Unit)? =
-        if (isTranslationModeActive) {
-            {
-                HapticUtil.performVirtualKeyHaptic(view)
-                showMenu = true
-            }
-        } else {
-            null
-        }
-
-    val optionTitleRes = options.map { it.titleRes }
 
     Column(
         modifier =
@@ -91,7 +71,6 @@ fun AppIconPicker(
     ) {
         ListItem(
             onClick = {},
-            onLongClick = onLongClickAction,
             modifier = Modifier.fillMaxWidth(),
             leadingContent = {
                 Icon(
@@ -112,36 +91,17 @@ fun AppIconPicker(
                     containerColor = MaterialTheme.colorScheme.surfaceBright,
                 ),
             content = {
-                Box {
-                    Column {
-                        TranslatableText(
-                            stringResId = R.string.setting_app_icon_title,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        TranslatableText(
-                            stringResId = R.string.setting_app_icon_desc,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-
-                    if (showMenu) {
-                        SegmentedDropdownMenu(
-                            expanded = showMenu,
-                            onDismissRequest = { showMenu = false },
-                        ) {
-                            TranslationMenuItems(
-                                title = R.string.setting_app_icon_title,
-                                description = R.string.setting_app_icon_desc,
-                                options = optionTitleRes,
-                                onSelectKey = { key ->
-                                    showMenu = false
-                                    translationSheetKey = key
-                                },
-                            )
-                        }
-                    }
+                Column {
+                    TranslatableText(
+                        stringResId = R.string.setting_app_icon_title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    TranslatableText(
+                        stringResId = R.string.setting_app_icon_desc,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             },
         )
@@ -216,12 +176,5 @@ fun AppIconPicker(
                 }
             }
         }
-    }
-
-    if (translationSheetKey != null) {
-        TranslationBottomSheet(
-            stringKey = translationSheetKey!!,
-            onDismissRequest = { translationSheetKey = null },
-        )
     }
 }

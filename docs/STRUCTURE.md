@@ -12,7 +12,7 @@ app/src/main/java/com/sameerasw/essentials/
 ├── EssentialsApp.kt                 # Application subclass handling global app initialization
 ├── data/                            # Data access, repositories, preferences, and data sources
 │   ├── model/                       # Data models & DTOs
-│   └── repository/                  # Repositories (SettingsRepository, GitHubRepository, etc.)
+│   └── repository/                  # Repositories (SettingsRepository, UpdateRepository, etc.)
 ├── domain/                          # Business logic, registries, and domain models
 │   ├── controller/                  # Domain feature controllers (CaffeinateController, etc.)
 │   ├── model/                       # Domain entities
@@ -66,6 +66,5 @@ app/src/main/java/com/sameerasw/essentials/
     ├── DIYViewModel.kt              # Automation rules ViewModel
     ├── LocationReachedViewModel.kt  # GPS geofencing ViewModel
     ├── WatchViewModel.kt            # Smartwatch sync ViewModel
-    ├── WatermarkViewModel.kt        # Photo watermark & EXIF ViewModel
-    └── GitHubAuthViewModel.kt       # GitHub OAuth device flow ViewModel
+    └── WatermarkViewModel.kt        # Photo watermark & EXIF ViewModel
 ```

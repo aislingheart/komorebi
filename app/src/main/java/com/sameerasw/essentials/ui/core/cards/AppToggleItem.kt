@@ -38,9 +38,6 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.sameerasw.essentials.R
-import com.sameerasw.essentials.translation.TranslationManager
-import com.sameerasw.essentials.translation.ui.TranslationBottomSheet
-import com.sameerasw.essentials.ui.components.menus.SegmentedDropdownMenu
 import com.sameerasw.essentials.utils.HapticUtil
 
 private val GOOGLE_SYSTEM_USER_APPS =
@@ -97,11 +94,6 @@ fun AppToggleItem(
     isSystemApp: Boolean = false,
 ) {
     val view = LocalView.current
-    val context = LocalContext.current
-    val isTranslationModeActive by TranslationManager.isTranslationModeEnabled
-
-    var showMenu by remember { mutableStateOf(false) }
-    var translationSheetKey by remember { mutableStateOf<String?>(null) }
 
     val shouldShowSystemTag =
         remember(packageName) {
@@ -118,32 +110,6 @@ fun AppToggleItem(
         }
     }
 
-    val onLongClickAction: (() -> Unit)? =
-        if (isTranslationModeActive) {
-            {
-                HapticUtil.performVirtualKeyHaptic(view)
-                showMenu = true
-            }
-        } else {
-            null
-        }
-
-    val renderMenu: @Composable () -> Unit = {
-        SegmentedDropdownMenu(
-            expanded = showMenu,
-            onDismissRequest = { showMenu = false },
-        ) {
-            com.sameerasw.essentials.translation.ui.TranslationMenuItems(
-                title = title,
-                description = description,
-                onSelectKey = { key ->
-                    showMenu = false
-                    translationSheetKey = key
-                },
-            )
-        }
-    }
-
     if (showToggle) {
         ListItem(
             checked = isChecked && enabled,
@@ -156,7 +122,6 @@ fun AppToggleItem(
                     onDisabledClick()
                 }
             },
-            onLongClick = onLongClickAction,
             enabled = enabled,
             modifier = modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -230,13 +195,11 @@ fun AppToggleItem(
                         }
                     }
                 }
-                renderMenu()
             },
         )
     } else {
         ListItem(
             onClick = onClickAction,
-            onLongClick = onLongClickAction,
             enabled = enabled,
             modifier = modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -303,15 +266,7 @@ fun AppToggleItem(
                         }
                     }
                 }
-                renderMenu()
             },
-        )
-    }
-
-    if (translationSheetKey != null) {
-        TranslationBottomSheet(
-            stringKey = translationSheetKey!!,
-            onDismissRequest = { translationSheetKey = null },
         )
     }
 }

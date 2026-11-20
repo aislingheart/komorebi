@@ -80,7 +80,7 @@ python3 scripts/validate_strings.py
 
 ## Localization
 
-Translations live under `app/src/main/res/values-*/strings.xml` and can also be contributed directly from inside the app's translation mode.
+Translations live under `app/src/main/res/values-*/strings.xml`.
 
 Before submitting translation changes, validate formatting and XML syntax:
 

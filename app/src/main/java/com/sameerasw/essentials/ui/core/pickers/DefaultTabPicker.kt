@@ -45,10 +45,6 @@ import androidx.compose.ui.unit.dp
 import com.sameerasw.essentials.R
 import com.sameerasw.essentials.domain.DIYTabs
 import com.sameerasw.essentials.translation.TranslatableText
-import com.sameerasw.essentials.translation.TranslationManager
-import com.sameerasw.essentials.translation.ui.TranslationBottomSheet
-import com.sameerasw.essentials.translation.ui.TranslationMenuItems
-import com.sameerasw.essentials.ui.components.menus.SegmentedDropdownMenu
 import com.sameerasw.essentials.utils.HapticUtil
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -60,23 +56,6 @@ fun DefaultTabPicker(
     options: List<DIYTabs> = DIYTabs.entries,
 ) {
     val view = LocalView.current
-    val isTranslationModeActive by TranslationManager.isTranslationModeEnabled
-
-    var showMenu by remember { mutableStateOf(false) }
-    var translationSheetKey by remember { mutableStateOf<String?>(null) }
-
-    val onLongClickAction: (() -> Unit)? =
-        if (isTranslationModeActive) {
-            {
-                HapticUtil.performVirtualKeyHaptic(view)
-                showMenu = true
-            }
-        } else {
-            null
-        }
-
-    val optionTitleRes =
-        options.map { if (it == DIYTabs.FREEZE) R.string.tab_freeze_title else it.title }
 
     Column(
         modifier =
@@ -88,7 +67,6 @@ fun DefaultTabPicker(
     ) {
         ListItem(
             onClick = {},
-            onLongClick = onLongClickAction,
             modifier = Modifier.fillMaxWidth(),
             leadingContent = {
                 Icon(
@@ -109,29 +87,11 @@ fun DefaultTabPicker(
                     containerColor = MaterialTheme.colorScheme.surfaceBright,
                 ),
             content = {
-                Box {
-                    TranslatableText(
-                        stringResId = R.string.label_default_tab,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-
-                    if (showMenu) {
-                        SegmentedDropdownMenu(
-                            expanded = showMenu,
-                            onDismissRequest = { showMenu = false },
-                        ) {
-                            TranslationMenuItems(
-                                title = R.string.label_default_tab,
-                                options = optionTitleRes,
-                                onSelectKey = { key ->
-                                    showMenu = false
-                                    translationSheetKey = key
-                                },
-                            )
-                        }
-                    }
-                }
+                TranslatableText(
+                    stringResId = R.string.label_default_tab,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
             },
         )
 
@@ -189,12 +149,5 @@ fun DefaultTabPicker(
                 }
             }
         }
-    }
-
-    if (translationSheetKey != null) {
-        TranslationBottomSheet(
-            stringKey = translationSheetKey!!,
-            onDismissRequest = { translationSheetKey = null },
-        )
     }
 }

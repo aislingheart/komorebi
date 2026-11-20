@@ -44,10 +44,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.sameerasw.essentials.R
 import com.sameerasw.essentials.translation.TranslatableText
-import com.sameerasw.essentials.translation.TranslationManager
-import com.sameerasw.essentials.translation.ui.TranslationBottomSheet
-import com.sameerasw.essentials.translation.ui.TranslationMenuItems
-import com.sameerasw.essentials.ui.components.menus.SegmentedDropdownMenu
 import com.sameerasw.essentials.utils.HapticUtil
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -59,10 +55,6 @@ fun CrashReportingPicker(
     iconRes: Int = R.drawable.rounded_bug_report_24,
 ) {
     val view = LocalView.current
-    val isTranslationModeActive by TranslationManager.isTranslationModeEnabled
-
-    var showMenu by remember { mutableStateOf(false) }
-    var translationSheetKey by remember { mutableStateOf<String?>(null) }
 
     val options = listOf("off", "auto")
     val labels =
@@ -70,16 +62,6 @@ fun CrashReportingPicker(
             R.string.sentry_mode_off,
             R.string.sentry_mode_auto,
         )
-
-    val onLongClickAction: (() -> Unit)? =
-        if (isTranslationModeActive) {
-            {
-                HapticUtil.performVirtualKeyHaptic(view)
-                showMenu = true
-            }
-        } else {
-            null
-        }
 
     Column(
         modifier =
@@ -91,7 +73,6 @@ fun CrashReportingPicker(
     ) {
         ListItem(
             onClick = {},
-            onLongClick = onLongClickAction,
             modifier = Modifier.fillMaxWidth(),
             leadingContent = {
                 Icon(
@@ -112,29 +93,11 @@ fun CrashReportingPicker(
                     containerColor = MaterialTheme.colorScheme.surfaceBright,
                 ),
             content = {
-                Box {
-                    TranslatableText(
-                        stringResId = R.string.sentry_report_mode_title,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-
-                    if (showMenu) {
-                        SegmentedDropdownMenu(
-                            expanded = showMenu,
-                            onDismissRequest = { showMenu = false },
-                        ) {
-                            TranslationMenuItems(
-                                title = R.string.sentry_report_mode_title,
-                                options = labels,
-                                onSelectKey = { key ->
-                                    showMenu = false
-                                    translationSheetKey = key
-                                },
-                            )
-                        }
-                    }
-                }
+                TranslatableText(
+                    stringResId = R.string.sentry_report_mode_title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
             },
         )
 
@@ -175,12 +138,5 @@ fun CrashReportingPicker(
                 }
             }
         }
-    }
-
-    if (translationSheetKey != null) {
-        TranslationBottomSheet(
-            stringKey = translationSheetKey!!,
-            onDismissRequest = { translationSheetKey = null },
-        )
     }
 }

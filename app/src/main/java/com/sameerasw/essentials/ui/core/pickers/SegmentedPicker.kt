@@ -37,7 +37,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.semantics.Role
@@ -46,10 +45,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sameerasw.essentials.R
-import com.sameerasw.essentials.translation.TranslationManager
-import com.sameerasw.essentials.translation.ui.TranslationBottomSheet
-import com.sameerasw.essentials.translation.ui.TranslationMenuItems
-import com.sameerasw.essentials.ui.components.menus.SegmentedDropdownMenu
 import com.sameerasw.essentials.utils.HapticUtil
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -69,10 +64,6 @@ fun <T> SegmentedPicker(
     description: Any? = null,
 ) {
     val view = LocalView.current
-    val isTranslationModeActive by TranslationManager.isTranslationModeEnabled
-
-    var activeMenuIndex by remember { mutableStateOf<Int?>(null) }
-    var translationSheetKey by remember { mutableStateOf<String?>(null) }
 
     Row(
         modifier =
@@ -87,34 +78,7 @@ fun <T> SegmentedPicker(
         items.forEachIndexed { index, item ->
             val label = labelProvider(item)
 
-            val boxModifier =
-                if (isTranslationModeActive) {
-                    modifiers[index].pointerInput(Unit) {
-                        awaitEachGesture {
-                            val down = awaitFirstDown(pass = PointerEventPass.Initial)
-                            val downTime = System.currentTimeMillis()
-                            var longPressed = false
-                            while (true) {
-                                val event = awaitPointerEvent(pass = PointerEventPass.Initial)
-                                val change = event.changes.firstOrNull() ?: break
-                                if (!change.pressed) break
-                                if (System.currentTimeMillis() - downTime >= 400L && !longPressed) {
-                                    longPressed = true
-                                    change.consume()
-                                    HapticUtil.performHeavyHaptic(view)
-                                    activeMenuIndex = index
-                                }
-                            }
-                            if (longPressed) {
-                                currentEvent.changes.forEach { it.consume() }
-                            }
-                        }
-                    }
-                } else {
-                    modifiers[index]
-                }
-
-            Box(modifier = boxModifier) {
+            Box(modifier = modifiers[index]) {
                 ToggleButton(
                     checked = selectedItem == item,
                     onCheckedChange = {
@@ -154,31 +118,7 @@ fun <T> SegmentedPicker(
                         }
                     }
                 }
-
-                if (activeMenuIndex == index) {
-                    SegmentedDropdownMenu(
-                        expanded = activeMenuIndex == index,
-                        onDismissRequest = { activeMenuIndex = null },
-                    ) {
-                        TranslationMenuItems(
-                            title = title ?: label,
-                            description = description,
-                            options = items.map { labelProvider(it) },
-                            onSelectKey = { key ->
-                                activeMenuIndex = null
-                                translationSheetKey = key
-                            },
-                        )
-                    }
-                }
             }
         }
-    }
-
-    if (translationSheetKey != null) {
-        TranslationBottomSheet(
-            stringKey = translationSheetKey!!,
-            onDismissRequest = { translationSheetKey = null },
-        )
     }
 }

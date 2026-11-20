@@ -1503,9 +1503,6 @@ class MainViewModel : ViewModel() {
         settingsRepository.putBoolean(SettingsRepository.KEY_AUTO_ACCESSIBILITY_ENABLED, isEnabled)
         isAutoAccessibilityEnabled.value = isEnabled
     }
-    fun generateBugReport(context: Context): String {
-        return LogManager.generateReport(context)
-    }
     fun setFaceUnlockBrightnessEnabled(enabled: Boolean) {
         settingsRepository.setFaceUnlockBrightnessEnabled(enabled)
         isFaceUnlockBrightnessEnabled.value = enabled

@@ -230,15 +230,3 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
-
-tasks.register<Exec>("deliverReleaseToPixel") {
-    group = "delivery"
-    description = "Installs the release APK on the Pixel 9 Pro over Tailscale (best effort)."
-    workingDir = rootProject.projectDir
-    commandLine("bash", "scripts/send-to-pixel.sh")
-    isIgnoreExitValue = true
-}
-
-tasks.matching { it.name == "assembleRelease" }.configureEach {
-    finalizedBy("deliverReleaseToPixel")
-}

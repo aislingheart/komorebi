@@ -38,7 +38,6 @@ import com.sameerasw.essentials.domain.model.RemapSlot
 import com.sameerasw.essentials.domain.model.ScaleAnimationsProfile
 import com.sameerasw.essentials.domain.model.SystemShortcutsState
 import com.sameerasw.essentials.domain.model.TrackedRepo
-import com.sameerasw.essentials.domain.model.github.GitHubUser
 import com.sameerasw.essentials.utils.RootUtils
 import com.sameerasw.essentials.utils.ShellUtils
 import com.sameerasw.essentials.utils.ShizukuUtils
@@ -442,9 +441,8 @@ class SettingsRepository(
         const val KEY_LOCATION_REACHED_FULL_SCREEN_ALARM_ENABLED =
             "location_reached_full_screen_alarm_enabled"
 
-        const val KEY_GITHUB_ACCESS_TOKEN = "github_access_token"
-        const val KEY_GITHUB_WORKFLOW_TOKEN = "github_workflow_token"
-        const val KEY_GITHUB_USER_PROFILE = "github_user_profile"
+        private const val LEGACY_GITHUB_ACCESS_TOKEN_KEY = "github_access_token"
+        private const val LEGACY_GITHUB_WORKFLOW_TOKEN_KEY = "github_workflow_token"
 
         const val KEY_FLASHLIGHT_PULSE_SELECTED_APPS = "flashlight_pulse_selected_apps"
         const val KEY_FLASHLIGHT_PULSE_SAME_AS_LIGHTING = "flashlight_pulse_same_as_lighting"
@@ -933,7 +931,6 @@ class SettingsRepository(
         const val KEY_POCKET_MODE_TRIGGER_DELAY = "pocket_mode_trigger_delay"
         const val KEY_POCKET_MODE_LOCK_SCREEN_ONLY = "pocket_mode_lock_screen_only"
         const val KEY_KEEP_PREFS = "keep_prefs"
-        const val KEY_TRANSLATION_MODE_DO_NOT_SHOW_WARNING = "translation_mode_do_not_show_warning"
 
         const val KEY_LOCKDOWN_MODE = "lockdown_mode"
         const val KEY_BUBBLE_WEB_FULLSCREEN = "bubble_web_fullscreen"
@@ -985,19 +982,6 @@ class SettingsRepository(
     fun isPowerSavingApplyOnBootEnabled(): Boolean = getBoolean(KEY_POWER_SAVING_APPLY_ON_BOOT, false)
 
     fun setPowerSavingApplyOnBootEnabled(enabled: Boolean) = putBoolean(KEY_POWER_SAVING_APPLY_ON_BOOT, enabled)
-
-    /**
-     * Executes the is translation mode warning suppressed operation.
-     * @return The resulting Boolean data.
-     */
-    fun isTranslationModeWarningSuppressed(): Boolean = getBoolean(KEY_TRANSLATION_MODE_DO_NOT_SHOW_WARNING, false)
-
-    /**
-     * Executes the set translation mode warning suppressed operation.
-     *
-     * @param suppressed [Boolean] Target suppressed.
-     */
-    fun setTranslationModeWarningSuppressed(suppressed: Boolean) = putBoolean(KEY_TRANSLATION_MODE_DO_NOT_SHOW_WARNING, suppressed)
 
     // Observe changes
     fun observeKeyChanges(): Flow<String?> =
@@ -1988,8 +1972,8 @@ class SettingsRepository(
                 p.all.forEach { (key, value) ->
                     if (key == "freeze_auto_excluded_apps" || key.endsWith("_selected_apps")) {
                     }
-                    if (key == KEY_GITHUB_ACCESS_TOKEN ||
-                        key == KEY_GITHUB_WORKFLOW_TOKEN ||
+                    if (key == LEGACY_GITHUB_ACCESS_TOKEN_KEY ||
+                        key == LEGACY_GITHUB_WORKFLOW_TOKEN_KEY ||
                         key == KEY_SHIZUKU_AUTH_TOKEN ||
                         key.startsWith(LEGACY_WEATHER_API_KEY_PREFIX) ||
                         key.startsWith("mac_battery_") ||
@@ -2028,8 +2012,8 @@ class SettingsRepository(
     fun resetKeysWithPrefixes(prefixes: List<String>) {
         val protected =
             setOf(
-                KEY_GITHUB_ACCESS_TOKEN,
-                KEY_GITHUB_WORKFLOW_TOKEN,
+                LEGACY_GITHUB_ACCESS_TOKEN_KEY,
+                LEGACY_GITHUB_WORKFLOW_TOKEN_KEY,
                 KEY_SHIZUKU_AUTH_TOKEN,
                 KEY_SNOOZE_DISCOVERED_CHANNELS,
                 KEY_MAPS_DISCOVERED_CHANNELS,
@@ -2082,8 +2066,8 @@ class SettingsRepository(
                 val preservedValues = mutableMapOf<String, Any?>()
                 val keysToPreserve =
                     listOf(
-                        KEY_GITHUB_ACCESS_TOKEN,
-                        KEY_GITHUB_WORKFLOW_TOKEN,
+                        LEGACY_GITHUB_ACCESS_TOKEN_KEY,
+                        LEGACY_GITHUB_WORKFLOW_TOKEN_KEY,
                         KEY_SHIZUKU_AUTH_TOKEN,
                         LEGACY_WEATHER_API_KEY_PREFIX,
                         "airsync_mac_connected",
@@ -2122,8 +2106,8 @@ class SettingsRepository(
 
                         prefWrapper.forEach { (key, item) ->
                             // Do not import sensitive keys from the file even if they exist there
-                            if (key == KEY_GITHUB_ACCESS_TOKEN ||
-                                key == KEY_GITHUB_WORKFLOW_TOKEN ||
+                            if (key == LEGACY_GITHUB_ACCESS_TOKEN_KEY ||
+                                key == LEGACY_GITHUB_WORKFLOW_TOKEN_KEY ||
                                 key == KEY_SHIZUKU_AUTH_TOKEN ||
                                 key.startsWith(LEGACY_WEATHER_API_KEY_PREFIX)
                             ) {
@@ -2674,90 +2658,6 @@ class SettingsRepository(
         val current = getTrackedRepos().toMutableList()
         current.removeAll { it.fullName == fullName }
         saveTrackedRepos(current)
-    }
-
-    /**
-     * Executes the get git hub token operation.
-     * @return The resulting String? data.
-     */
-    fun getGitHubToken(): String? = prefs.getString(KEY_GITHUB_ACCESS_TOKEN, null)
-
-    /**
-     * Executes the save git hub token operation.
-     *
-     * @param token [String?] Target token.
-     */
-    fun saveGitHubToken(token: String?) {
-        prefs.edit().putString(KEY_GITHUB_ACCESS_TOKEN, token).apply()
-    }
-
-    // observe token changes
-    val gitHubToken: Flow<String?> =
-        callbackFlow {
-            val listener =
-                SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-                    if (key == KEY_GITHUB_ACCESS_TOKEN) {
-                        trySend(getString(KEY_GITHUB_ACCESS_TOKEN))
-                    }
-                }
-            trySend(getString(KEY_GITHUB_ACCESS_TOKEN))
-            prefs.registerOnSharedPreferenceChangeListener(listener)
-            awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
-        }
-
-    /**
-     * Executes the get git hub workflow token operation.
-     * @return The resulting String? data.
-     */
-    fun getGitHubWorkflowToken(): String? = prefs.getString(KEY_GITHUB_WORKFLOW_TOKEN, null)
-
-    /**
-     * Executes the save git hub workflow token operation.
-     *
-     * @param token [String?] Target token.
-     */
-    fun saveGitHubWorkflowToken(token: String?) {
-        prefs.edit().putString(KEY_GITHUB_WORKFLOW_TOKEN, token).apply()
-    }
-
-    val gitHubWorkflowToken: Flow<String?> =
-        callbackFlow {
-            val listener =
-                SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-                    if (key == KEY_GITHUB_WORKFLOW_TOKEN) {
-                        trySend(getString(KEY_GITHUB_WORKFLOW_TOKEN))
-                    }
-                }
-            trySend(getString(KEY_GITHUB_WORKFLOW_TOKEN))
-            prefs.registerOnSharedPreferenceChangeListener(listener)
-            awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
-        }
-
-    /**
-     * Executes the save git hub user operation.
-     *
-     * @param user [GitHubUser?] Target user.
-     */
-    fun saveGitHubUser(user: GitHubUser?) {
-        if (user == null) {
-            prefs.edit().remove(KEY_GITHUB_USER_PROFILE).apply()
-        } else {
-            val json = gson.toJson(user)
-            prefs.edit().putString(KEY_GITHUB_USER_PROFILE, json).apply()
-        }
-    }
-
-    /**
-     * Executes the get git hub user operation.
-     * @return The resulting GitHubUser? data.
-     */
-    fun getGitHubUser(): GitHubUser? {
-        val json = prefs.getString(KEY_GITHUB_USER_PROFILE, null) ?: return null
-        return try {
-            gson.fromJson(json, GitHubUser::class.java)
-        } catch (e: Exception) {
-            null
-        }
     }
 
     /**

@@ -51,9 +51,6 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.sameerasw.essentials.translation.TranslationManager
-import com.sameerasw.essentials.translation.ui.TranslationBottomSheet
-import com.sameerasw.essentials.ui.components.menus.SegmentedDropdownMenu
 import com.sameerasw.essentials.ui.core.komorebi.KomorebiIconBadge
 import com.sameerasw.essentials.utils.HapticUtil
 
@@ -87,10 +84,6 @@ fun IconToggleItem(
     val finalIconRes = icon ?: iconRes
     val finalDescription = subtitle ?: description
     val finalIsChecked = checked ?: isChecked
-    val isTranslationModeActive by TranslationManager.isTranslationModeEnabled
-
-    var showMenu by remember { mutableStateOf(false) }
-    var translationSheetKey by remember { mutableStateOf<String?>(null) }
 
     // ListItem's internal clickable consumes the down/up touch events even when `enabled` is
     // false (it only skips invoking onClick), so a click modifier chained onto the same node
@@ -112,32 +105,6 @@ fun IconToggleItem(
         }
     }
 
-    val onLongClickAction: (() -> Unit)? =
-        if (isTranslationModeActive) {
-            {
-                HapticUtil.performVirtualKeyHaptic(view)
-                showMenu = true
-            }
-        } else {
-            null
-        }
-
-    val renderMenu: @Composable () -> Unit = {
-        SegmentedDropdownMenu(
-            expanded = showMenu,
-            onDismissRequest = { showMenu = false },
-        ) {
-            com.sameerasw.essentials.translation.ui.TranslationMenuItems(
-                title = title,
-                description = finalDescription,
-                onSelectKey = { key ->
-                    showMenu = false
-                    translationSheetKey = key
-                },
-            )
-        }
-    }
-
     Box(modifier = modifier.fillMaxWidth()) {
         if (showToggle) {
             if (onClick != null) {
@@ -151,7 +118,6 @@ fun IconToggleItem(
                             onDisabledClick()
                         }
                     },
-                    onLongClick = onLongClickAction,
                     enabled = enabled,
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -245,7 +211,6 @@ fun IconToggleItem(
                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
                             color = MaterialTheme.colorScheme.onSurface,
                         )
-                        renderMenu()
                     },
                 )
             } else {
@@ -264,7 +229,6 @@ fun IconToggleItem(
                             onDisabledClick()
                         }
                     },
-                    onLongClick = onLongClickAction,
                     enabled = enabled,
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -377,7 +341,6 @@ fun IconToggleItem(
                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
                             color = MaterialTheme.colorScheme.onSurface,
                         )
-                        renderMenu()
                     },
                 )
             }
@@ -399,7 +362,6 @@ fun IconToggleItem(
 
             ListItem(
                 onClick = onClickAction,
-                onLongClick = onLongClickAction,
                 enabled = enabled,
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -440,7 +402,6 @@ fun IconToggleItem(
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
                         color = MaterialTheme.colorScheme.onSurface,
                     )
-                    renderMenu()
                 },
             )
         }
@@ -460,12 +421,5 @@ fun IconToggleItem(
                         ),
             )
         }
-    }
-
-    if (translationSheetKey != null) {
-        TranslationBottomSheet(
-            stringKey = translationSheetKey!!,
-            onDismissRequest = { translationSheetKey = null },
-        )
     }
 }

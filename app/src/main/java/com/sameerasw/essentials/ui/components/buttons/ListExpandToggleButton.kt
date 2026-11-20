@@ -37,13 +37,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.sameerasw.essentials.R
-import com.sameerasw.essentials.translation.TranslationManager
-import com.sameerasw.essentials.translation.ui.TranslationBottomSheet
-import com.sameerasw.essentials.translation.ui.TranslationMenuItems
-import com.sameerasw.essentials.ui.components.menus.SegmentedDropdownMenu
 import com.sameerasw.essentials.utils.HapticUtil
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ListExpandToggleButton(
     isExpanded: Boolean,
@@ -55,12 +50,7 @@ fun ListExpandToggleButton(
     collapsedText: String? = null,
     iconRes: Int? = null,
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
     val view = LocalView.current
-    val isTranslationModeActive by TranslationManager.isTranslationModeEnabled
-
-    var showMenu by remember { mutableStateOf(false) }
-    var translationSheetKey by remember { mutableStateOf<String?>(null) }
 
     val rotationDegree by animateFloatAsState(
         targetValue = if (isExpanded) 180f else 0f,
@@ -82,21 +72,7 @@ fun ListExpandToggleButton(
         }
 
     Box(
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .combinedClickable(
-                    onClick = {},
-                    onLongClick =
-                        if (isTranslationModeActive) {
-                            {
-                                HapticUtil.performVirtualKeyHaptic(view)
-                                showMenu = true
-                            }
-                        } else {
-                            null
-                        },
-                ),
+        modifier = modifier.fillMaxWidth(),
     ) {
         Button(
             onClick = {
@@ -136,31 +112,5 @@ fun ListExpandToggleButton(
                 fontWeight = FontWeight.SemiBold,
             )
         }
-
-        SegmentedDropdownMenu(
-            expanded = showMenu,
-            onDismissRequest = { showMenu = false },
-        ) {
-            TranslationMenuItems(
-                title = title,
-                description = description,
-                onSelectKey = { key ->
-                    showMenu = false
-                    translationSheetKey = key
-                },
-            )
-        }
-    }
-
-    val targetKey = translationSheetKey
-    if (targetKey != null) {
-        val resolvedKey =
-            remember(targetKey) {
-                TranslationManager.resolveKey(context, targetKey) ?: targetKey
-            }
-        TranslationBottomSheet(
-            stringKey = resolvedKey,
-            onDismissRequest = { translationSheetKey = null },
-        )
     }
 }

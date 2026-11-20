@@ -100,12 +100,9 @@ import androidx.compose.ui.zIndex
 import androidx.core.app.ActivityCompat
 import com.sameerasw.essentials.domain.registry.FeatureRegistry
 import com.sameerasw.essentials.domain.registry.PermissionRegistry
-import com.sameerasw.essentials.translation.TranslationManager
-import com.sameerasw.essentials.translation.ui.TranslationSessionSheet
 import com.sameerasw.essentials.ui.components.EssentialsFloatingToolbar
 import com.sameerasw.essentials.ui.components.CreditsCard
 import com.sameerasw.essentials.ui.components.dialogs.AboutSection
-import com.sameerasw.essentials.ui.components.menus.SegmentedDropdownMenuItem
 import com.sameerasw.essentials.ui.components.sliders.ConfigSliderItem
 import com.sameerasw.essentials.ui.core.cards.FeatureCard
 import com.sameerasw.essentials.ui.core.cards.IconToggleItem
@@ -114,7 +111,6 @@ import com.sameerasw.essentials.ui.core.cards.PermissionCard
 import com.sameerasw.essentials.ui.core.containers.RoundedCardContainer
 import com.sameerasw.essentials.ui.core.pickers.AppIconPicker
 import com.sameerasw.essentials.ui.core.pickers.LanguagePicker
-import com.sameerasw.essentials.ui.core.sheets.GitHubAuthSheet
 import com.sameerasw.essentials.ui.core.sheets.ImportConfigConfirmationSheet
 import com.sameerasw.essentials.ui.core.sheets.InstructionsBottomSheet
 import com.sameerasw.essentials.ui.core.sheets.PreReleaseConfirmationSheet
@@ -139,8 +135,6 @@ import kotlinx.coroutines.Dispatchers
 import androidx.compose.runtime.rememberCoroutineScope
 import com.sameerasw.essentials.utils.PermissionUtils
 import com.sameerasw.essentials.utils.PermissionUIHelper
-import com.sameerasw.essentials.ui.core.sheets.BugReportBottomSheet
-import com.sameerasw.essentials.viewmodels.GitHubAuthViewModel
 import com.sameerasw.essentials.viewmodels.MainViewModel
 import rikka.shizuku.Shizuku
 import java.io.File
@@ -280,50 +274,12 @@ fun SettingsContent(
     var showImportBackupPicker by remember { mutableStateOf(false) }
     var selectedImportUri by remember { mutableStateOf<Uri?>(null) }
 
-    var showTranslationSessionSheet by remember { mutableStateOf(false) }
     var showLanguagePickerSheet by remember { mutableStateOf(false) }
-    var showGitHubAuthSheet by remember { mutableStateOf(false) }
-    var showTranslationWarningDialog by remember { mutableStateOf(false) }
-    val gitHubAuthViewModel: GitHubAuthViewModel =
-        androidx.lifecycle.viewmodel.compose
-            .viewModel()
     val settingsRepo =
         remember {
             com.sameerasw.essentials.data.repository
                 .SettingsRepository(context)
         }
-    var currentUser by remember { mutableStateOf(settingsRepo.getGitHubUser()) }
-
-    val isTranslationModeActive by TranslationManager.isTranslationModeEnabled
-    val sessionEditsCount = TranslationManager.session.edits.size
-
-    var openTranslationPRs by remember {
-        mutableStateOf<List<com.sameerasw.essentials.domain.model.github.GitHubPullRequest>>(
-            emptyList(),
-        )
-    }
-    val gitHubRepo =
-        remember {
-            com.sameerasw.essentials.data.repository
-                .GitHubRepository()
-        }
-
-    androidx.compose.runtime.LaunchedEffect(isTranslationModeActive, currentUser) {
-        val user = currentUser
-        if (isTranslationModeActive && user != null) {
-            val userToken = settingsRepo.getGitHubToken()
-            val prs =
-                gitHubRepo.getOpenTranslationPRs(
-                    owner = "aislingheart",
-                    repo = "komorebi",
-                    author = user.login,
-                    token = userToken,
-                )
-            openTranslationPRs = prs
-        } else {
-            openTranslationPRs = emptyList()
-        }
-    }
 
     val onImportConfig: (Boolean) -> Unit = { keepPrefs ->
         selectedImportUri?.let { uri ->
@@ -1253,149 +1209,6 @@ fun SettingsContent(
             }
         }
 
-        // Translations Section
-        com.sameerasw.essentials.ui.core.komorebi.KomorebiSectionHeader(
-            title = stringResource(R.string.settings_translations_section),
-        )
-
-        val currentAppLocale =
-            LocalContext.current.resources.configuration.locales[0]
-                .language
-        val isEnglishApp = currentAppLocale == "en" || currentAppLocale.isBlank()
-
-        RoundedCardContainer {
-            // GitHub Account Card (Tap to Sign In when logged out, Long Press to Sign Out when logged in)
-            FeatureCard(
-                title = if (currentUser != null) "@${currentUser?.login}" else stringResource(R.string.action_sign_in_github),
-                description =
-                    if (currentUser !=
-                        null
-                    ) {
-                        stringResource(R.string.translation_logged_in_as, currentUser?.name ?: currentUser?.login.orEmpty())
-                    } else {
-                        stringResource(R.string.translation_sign_in_required)
-                    },
-                isEnabled = true,
-                onToggle = {},
-                onClick = {
-                    if (currentUser == null) {
-                        HapticUtil.performUIHaptic(view)
-                        showGitHubAuthSheet = true
-                    }
-                },
-                showToggle = false,
-                iconRes = R.drawable.brand_github,
-                additionalMenuItems =
-                    if (currentUser != null) {
-                        @Composable { onDismiss ->
-                            SegmentedDropdownMenuItem(
-                                text = { TranslatableText(R.string.action_sign_out) },
-                                onClick = {
-                                    onDismiss()
-                                    HapticUtil.performUIHaptic(view)
-                                    gitHubAuthViewModel.signOut(context)
-                                    currentUser = null
-                                    TranslationManager.isTranslationModeEnabled.value = false
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.rounded_logout_24),
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.error,
-                                    )
-                                },
-                            )
-                        }
-                    } else {
-                        null
-                    },
-            )
-
-            // Translation Mode Switch (IconToggleItem - clean toggle variant without sub-menu divider)
-            IconToggleItem(
-                iconRes = R.drawable.rounded_translate_24,
-                title = stringResource(R.string.settings_translate_mode),
-                description =
-                    if (isEnglishApp) {
-                        stringResource(R.string.translation_english_app_desc)
-                    } else {
-                        stringResource(
-                            R.string.settings_translate_mode_desc,
-                        )
-                    },
-                isChecked = isTranslationModeActive && !isEnglishApp,
-                enabled = !isEnglishApp,
-                onCheckedChange = { enabled ->
-                    if (enabled) {
-                        if (currentUser == null) {
-                            showGitHubAuthSheet = true
-                        } else if (!settingsRepo.isTranslationModeWarningSuppressed()) {
-                            showTranslationWarningDialog = true
-                        } else {
-                            TranslationManager.isTranslationModeEnabled.value = true
-                        }
-                    } else {
-                        TranslationManager.isTranslationModeEnabled.value = false
-                    }
-                },
-            )
-
-            // Pending Edits Summary Card
-            if (sessionEditsCount > 0) {
-                FeatureCard(
-                    title = R.string.settings_translated_texts,
-                    description =
-                        stringResource(
-                            R.string.settings_translated_texts_desc,
-                            sessionEditsCount,
-                        ),
-                    isEnabled = true,
-                    onToggle = {},
-                    onClick = {
-                        HapticUtil.performUIHaptic(view)
-                        showTranslationSessionSheet = true
-                    },
-                    showToggle = false,
-                    iconRes = R.drawable.rounded_edit_24,
-                )
-            }
-
-            // Existing Open Translation PRs
-            if (isTranslationModeActive && openTranslationPRs.isNotEmpty()) {
-                openTranslationPRs.forEach { pr ->
-                    val dateFormatted =
-                        try {
-                            pr.updatedAt.take(10)
-                        } catch (e: Exception) {
-                            ""
-                        }
-                    val subtitleText =
-                        if (dateFormatted.isNotBlank()) stringResource(R.string.bug_report_pr_number_updated, pr.number.toString(), dateFormatted) else stringResource(R.string.bug_report_pr_number, pr.number.toString())
-
-                    FeatureCard(
-                        title = stringResource(R.string.bug_report_view_existing_pr),
-                        description = subtitleText,
-                        isEnabled = true,
-                        onToggle = {},
-                        onClick = {
-                            HapticUtil.performUIHaptic(view)
-                            val intent =
-                                android.content.Intent(
-                                    android.content.Intent.ACTION_VIEW,
-                                    android.net.Uri.parse(pr.htmlUrl),
-                                )
-
-                            context.startActivity(intent)
-                        },
-                        showToggle = false,
-                        iconRes = R.drawable.brand_github,
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
         RoundedCardContainer {
             FeatureCard(
                 title = R.string.action_restart_systemui,
@@ -1611,38 +1424,5 @@ fun SettingsContent(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-    }
-
-    if (showTranslationSessionSheet) {
-        TranslationSessionSheet(
-            onDismissRequest = { showTranslationSessionSheet = false },
-            onNeedLogin = {
-                showTranslationSessionSheet = false
-                showGitHubAuthSheet = true
-            },
-        )
-    }
-
-    if (showGitHubAuthSheet) {
-        GitHubAuthSheet(
-            viewModel = gitHubAuthViewModel,
-            onDismissRequest = {
-                showGitHubAuthSheet = false
-                currentUser = settingsRepo.getGitHubUser()
-            },
-        )
-    }
-
-    if (showTranslationWarningDialog) {
-        com.sameerasw.essentials.translation.ui.TranslationWarningBottomSheet(
-            onDismissRequest = { showTranslationWarningDialog = false },
-            onConfirm = { dontShow ->
-                if (dontShow) {
-                    settingsRepo.setTranslationModeWarningSuppressed(true)
-                }
-                TranslationManager.isTranslationModeEnabled.value = true
-                showTranslationWarningDialog = false
-            },
-        )
     }
 }

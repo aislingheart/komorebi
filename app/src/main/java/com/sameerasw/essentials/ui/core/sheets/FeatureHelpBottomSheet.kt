@@ -98,19 +98,9 @@ fun FeatureHelpBottomSheet(
     val customHelp = FeatureCustomHelp.forFeature(feature.id)
     var showCustomHelp by remember { mutableStateOf(false) }
     var showResetInfo by remember { mutableStateOf(false) }
-    var showBugReport by remember { mutableStateOf(false) }
     var isDescriptionExpanded by remember { mutableStateOf(false) }
     var isDescriptionOverflowing by remember { mutableStateOf(false) }
     HelpSheetTracker.TrackOpen()
-
-    if (showBugReport) {
-        BugReportBottomSheet(
-            viewModel = viewModel,
-            onDismissRequest = onDismissRequest,
-            sourceFeature = feature.id,
-        )
-        return
-    }
 
     if (showResetInfo) {
         AlertDialog(
@@ -197,20 +187,6 @@ fun FeatureHelpBottomSheet(
                         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                         contentDescription = stringResource(R.string.label_legacy),
                         label = stringResource(R.string.label_legacy),
-                    )
-                }
-
-                FilledIconButton(
-                    onClick = {
-                        HapticUtil.performUIHaptic(view)
-                        showBugReport = true
-                    },
-                    modifier = Modifier.size(width = 52.dp, height = 40.dp),
-                    shape = CircleShape,
-                ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.rounded_bug_report_24),
-                        contentDescription = stringResource(R.string.action_report_bug),
                     )
                 }
             }
