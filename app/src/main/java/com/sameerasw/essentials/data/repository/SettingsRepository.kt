@@ -17,27 +17,8 @@ import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.sameerasw.essentials.domain.HapticFeedbackType
-import com.sameerasw.essentials.domain.controller.BackGestureController
-import com.sameerasw.essentials.domain.controller.BackGestureStore
-import com.sameerasw.essentials.domain.diy.Action
-import com.sameerasw.essentials.domain.diy.ActionGsonAdapter
 import com.sameerasw.essentials.domain.model.AppIcon
 import com.sameerasw.essentials.domain.model.AppSelection
-import com.sameerasw.essentials.domain.model.BackGestureAppConfig
-import com.sameerasw.essentials.domain.model.AppTag
-import com.sameerasw.essentials.domain.model.DnsPreset
-import com.sameerasw.essentials.utils.DuoBatteryLevels
-import com.sameerasw.essentials.domain.model.HilightEffect
-import com.sameerasw.essentials.domain.model.HilightProgressColorMode
-import com.sameerasw.essentials.domain.model.NotificationLightingColorMode
-import com.sameerasw.essentials.domain.model.NotificationLightingSide
-import com.sameerasw.essentials.domain.model.NotificationLightingStyle
-import com.sameerasw.essentials.domain.model.NotificationLightingSweepPosition
-import com.sameerasw.essentials.domain.model.PowerChoice
-import com.sameerasw.essentials.domain.model.RemapSlot
-import com.sameerasw.essentials.domain.model.ScaleAnimationsProfile
-import com.sameerasw.essentials.domain.model.SystemShortcutsState
-import com.sameerasw.essentials.domain.model.TrackedRepo
 import com.sameerasw.essentials.utils.RootUtils
 import com.sameerasw.essentials.utils.ShellUtils
 import com.sameerasw.essentials.utils.ShizukuUtils
@@ -55,7 +36,6 @@ class SettingsRepository(
 
     init {
         migrateUsageAccessKey()
-        migrateRemapStringToAction()
         migratePixelSearchbarType()
         migrateDebugUiMarginOverlayReset()
         migrateStatusBarAwareWidthReset()
@@ -70,41 +50,6 @@ class SettingsRepository(
             }
             remove(oldKey)
         }
-    }
-
-    private fun migrateRemapStringToAction() {
-        if (getBoolean(KEY_BUTTON_REMAP_MIGRATION_DONE)) return
-
-        val remapKeys =
-            listOf(
-                KEY_BUTTON_REMAP_VOL_UP_ACTION_OFF,
-                KEY_BUTTON_REMAP_VOL_DOWN_ACTION_OFF,
-                KEY_BUTTON_REMAP_VOL_UP_ACTION_ON,
-                KEY_BUTTON_REMAP_VOL_DOWN_ACTION_ON,
-            )
-        for (key in remapKeys) {
-            val raw = prefs.getString(key, null) ?: continue
-            if (raw.startsWith("{") || raw.startsWith("[")) continue
-            val action: Action? =
-                when (raw) {
-                    "Toggle flashlight" -> Action.ToggleFlashlight
-                    "Media play/pause" -> Action.MediaPlayPause
-                    "Media next" -> Action.MediaNext
-                    "Media previous" -> Action.MediaPrevious
-                    "Toggle vibrate" -> Action.ToggleVibrate
-                    "Toggle mute" -> Action.ToggleMute
-                    "AI assistant" -> Action.AIAssistant
-                    "Take screenshot" -> Action.TakeScreenshot
-                    "Cycle sound modes" -> Action.CycleSoundModes
-                    "Toggle media volume" -> Action.ToggleMediaVolume
-                    "Like current song" -> Action.LikeCurrentSong
-                    "Circle to Search" -> Action.CircleToSearch()
-                    else -> null
-                }
-            setRemapAction(key, action)
-        }
-
-        putBoolean(KEY_BUTTON_REMAP_MIGRATION_DONE, true)
     }
 
     private fun migrateStatusBarAwareWidthReset() {
@@ -133,65 +78,6 @@ class SettingsRepository(
                 putString(KEY_PIXEL_SEARCHBAR_TYPE, "searchbar")
             }
         }
-    }
-
-    fun getRemapAction(key: String): Action? {
-        val json = prefs.getString(key, null) ?: return null
-        return try {
-            ActionGsonAdapter.fromJson(json)
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    fun setRemapAction(
-        key: String,
-        action: Action?,
-    ) {
-        if (action == null) {
-            prefs.edit().remove(key).apply()
-        } else {
-            prefs.edit().putString(key, ActionGsonAdapter.toJson(action)).apply()
-        }
-    }
-
-    fun getRemapActions(key: String): List<Action> {
-        val json = prefs.getString(key, null) ?: return emptyList()
-        return if (json.trimStart().startsWith("[")) {
-            ActionGsonAdapter.listFromJson(json)
-        } else {
-            listOfNotNull(ActionGsonAdapter.fromJson(json))
-        }
-    }
-
-    fun setRemapActions(
-        key: String,
-        actions: List<Action>,
-    ) {
-        when (actions.size) {
-            0 -> prefs.edit().remove(key).apply()
-            1 -> setRemapAction(key, actions.first())
-            else -> prefs.edit().putString(key, ActionGsonAdapter.listToJson(actions)).apply()
-        }
-    }
-
-    fun getPowerChoice(slot: RemapSlot): PowerChoice {
-        val defaultChoice = slot.defaultChoice ?: PowerChoice.ASSISTANT
-        val key = slot.choicePrefKey ?: return defaultChoice
-        val value = prefs.getString(key, null) ?: return defaultChoice
-        return try {
-            PowerChoice.valueOf(value)
-        } catch (_: IllegalArgumentException) {
-            defaultChoice
-        }
-    }
-
-    fun setPowerChoice(
-        slot: RemapSlot,
-        choice: PowerChoice,
-    ) {
-        val key = slot.choicePrefKey ?: return
-        prefs.edit().putString(key, choice.name).apply()
     }
 
     companion object {
@@ -1177,87 +1063,6 @@ class SettingsRepository(
 
     // Specific Getters with logic from ViewModel
 
-    fun getNotificationLightingStyle(): NotificationLightingStyle {
-        val styleName =
-            prefs.getString(KEY_EDGE_LIGHTING_STYLE, NotificationLightingStyle.STROKE.name)
-        return try {
-            NotificationLightingStyle.valueOf(styleName ?: NotificationLightingStyle.STROKE.name)
-        } catch (e: Exception) {
-            NotificationLightingStyle.STROKE
-        }
-    }
-
-    /**
-     * Executes the get notification lighting color mode operation.
-     * @return The resulting NotificationLightingColorMode data.
-     */
-    fun getNotificationLightingColorMode(): NotificationLightingColorMode {
-        val colorModeName =
-            prefs.getString(KEY_EDGE_LIGHTING_COLOR_MODE, NotificationLightingColorMode.SYSTEM.name)
-        return try {
-            NotificationLightingColorMode.valueOf(
-                colorModeName ?: NotificationLightingColorMode.SYSTEM.name,
-            )
-        } catch (e: Exception) {
-            NotificationLightingColorMode.SYSTEM
-        }
-    }
-
-    /**
-     * Executes the get notification lighting glow sides operation.
-     * @return The resulting Set<NotificationLightingSide> data.
-     */
-    fun getNotificationLightingGlowSides(): Set<NotificationLightingSide> {
-        val json = prefs.getString(KEY_EDGE_LIGHTING_GLOW_SIDES, null)
-        return if (json != null) {
-            try {
-                gson.fromJson(json, Array<NotificationLightingSide>::class.java).toSet()
-            } catch (e: Exception) {
-                setOf(NotificationLightingSide.LEFT, NotificationLightingSide.RIGHT)
-            }
-        } else {
-            setOf(NotificationLightingSide.LEFT, NotificationLightingSide.RIGHT)
-        }
-    }
-
-    /**
-     * Executes the save notification lighting glow sides operation.
-     *
-     * @param sides [Set<NotificationLightingSide>] Target sides.
-     */
-    fun saveNotificationLightingGlowSides(sides: Set<NotificationLightingSide>) {
-        val json = gson.toJson(sides)
-        putString(KEY_EDGE_LIGHTING_GLOW_SIDES, json)
-    }
-
-    /**
-     * Executes the get notification lighting sweep position operation.
-     * @return The resulting NotificationLightingSweepPosition data.
-     */
-    fun getNotificationLightingSweepPosition(): NotificationLightingSweepPosition {
-        val posName =
-            prefs.getString(
-                KEY_EDGE_LIGHTING_SWEEP_POSITION,
-                NotificationLightingSweepPosition.CENTER.name,
-            )
-        return try {
-            NotificationLightingSweepPosition.valueOf(
-                posName ?: NotificationLightingSweepPosition.CENTER.name,
-            )
-        } catch (e: Exception) {
-            NotificationLightingSweepPosition.CENTER
-        }
-    }
-
-    /**
-     * Executes the save notification lighting sweep position operation.
-     *
-     * @param position [NotificationLightingSweepPosition] Target position.
-     */
-    fun saveNotificationLightingSweepPosition(position: NotificationLightingSweepPosition) {
-        putString(KEY_EDGE_LIGHTING_SWEEP_POSITION, position.name)
-    }
-
     /**
      * Executes the get notification lighting system mode operation.
      * @return The resulting Int data.
@@ -1296,30 +1101,6 @@ class SettingsRepository(
     fun saveFreezeAutoExcludedApps(apps: Set<String>) {
         val json = gson.toJson(apps)
         putString(KEY_FREEZE_AUTO_EXCLUDED_APPS, json)
-    }
-
-    /**
-     * Executes the get freeze tags operation.
-     * @return The resulting List<AppTag> data.
-     */
-    fun getFreezeTags(): List<AppTag> {
-        val json = prefs.getString(KEY_FREEZE_TAGS, null) ?: return emptyList()
-        return try {
-            val type = object : TypeToken<List<AppTag>>() {}.type
-            gson.fromJson(json, type) ?: emptyList()
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
-    /**
-     * Executes the save freeze tags operation.
-     *
-     * @param tags [List<AppTag>] Target tags.
-     */
-    fun saveFreezeTags(tags: List<AppTag>) {
-        val json = gson.toJson(tags)
-        putString(KEY_FREEZE_TAGS, json)
     }
 
     /**
@@ -1364,34 +1145,6 @@ class SettingsRepository(
         } catch (e: Exception) {
             HapticFeedbackType.SUBTLE
         }
-    }
-
-    /**
-     * Executes the get diy tab operation.
-     * @return The resulting com data.
-     */
-    fun getDIYTab(): com.sameerasw.essentials.domain.DIYTabs {
-        val tabName =
-            prefs.getString(
-                KEY_DEFAULT_TAB,
-                com.sameerasw.essentials.domain.DIYTabs.ESSENTIALS.name,
-            )
-        return try {
-            com.sameerasw.essentials.domain.DIYTabs.valueOf(
-                tabName ?: com.sameerasw.essentials.domain.DIYTabs.ESSENTIALS.name,
-            )
-        } catch (e: Exception) {
-            com.sameerasw.essentials.domain.DIYTabs.ESSENTIALS
-        }
-    }
-
-    /**
-     * Executes the save diy tab operation.
-     *
-     * @param tab [com.sameerasw.essentials.domain.DIYTabs] Target tab.
-     */
-    fun saveDIYTab(tab: com.sameerasw.essentials.domain.DIYTabs) {
-        putString(KEY_DEFAULT_TAB, tab.name)
     }
 
     fun getAppIcon(): AppIcon {
@@ -1468,63 +1221,6 @@ class SettingsRepository(
     // Feature specific App selections
 
     fun loadNotificationLightingSelectedApps() = loadAppSelection(KEY_EDGE_LIGHTING_SELECTED_APPS)
-
-    // Each app the user adds gets its own effect; apps not in the map never light up
-    fun getHilightAppEffects(): Map<String, HilightEffect> =
-        getString(KEY_HILIGHT_APP_EFFECTS)?.let {
-            try {
-                gson
-                    .fromJson<Map<String, HilightEffect>>(it, object : TypeToken<Map<String, HilightEffect>>() {}.type)
-                    ?.mapValues { (_, effect) -> effect.withValidPattern() }
-            } catch (_: Exception) {
-                null
-            }
-        } ?: emptyMap()
-
-    fun getHilightEffectForApp(packageName: String): HilightEffect? = getHilightAppEffects()[packageName]
-
-    fun setHilightAppEffect(
-        packageName: String,
-        effect: HilightEffect?,
-    ) {
-        val effects = getHilightAppEffects().toMutableMap()
-        if (effect == null) effects.remove(packageName) else effects[packageName] = effect
-        putString(KEY_HILIGHT_APP_EFFECTS, gson.toJson(effects))
-    }
-
-    fun isHilightNotificationsEnabled(): Boolean = getBoolean(KEY_HILIGHT_NOTIFICATIONS_ENABLED, false)
-
-    fun setHilightNotificationsEnabled(enabled: Boolean) = putBoolean(KEY_HILIGHT_NOTIFICATIONS_ENABLED, enabled)
-
-    fun isHilightOnlyWhenScreenOff(): Boolean = getBoolean(KEY_HILIGHT_ONLY_SCREEN_OFF, true)
-
-    fun setHilightOnlyWhenScreenOff(enabled: Boolean) = putBoolean(KEY_HILIGHT_ONLY_SCREEN_OFF, enabled)
-
-    fun isHilightSkipDnd(): Boolean = getBoolean(KEY_HILIGHT_SKIP_DND, true)
-
-    fun setHilightSkipDnd(enabled: Boolean) = putBoolean(KEY_HILIGHT_SKIP_DND, enabled)
-
-    fun getHilightCooldownSeconds(): Int = getInt(KEY_HILIGHT_COOLDOWN_SECONDS, 60)
-
-    fun setHilightCooldownSeconds(seconds: Int) = putInt(KEY_HILIGHT_COOLDOWN_SECONDS, seconds)
-
-    fun isHilightProgressEnabled(): Boolean = getBoolean(KEY_HILIGHT_PROGRESS_ENABLED, false)
-
-    fun setHilightProgressEnabled(enabled: Boolean) = putBoolean(KEY_HILIGHT_PROGRESS_ENABLED, enabled)
-
-    fun getHilightProgressColorMode(): HilightProgressColorMode =
-        HilightProgressColorMode.entries.find { it.name == getString(KEY_HILIGHT_PROGRESS_COLOR_MODE) }
-            ?: HilightProgressColorMode.VIBGYOR
-
-    fun setHilightProgressColorMode(mode: HilightProgressColorMode) = putString(KEY_HILIGHT_PROGRESS_COLOR_MODE, mode.name)
-
-    fun getHilightProgressColor(): Int = getInt(KEY_HILIGHT_PROGRESS_COLOR, HilightEffect.DEFAULT_COLOR)
-
-    fun setHilightProgressColor(color: Int) = putInt(KEY_HILIGHT_PROGRESS_COLOR, color)
-
-    fun getHilightProgressDurationMs(): Long = getLong(KEY_HILIGHT_PROGRESS_DURATION_MS, HilightEffect.DEFAULT_DURATION_MS)
-
-    fun setHilightProgressDurationMs(durationMs: Long) = putLong(KEY_HILIGHT_PROGRESS_DURATION_MS, durationMs)
 
     /**
      * Executes the save notification lighting selected apps operation.
@@ -1737,53 +1433,6 @@ class SettingsRepository(
     ) = updateAppSelection(KEY_AOD_WALLPAPER_MEDIA_EXCLUDED_APPS, packageName, enabled)
 
     /**
-     * Executes the load shut up configs operation.
-     * @return The resulting List<com data.
-     */
-    fun loadShutUpConfigs(): List<com.sameerasw.essentials.domain.model.ShutUpAppConfig> {
-        val json = prefs.getString(KEY_SHUT_UP_SELECTED_APPS, null)
-        return if (json != null) {
-            try {
-                gson
-                    .fromJson(
-                        json,
-                        Array<com.sameerasw.essentials.domain.model.ShutUpAppConfig>::class.java,
-                    ).toList()
-            } catch (e: Exception) {
-                emptyList()
-            }
-        } else {
-            emptyList()
-        }
-    }
-
-    /**
-     * Executes the save shut up configs operation.
-     *
-     * @param configs [List<com.sameerasw.essentials.domain.model.ShutUpAppConfig>] Target configs.
-     */
-    fun saveShutUpConfigs(configs: List<com.sameerasw.essentials.domain.model.ShutUpAppConfig>) {
-        val json = gson.toJson(configs)
-        putString(KEY_SHUT_UP_SELECTED_APPS, json)
-    }
-
-    /**
-     * Executes the update shut up config operation.
-     *
-     * @param config [com.sameerasw.essentials.domain.model.ShutUpAppConfig] Target config.
-     */
-    fun updateShutUpConfig(config: com.sameerasw.essentials.domain.model.ShutUpAppConfig) {
-        val current = loadShutUpConfigs().toMutableList()
-        val index = current.indexOfFirst { it.packageName == config.packageName }
-        if (index != -1) {
-            current[index] = config
-        } else {
-            current.add(config)
-        }
-        saveShutUpConfigs(current)
-    }
-
-    /**
      * Executes the save shut up original settings operation.
      *
      * @param settings [Map<String] Target settings.
@@ -1835,34 +1484,6 @@ class SettingsRepository(
         }
     }
 
-    // Snooze Notifications Helper
-    fun loadSnoozeDiscoveredChannels(): List<com.sameerasw.essentials.domain.model.SnoozeChannel> {
-        val json = prefs.getString(KEY_SNOOZE_DISCOVERED_CHANNELS, null)
-        return if (json != null) {
-            try {
-                gson
-                    .fromJson(
-                        json,
-                        Array<com.sameerasw.essentials.domain.model.SnoozeChannel>::class.java,
-                    ).toList()
-            } catch (e: Exception) {
-                emptyList()
-            }
-        } else {
-            emptyList()
-        }
-    }
-
-    /**
-     * Executes the save snooze discovered channels operation.
-     *
-     * @param channels [List<com.sameerasw.essentials.domain.model.SnoozeChannel>] Target channels.
-     */
-    fun saveSnoozeDiscoveredChannels(channels: List<com.sameerasw.essentials.domain.model.SnoozeChannel>) {
-        val json = gson.toJson(channels)
-        putString(KEY_SNOOZE_DISCOVERED_CHANNELS, json)
-    }
-
     /**
      * Executes the load snooze blocked channels operation.
      * @return The resulting Set<String> data.
@@ -1888,34 +1509,6 @@ class SettingsRepository(
     fun saveSnoozeBlockedChannels(blockedChannels: Set<String>) {
         val json = gson.toJson(blockedChannels)
         putString(KEY_SNOOZE_BLOCKED_CHANNELS, json)
-    }
-
-    // Maps Channels Helper
-    fun loadMapsDiscoveredChannels(): List<com.sameerasw.essentials.domain.model.MapsChannel> {
-        val json = prefs.getString(KEY_MAPS_DISCOVERED_CHANNELS, null)
-        return if (json != null) {
-            try {
-                gson
-                    .fromJson(
-                        json,
-                        Array<com.sameerasw.essentials.domain.model.MapsChannel>::class.java,
-                    ).toList()
-            } catch (e: Exception) {
-                emptyList()
-            }
-        } else {
-            emptyList()
-        }
-    }
-
-    /**
-     * Executes the save maps discovered channels operation.
-     *
-     * @param channels [List<com.sameerasw.essentials.domain.model.MapsChannel>] Target channels.
-     */
-    fun saveMapsDiscoveredChannels(channels: List<com.sameerasw.essentials.domain.model.MapsChannel>) {
-        val json = gson.toJson(channels)
-        putString(KEY_MAPS_DISCOVERED_CHANNELS, json)
     }
 
     /**
@@ -2309,45 +1902,6 @@ class SettingsRepository(
     }
 
     /**
-     * Executes the get tracked repos operation.
-     * @return The resulting List<TrackedRepo> data.
-     */
-    fun getTrackedRepos(): List<TrackedRepo> {
-        val json = prefs.getString(KEY_TRACKED_REPOS, null) ?: return emptyList()
-        return try {
-            gson.fromJson(json, Array<TrackedRepo>::class.java).toList()
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
-    /**
-     * Executes the save tracked repos operation.
-     *
-     * @param repos [List<TrackedRepo>] Target repos.
-     */
-    fun saveTrackedRepos(repos: List<TrackedRepo>) {
-        val json = gson.toJson(repos)
-        prefs.edit().putString(KEY_TRACKED_REPOS, json).apply()
-    }
-
-    /**
-     * Executes the add or update tracked repo operation.
-     *
-     * @param repo [TrackedRepo] Target repo.
-     */
-    fun addOrUpdateTrackedRepo(repo: TrackedRepo) {
-        val current = getTrackedRepos().toMutableList()
-        val index = current.indexOfFirst { it.fullName == repo.fullName }
-        if (index != -1) {
-            current[index] = repo
-        } else {
-            current.add(repo)
-        }
-        saveTrackedRepos(current)
-    }
-
-    /**
      * Executes the is shut up attempt shizuku restart enabled operation.
      * @return The resulting Boolean data.
      */
@@ -2615,48 +2169,6 @@ class SettingsRepository(
      * @param value [String] Target value.
      */
     fun setPixelSearchbarMusicPackage(value: String) = putString(KEY_PIXEL_SEARCHBAR_MUSIC_PACKAGE, value)
-
-    /**
-     * Executes the get edge lighting sweep selected shapes operation.
-     * @return The resulting Set<String> data.
-     */
-    fun getEdgeLightingSweepSelectedShapes(): Set<String> {
-        val defaultShapes =
-            com.sameerasw.essentials.utils.AmbientMusicShapeHelper.allShapesWithNames
-                .map { it.first }
-                .toSet()
-        val json = prefs.getString(KEY_EDGE_LIGHTING_SWEEP_SELECTED_SHAPES, null)
-        return if (json != null) {
-            try {
-                gson.fromJson(json, Array<String>::class.java).toSet()
-            } catch (e: Exception) {
-                defaultShapes
-            }
-        } else {
-            defaultShapes
-        }
-    }
-
-    /**
-     * Executes the save edge lighting sweep selected shapes operation.
-     *
-     * @param shapes [Set<String>] Target shapes.
-     */
-    fun saveEdgeLightingSweepSelectedShapes(shapes: Set<String>) {
-        val json = gson.toJson(shapes)
-        putString(KEY_EDGE_LIGHTING_SWEEP_SELECTED_SHAPES, json)
-    }
-
-    /**
-     * Executes the remove tracked repo operation.
-     *
-     * @param fullName [String] Target full name.
-     */
-    fun removeTrackedRepo(fullName: String) {
-        val current = getTrackedRepos().toMutableList()
-        current.removeAll { it.fullName == fullName }
-        saveTrackedRepos(current)
-    }
 
     /**
      * Executes the is user dictionary enabled operation.
@@ -2941,69 +2453,6 @@ class SettingsRepository(
         }
     }
 
-    val backGesture by lazy {
-        BackGestureController(
-            object : BackGestureStore {
-                override fun readSystemScale(left: Boolean): Float =
-                    try {
-                        Settings.Secure.getFloat(context.contentResolver, secureBackGestureKey(left), 1f)
-                    } catch (_: Exception) {
-                        1f
-                    }
-
-                override fun writeSystemScale(
-                    left: Boolean,
-                    scale: Float,
-                ): Boolean {
-                    val key = secureBackGestureKey(left)
-                    try {
-                        return Settings.Secure.putFloat(context.contentResolver, key, scale)
-                    } catch (_: SecurityException) {
-                        ShellUtils.runCommand(context, "settings put secure $key $scale", notifyOnError = false)
-                    } catch (e: Exception) {
-                        Log.w("BackGesture", "Failed to write $key", e)
-                        return false
-                    }
-                    val written = readSystemScale(left)
-                    if (abs(written - scale) >= 0.001f) {
-                        Log.w("BackGesture", "Failed to write $key over shell, still $written")
-                        return false
-                    }
-                    return true
-                }
-
-                override fun getOverrideOwner(): String? = getString(KEY_BACK_GESTURE_OVERRIDE_OWNER)
-
-                override fun setOverrideOwner(owner: String?) {
-                    if (owner == null) remove(KEY_BACK_GESTURE_OVERRIDE_OWNER) else putString(KEY_BACK_GESTURE_OVERRIDE_OWNER, owner)
-                }
-
-                override fun getRestoreScale(left: Boolean): Float = getFloat(restoreBackGestureKey(left), 1f)
-
-                override fun setRestoreScale(
-                    left: Boolean,
-                    scale: Float,
-                ) = putFloat(restoreBackGestureKey(left), scale)
-            },
-        )
-    }
-
-    private fun secureBackGestureKey(left: Boolean) =
-        if (left) SECURE_BACK_GESTURE_INSET_SCALE_LEFT else SECURE_BACK_GESTURE_INSET_SCALE_RIGHT
-
-    private fun restoreBackGestureKey(left: Boolean) =
-        if (left) KEY_BACK_GESTURE_RESTORE_LEFT_SCALE else KEY_BACK_GESTURE_RESTORE_RIGHT_SCALE
-
-    fun loadBackGestureAppConfigs(): List<BackGestureAppConfig> =
-        try {
-            gson.fromJson(getString(KEY_BACK_GESTURE_APP_CONFIGS), Array<BackGestureAppConfig>::class.java)?.toList()
-                ?: emptyList()
-        } catch (_: Exception) {
-            emptyList()
-        }
-
-    fun saveBackGestureAppConfigs(configs: List<BackGestureAppConfig>) = putString(KEY_BACK_GESTURE_APP_CONFIGS, gson.toJson(configs))
-
     /**
      * Executes the get smallest width operation.
      * @return The resulting Int data.
@@ -3227,69 +2676,6 @@ class SettingsRepository(
     }
 
     /**
-     * Executes the get private dns presets operation.
-     * @return The resulting List<DnsPreset> data.
-     */
-    fun getPrivateDnsPresets(): List<DnsPreset> {
-        val json = prefs.getString(KEY_PRIVATE_DNS_PRESETS, null)
-        return if (json != null) {
-            try {
-                gson.fromJson(json, Array<DnsPreset>::class.java).toList()
-            } catch (e: Exception) {
-                getDefaultDnsPresets()
-            }
-        } else {
-            getDefaultDnsPresets().also { savePrivateDnsPresets(it) }
-        }
-    }
-
-    private fun getDefaultDnsPresets(): List<DnsPreset> =
-        listOf(
-            DnsPreset(
-                name = context.getString(com.sameerasw.essentials.R.string.dns_preset_adguard),
-                hostname = "dns.adguard.com",
-                isDefault = true,
-            ),
-            DnsPreset(
-                name = context.getString(com.sameerasw.essentials.R.string.dns_preset_google),
-                hostname = "dns.google",
-                isDefault = true,
-            ),
-            DnsPreset(
-                name = context.getString(com.sameerasw.essentials.R.string.dns_preset_cloudflare),
-                hostname = "1dot1dot1dot1.cloudflare-dns.com",
-                isDefault = true,
-            ),
-            DnsPreset(
-                name = context.getString(com.sameerasw.essentials.R.string.dns_preset_quad9),
-                hostname = "dns.quad9.net",
-                isDefault = true,
-            ),
-            DnsPreset(
-                name = context.getString(com.sameerasw.essentials.R.string.dns_preset_cleanbrowsing),
-                hostname = "adult-filter-dns.cleanbrowsing.org",
-                isDefault = true,
-            ),
-        )
-
-    /**
-     * Executes the save private dns presets operation.
-     *
-     * @param presets [List<DnsPreset>] Target presets.
-     */
-    fun savePrivateDnsPresets(presets: List<DnsPreset>) {
-        val json = gson.toJson(presets)
-        putString(KEY_PRIVATE_DNS_PRESETS, json)
-    }
-
-    /**
-     * Executes the reset private dns presets operation.
-     */
-    fun resetPrivateDnsPresets() {
-        savePrivateDnsPresets(getDefaultDnsPresets())
-    }
-
-    /**
      * Executes the get ambient music glance album art mode operation.
      * @return The resulting String data.
      */
@@ -3442,56 +2828,6 @@ class SettingsRepository(
      * @param enabled [Boolean] Target enabled.
      */
     fun setRestoreInfinityPeakOnRefreshRateReset(enabled: Boolean) = putBoolean(KEY_REFRESH_RATE_DEFAULT_PEAK_INFINITY, enabled)
-
-    /**
-     * Executes the get scale animations profile operation.
-     *
-     * @param mode [String] Target mode.
-     * @return The resulting ScaleAnimationsProfile data.
-     */
-    fun getScaleAnimationsProfile(mode: String): ScaleAnimationsProfile {
-        val key =
-            if (mode == "glove") KEY_SCALE_ANIMATIONS_GLOVE_PROFILE else KEY_SCALE_ANIMATIONS_DEFAULT_PROFILE
-        val json = prefs.getString(key, null)
-        return if (json != null) {
-            try {
-                gson.fromJson(json, ScaleAnimationsProfile::class.java)
-            } catch (e: Exception) {
-                getDefaultScaleAnimationsProfile(mode)
-            }
-        } else {
-            getDefaultScaleAnimationsProfile(mode)
-        }
-    }
-
-    private fun getDefaultScaleAnimationsProfile(mode: String): ScaleAnimationsProfile =
-        if (mode == "glove") {
-            ScaleAnimationsProfile(
-                fontScale = 1.25f,
-                smallestWidth = 385,
-                touchSensitivityEnabled = true,
-                autoRotateEnabled = true,
-                screenTimeout = 60000L,
-            )
-        } else {
-            ScaleAnimationsProfile()
-        }
-
-    /**
-     * Executes the save scale animations profile operation.
-     *
-     * @param mode [String] Target mode.
-     * @param profile [ScaleAnimationsProfile] Target profile.
-     */
-    fun saveScaleAnimationsProfile(
-        mode: String,
-        profile: ScaleAnimationsProfile,
-    ) {
-        val key =
-            if (mode == "glove") KEY_SCALE_ANIMATIONS_GLOVE_PROFILE else KEY_SCALE_ANIMATIONS_DEFAULT_PROFILE
-        val json = gson.toJson(profile)
-        putString(key, json)
-    }
 
     /**
      * Executes the get touch sensitivity enabled operation.
@@ -4039,14 +3375,6 @@ class SettingsRepository(
     fun getDuoBatteryCriticalColor(): String = getString(KEY_DUO_BATTERY_CRITICAL_COLOR, "#F44336") ?: "#F44336"
     fun setDuoBatteryCriticalColor(colorHex: String) = putString(KEY_DUO_BATTERY_CRITICAL_COLOR, colorHex)
 
-    fun getDuoBatteryLowLevel(): Int = getInt(KEY_DUO_BATTERY_LOW_LEVEL, DuoBatteryLevels.DEFAULT_LOW)
-    fun getDuoBatteryCriticalLevel(): Int = getInt(KEY_DUO_BATTERY_CRITICAL_LEVEL, DuoBatteryLevels.DEFAULT_CRITICAL)
-
-    fun setDuoBatteryLevels(low: Int, critical: Int) {
-        putInt(KEY_DUO_BATTERY_LOW_LEVEL, low)
-        putInt(KEY_DUO_BATTERY_CRITICAL_LEVEL, critical)
-    }
-
     fun isDuoShowNetworksEnabled(): Boolean = getBoolean(KEY_DUO_SHOW_NETWORKS, true)
     fun setDuoShowNetworksEnabled(enabled: Boolean) = putBoolean(KEY_DUO_SHOW_NETWORKS, enabled)
 
@@ -4082,18 +3410,6 @@ class SettingsRepository(
 
     fun getDuoCustomColor(): String = getString(KEY_DUO_CUSTOM_COLOR, "#FFFFFF") ?: "#FFFFFF"
     fun setDuoCustomColor(colorHex: String) = putString(KEY_DUO_CUSTOM_COLOR, colorHex)
-
-    fun getDuoTapAction(): Action? = getRemapAction(KEY_DUO_TAP_ACTION)
-    fun setDuoTapAction(action: Action?) = setRemapAction(KEY_DUO_TAP_ACTION, action)
-
-    fun getDuoDoubleTapAction(): Action? = getRemapAction(KEY_DUO_DOUBLE_TAP_ACTION)
-    fun setDuoDoubleTapAction(action: Action?) = setRemapAction(KEY_DUO_DOUBLE_TAP_ACTION, action)
-
-    fun getDuoLongPressAction(): Action? = getRemapAction(KEY_DUO_LONG_PRESS_ACTION)
-    fun setDuoLongPressAction(action: Action?) = setRemapAction(KEY_DUO_LONG_PRESS_ACTION, action)
-
-    fun getDuoSwipeDownAction(): Action? = getRemapAction(KEY_DUO_SWIPE_DOWN_ACTION)
-    fun setDuoSwipeDownAction(action: Action?) = setRemapAction(KEY_DUO_SWIPE_DOWN_ACTION, action)
 
     fun getDuoSlideMode(): String = getString(KEY_DUO_SLIDE_MODE, "none") ?: "none"
     fun setDuoSlideMode(mode: String) = putString(KEY_DUO_SLIDE_MODE, mode)
@@ -4271,9 +3587,6 @@ class SettingsRepository(
 
     fun isIslandBatteryPercentageEnabled(): Boolean = getBoolean(KEY_ISLAND_BATTERY_PERCENTAGE, false)
     fun setIslandBatteryPercentageEnabled(enabled: Boolean) = putBoolean(KEY_ISLAND_BATTERY_PERCENTAGE, enabled)
-
-    fun getIslandLongPressAction(): Action? = getRemapAction(KEY_ISLAND_LONG_PRESS_ACTION)
-    fun setIslandLongPressAction(action: Action?) = setRemapAction(KEY_ISLAND_LONG_PRESS_ACTION, action)
 
     fun getIslandSlideMode(): String = getString(KEY_ISLAND_SLIDE_MODE, "none") ?: "none"
     fun setIslandSlideMode(mode: String) = putString(KEY_ISLAND_SLIDE_MODE, mode)
@@ -4590,11 +3903,6 @@ class SettingsRepository(
 
     fun setIslandNotifHubOrder(value: String) = putString(KEY_ISLAND_NOTIF_HUB_ORDER, value)
 
-    fun getIslandNotifHubOverflow(): com.sameerasw.essentials.island.model.QueueOverflow =
-        com.sameerasw.essentials.island.model.QueueOverflow.entries.firstOrNull { it.name == getString(KEY_ISLAND_NOTIF_HUB_OVERFLOW, null) }
-            ?: com.sameerasw.essentials.island.model.QueueOverflow.Number
-    fun setIslandNotifHubOverflow(value: com.sameerasw.essentials.island.model.QueueOverflow) = putString(KEY_ISLAND_NOTIF_HUB_OVERFLOW, value.name)
-
     // 0 = fit to the available width
     fun getIslandNotifHubIcons(): Int = getInt(KEY_ISLAND_NOTIF_HUB_ICONS, 0).coerceIn(0, 8)
     fun setIslandNotifHubIcons(value: Int) = putInt(KEY_ISLAND_NOTIF_HUB_ICONS, value.coerceIn(0, 8))
@@ -4812,33 +4120,9 @@ class SettingsRepository(
     fun getStatusGlanceBatteryIconSize(): Float = getFloat(KEY_STATUS_GLANCE_BATTERY_ICON_SIZE, 16f)
     fun setStatusGlanceBatteryIconSize(size: Float) = putFloat(KEY_STATUS_GLANCE_BATTERY_ICON_SIZE, size)
 
-    fun getStatusGlanceTapAction(): Action? = getRemapAction(KEY_STATUS_GLANCE_TAP_ACTION)
-    fun setStatusGlanceTapAction(action: Action?) = setRemapAction(KEY_STATUS_GLANCE_TAP_ACTION, action)
-
-    fun getStatusGlanceDoubleTapAction(): Action? = getRemapAction(KEY_STATUS_GLANCE_DOUBLE_TAP_ACTION)
-    fun setStatusGlanceDoubleTapAction(action: Action?) = setRemapAction(KEY_STATUS_GLANCE_DOUBLE_TAP_ACTION, action)
-
-    fun getStatusGlanceLongPressAction(): Action? = getRemapAction(KEY_STATUS_GLANCE_LONG_PRESS_ACTION)
-    fun setStatusGlanceLongPressAction(action: Action?) = setRemapAction(KEY_STATUS_GLANCE_LONG_PRESS_ACTION, action)
-
-    // Home screen shortcuts only carry an id; the action itself never leaves the app
-    fun getPinnedAction(id: String): Action? = getRemapAction(KEY_PINNED_ACTION_PREFIX + id)
-
-    fun savePinnedAction(
-        id: String,
-        action: Action,
-    ) = setRemapAction(KEY_PINNED_ACTION_PREFIX + id, action)
     fun isLockscreenShortcutsEnabled(): Boolean = getBoolean(KEY_LOCKSCREEN_SHORTCUTS_ENABLED, false)
 
     fun setLockscreenShortcutsEnabled(enabled: Boolean) = putBoolean(KEY_LOCKSCREEN_SHORTCUTS_ENABLED, enabled)
-
-    fun getLockscreenSystemShortcutsState(): SystemShortcutsState =
-        SystemShortcutsState.entries.firstOrNull {
-            it.name == getString(KEY_LOCKSCREEN_SYSTEM_SHORTCUTS_STATE)
-        } ?: SystemShortcutsState.UNKNOWN
-
-    fun setLockscreenSystemShortcutsState(state: SystemShortcutsState) =
-        putString(KEY_LOCKSCREEN_SYSTEM_SHORTCUTS_STATE, state.name)
 
     fun isVolumeStepsEnabled(): Boolean = getBoolean(KEY_VOLUME_STEPS_ENABLED, false)
 

@@ -57,14 +57,8 @@ class EssentialsApp : Application() {
             runCatching { com.sameerasw.essentials.utils.LogManager.init(applicationContext) }
                 .onFailure { android.util.Log.e("EssentialsApp", "LogManager init failed", it) }
 
-            runCatching { com.sameerasw.essentials.services.CalendarSyncManager.init(applicationContext) }
-                .onFailure { android.util.Log.e("EssentialsApp", "Calendar sync init failed", it) }
-
             runCatching { com.sameerasw.essentials.utils.ServiceUtils.startRequiredServices(applicationContext) }
                 .onFailure { android.util.Log.e("EssentialsApp", "Service startup failed", it) }
-
-            runCatching { com.sameerasw.essentials.appfunctions.AppFunctionAvailabilityManager.updateAvailability(applicationContext) }
-                .onFailure { android.util.Log.e("EssentialsApp", "App function init failed", it) }
 
             runCatching { com.sameerasw.essentials.launcher.ClipboardHistoryManager.startObserving(applicationContext) }
                 .onFailure { android.util.Log.e("EssentialsApp", "Clipboard observer init failed", it) }

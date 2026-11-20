@@ -214,10 +214,6 @@
         android:usesCleartextTraffic="true"
         tools:targetApi="36">
 
-        <meta-data
-            android:name="io.sentry.auto-init"
-            android:value="false" />
-
         <activity
             android:name=".PixelSearchActivity"
             android:excludeFromRecents="true"
@@ -304,15 +300,6 @@
             android:theme="@style/Theme.Komorebi" />
 
         <activity
-            android:name=".ui.activities.PixelSearchbarTapActivity"
-            android:excludeFromRecents="true"
-            android:exported="true"
-            android:launchMode="singleInstance"
-            android:noHistory="true"
-            android:taskAffinity=""
-            android:theme="@android:style/Theme.NoDisplay" />
-
-        <activity
             android:name=".FeatureSettingsActivity"
             android:exported="false"
             android:label="@string/label_feature_settings"
@@ -324,74 +311,7 @@
             android:label="@string/app_name"
             android:launchMode="singleTop"
             android:parentActivityName=".ui.activities.PixelSearchResultsActivity"
-            android:theme="@style/Theme.Komorebi">
-            <intent-filter>
-                <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" />
-            </intent-filter>
-        </activity>
-
-        <activity
-            android:name=".LinkPickerActivity"
-            android:excludeFromRecents="true"
-            android:exported="true"
-            android:label="@string/label_open_link"
-            android:theme="@style/Theme.Komorebi.Translucent">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="http" />
-                <data android:scheme="https" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.SEND" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="text/plain" />
-            </intent-filter>
-        </activity>
-
-        <activity
-            android:name=".ShortcutHandlerActivity"
-            android:excludeFromRecents="true"
-            android:exported="true"
-            android:label="@string/frozen_app_shortcut_label"
-            android:noHistory="true"
-            android:theme="@style/Theme.Komorebi.Translucent" />
-
-        <activity
-            android:name=".ui.activities.ActionShortcutActivity"
-            android:exported="true"
-            android:icon="@drawable/rounded_rocket_launch_24"
-            android:label="@string/action_shortcut_short_label"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar">
-            <intent-filter>
-                <action android:name="android.intent.action.CREATE_SHORTCUT" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-        </activity>
-
-        <activity
-            android:name=".ui.activities.PinnedActionActivity"
-            android:excludeFromRecents="true"
-            android:exported="true"
-            android:noHistory="true"
-            android:theme="@android:style/Theme.NoDisplay" />
-
-        <activity
-            android:name=".ui.activities.DefaultLauncherSettingsActivity"
-            android:excludeFromRecents="true"
-            android:exported="false"
-            android:noHistory="true"
-            android:theme="@style/Theme.Komorebi.Translucent" />
-
-        <activity
-            android:name=".ui.activities.DebuggingSettingsActivity"
-            android:exported="false"
-            android:noHistory="true"
-            android:theme="@style/Theme.Komorebi.Translucent" />
-
-
-
+            android:theme="@style/Theme.Komorebi" />
 
         <service
             android:name=".services.SearchGestureAccessibilityService"
@@ -447,16 +367,6 @@
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
-        </service>
-
-        <service
-            android:name=".services.InputEventListenerService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Monitors hardware button long-press events using Shizuku to trigger user-configured search and system actions." />
         </service>
 
         <provider
@@ -590,10 +500,5 @@
         </activity>
 
     </application>
-
-    <instrumentation
-        android:name="com.sameerasw.essentials.shizuku.CarrierConfigModifier"
-        android:label="CarrierConfigModifier"
-        android:targetPackage="${applicationId}" />
 
 </manifest>

@@ -124,13 +124,10 @@ import com.sameerasw.essentials.ui.core.pickers.LanguagePicker
 import com.sameerasw.essentials.ui.core.sheets.ImportConfigConfirmationSheet
 import com.sameerasw.essentials.ui.core.sheets.InstructionsBottomSheet
 import com.sameerasw.essentials.ui.core.sheets.PreReleaseConfirmationSheet
-import com.sameerasw.essentials.ui.core.sheets.ShakeForHelp
-import com.sameerasw.essentials.ui.core.sheets.UnsupportedFeaturesConfirmationSheet
 import com.sameerasw.essentials.ui.core.sheets.UpdateBottomSheet
 import androidx.compose.ui.geometry.Offset
 import com.sameerasw.essentials.ui.modifiers.BlurDirection
 import com.sameerasw.essentials.ui.modifiers.GestureRippleWaveOverlay
-import com.sameerasw.essentials.ui.modifiers.liquidRipple
 import com.sameerasw.essentials.ui.modifiers.progressiveBlur
 import com.sameerasw.essentials.ui.theme.EssentialsTheme
 import com.sameerasw.essentials.ui.theme.Shapes
@@ -269,8 +266,6 @@ fun SettingsContent(
     val grantScope = rememberCoroutineScope()
     var showInstructionsSheet by remember { mutableStateOf(false) }
     var showShizukuHelpBottomSheet by remember { mutableStateOf(false) }
-    var showHiddenDebuggingHelpSheet by remember { mutableStateOf(false) }
-    var showUnsupportedFeaturesSheet by remember { mutableStateOf(false) }
     var showPreReleaseConfirmSheet by remember { mutableStateOf(false) }
     var pendingPreReleaseState by remember { mutableStateOf(false) }
     var showImportConfirmSheet by remember { mutableStateOf(false) }
@@ -354,35 +349,6 @@ fun SettingsContent(
         )
     }
 
-    if (showUnsupportedFeaturesSheet) {
-        UnsupportedFeaturesConfirmationSheet(
-            onDismissRequest = { showUnsupportedFeaturesSheet = false },
-            onConfirm = {
-                val activity = context as? androidx.fragment.app.FragmentActivity
-                val canAuthenticate =
-                    androidx.biometric.BiometricManager
-                        .from(context)
-                        .canAuthenticate(com.sameerasw.essentials.utils.BiometricHelper.allowedAuthenticators) ==
-                        androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS
-                if (activity == null || !canAuthenticate) {
-                    showUnsupportedFeaturesSheet = false
-                    viewModel.setEnableUnsupportedFeatures(true, context)
-                } else {
-                    com.sameerasw.essentials.utils.BiometricHelper.showBiometricPrompt(
-                        activity = activity,
-                        title = context.getString(R.string.unsupported_auth_title),
-                        subtitle = context.getString(R.string.unsupported_auth_subtitle),
-                        onSuccess = {
-                            showUnsupportedFeaturesSheet = false
-                            viewModel.setEnableUnsupportedFeatures(true, context)
-                        },
-                    )
-                }
-            },
-            featureTitleResIds = FeatureRegistry.getUnsupportedFeatures(context).map { it.title },
-        )
-    }
-
     if (showPreReleaseConfirmSheet) {
         PreReleaseConfirmationSheet(
             isEnabling = pendingPreReleaseState,
@@ -431,15 +397,6 @@ fun SettingsContent(
         )
     }
 
-    ShakeForHelp(viewModel = viewModel)
-
-    if (showHiddenDebuggingHelpSheet) {
-        com.sameerasw.essentials.ui.core.sheets.HiddenDebuggingHelpBottomSheet(
-            onDismissRequest = { showHiddenDebuggingHelpSheet = false },
-            onAutoDetected = { viewModel.setHiddenDebuggingSupport(true) },
-        )
-    }
-
     if (showShizukuHelpBottomSheet) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
@@ -476,7 +433,6 @@ fun SettingsContent(
         }
     }
 
-    val sentryMode by viewModel.sentryReportMode
     val scrollState = rememberScrollState()
     val isSearchOverlayPreferred = remember(settingsRepo) { settingsRepo.getPixelSearchOverlayEnabled() }
     var permissionsSectionY by remember { mutableStateOf<Float?>(null) }
@@ -850,20 +806,6 @@ fun SettingsContent(
                     }
                 },
             )
-
-            IconToggleItem(
-                iconRes = R.drawable.rounded_music_video_24,
-                title = stringResource(R.string.label_online_help_media),
-                isChecked = viewModel.isOnlineHelpMediaEnabled.value,
-                onCheckedChange = { viewModel.setOnlineHelpMediaEnabled(it, context) },
-            )
-
-            IconToggleItem(
-                iconRes = R.drawable.rounded_mobile_vibrate_24,
-                title = stringResource(R.string.label_shake_for_help),
-                isChecked = viewModel.isShakeForHelpEnabled.value,
-                onCheckedChange = { viewModel.setShakeForHelpEnabled(it, context) },
-            )
         }
 
         // Permissions 
@@ -1133,23 +1075,6 @@ fun SettingsContent(
             }
 
             IconToggleItem(
-                iconRes = R.drawable.rounded_adb_24,
-                title = stringResource(R.string.setting_hidden_debugging_title),
-                isChecked = viewModel.isHiddenDebuggingSupport.value,
-                onCheckedChange = { checked ->
-                    viewModel.setHiddenDebuggingSupport(checked)
-                    if (checked && !com.sameerasw.essentials.utils.ShellUtils.hasPermission(context)) {
-                        if (com.sameerasw.essentials.utils.ShizukuUtils.isShizukuAvailable()) {
-                            com.sameerasw.essentials.utils.ShizukuUtils.requestPermission()
-                        } else {
-                            Toast.makeText(context, R.string.shizuku_not_running_desc, Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                },
-                onInfoClick = { showHiddenDebuggingHelpSheet = true },
-            )
-
-            IconToggleItem(
                 iconRes = R.drawable.rounded_data_usage_24,
                 title = stringResource(R.string.setting_use_usage_access_title),
                 description = stringResource(R.string.setting_use_usage_access_desc),
@@ -1164,28 +1089,6 @@ fun SettingsContent(
         )
 
         RoundedCardContainer {
-            IconToggleItem(
-                iconRes = R.drawable.rounded_release_alert_24,
-                title = stringResource(R.string.setting_enable_unsupported_features_title),
-                description = stringResource(R.string.setting_enable_unsupported_features_desc),
-                isChecked = viewModel.isEnableUnsupportedFeatures.value,
-                onCheckedChange = { enabled ->
-                    if (enabled) {
-                        showUnsupportedFeaturesSheet = true
-                    } else {
-                        viewModel.setEnableUnsupportedFeatures(false, context)
-                    }
-                },
-            )
-
-            IconToggleItem(
-                iconRes = R.drawable.rounded_archive_24,
-                title = stringResource(R.string.setting_show_legacy_features_title),
-                description = stringResource(R.string.setting_show_legacy_features_desc),
-                isChecked = viewModel.isShowLegacyFeatures.value,
-                onCheckedChange = { enabled -> viewModel.setShowLegacyFeatures(enabled, context) },
-            )
-
             Row(
                 modifier =
                     Modifier
@@ -1245,18 +1148,6 @@ fun SettingsContent(
                     TranslatableText(R.string.btn_import_config)
                 }
             }
-        }
-
-        RoundedCardContainer {
-            FeatureCard(
-                title = R.string.action_restart_systemui,
-                description = R.string.desc_restart_systemui,
-                isEnabled = true,
-                onToggle = {},
-                showToggle = false,
-                onClick = { viewModel.restartSystemUI() },
-                iconRes = R.drawable.rounded_refresh_24,
-            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -1333,56 +1224,6 @@ fun SettingsContent(
                     Button(
                         onClick = {
                             HapticUtil.performVirtualKeyHaptic(view)
-                            viewModel.resetOnboarding(context)
-                            Toast.makeText(context, context.getString(R.string.toast_onboarding_reset), Toast.LENGTH_SHORT).show()
-                        },
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .defaultMinSize(minHeight = 44.dp),
-                        colors =
-                            ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer,
-                                contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                            ),
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.rounded_refresh_24),
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        TranslatableText(R.string.btn_reset_onboarding)
-                    }
-
-                    Button(
-                        onClick = {
-                            HapticUtil.performVirtualKeyHaptic(view)
-                            viewModel.resetUpdateNote(context)
-                            Toast.makeText(context, context.getString(R.string.toast_update_note_reset), Toast.LENGTH_SHORT).show()
-                        },
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .defaultMinSize(minHeight = 44.dp),
-                        colors =
-                            ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer,
-                                contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                            ),
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.rounded_refresh_24),
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        TranslatableText(R.string.btn_reset_update_note)
-                    }
-
-                    Button(
-                        onClick = {
-                            HapticUtil.performVirtualKeyHaptic(view)
                             viewModel.clearRecentSearches()
                             Toast.makeText(context, context.getString(R.string.toast_search_history_cleared), Toast.LENGTH_SHORT).show()
                         },
@@ -1405,59 +1246,6 @@ fun SettingsContent(
                         TranslatableText(R.string.btn_clear_search_history)
                     }
                 }
-
-                Row(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .background(
-                                color = pixelSettingsCardColor(),
-                                shape = RoundedCornerShape(4.dp),
-                            ).padding(16.dp),
-                ) {
-                    Button(
-                        onClick = {
-                            HapticUtil.performVirtualKeyHaptic(view)
-                            throw RuntimeException("Simulated crash from Developer Options")
-                        },
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .defaultMinSize(minHeight = 44.dp),
-                        shape = ButtonDefaults.shape,
-                        colors =
-                            ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary,
-                            ),
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.rounded_bug_report_24),
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        TranslatableText(
-                            stringResId = R.string.simulate_crash,
-                            style = MaterialTheme.typography.labelLarge,
-                        )
-                    }
-                }
-
-                IconToggleItem(
-                    iconRes = R.drawable.rounded_settings_accessibility_24,
-                    title = stringResource(R.string.feat_auto_accessibility_title),
-                    description = stringResource(R.string.feat_auto_accessibility_desc),
-                    isChecked = viewModel.isAutoAccessibilityEnabled.value,
-                    onCheckedChange = { viewModel.setAutoAccessibilityEnabled(it, context) },
-                )
-
-                IconToggleItem(
-                    iconRes = R.drawable.rounded_border_top_24,
-                    title = stringResource(R.string.debug_ui_margin_overlay_title),
-                    isChecked = viewModel.isDebugUiMarginOverlay.value,
-                    onCheckedChange = { viewModel.setDebugUiMarginOverlay(it) },
-                )
             }
         }
 

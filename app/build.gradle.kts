@@ -91,8 +91,8 @@ android {
         applicationId = "com.aislingheart.komorebi"
         minSdk = 26
         targetSdk = 37
-        versionCode = 104
-        versionName = "0.12.2"
+        versionCode = 105
+        versionName = "0.12.3"
 
         val whatsNewCounter = 11
         buildConfigField("int", "WHATS_NEW_COUNTER", whatsNewCounter.toString())
@@ -161,7 +161,6 @@ configurations.all {
 
 dependencies {
     compileOnly(project(":stub"))
-    implementation(project(":island-sdk"))
 
     implementation(libs.aboutlibraries.core)
     implementation(libs.aboutlibraries.compose.m3)
@@ -169,23 +168,15 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
-    implementation(libs.androidx.navigationevent)
-    implementation(libs.androidx.navigation3.runtime)
-    implementation(libs.androidx.navigation3.ui)
-    implementation(libs.androidx.material3.adaptive)
-    implementation(libs.androidx.lifecycle.viewmodel.navigation3)
     implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.compose.material3.v150alpha24)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.appcompat)
-    implementation(libs.androidx.biometric)
     implementation(libs.androidx.palette)
     implementation(libs.coil.compose)
-    implementation(libs.coil.gif)
     implementation(libs.androidx.compose.foundation.layout)
     implementation(libs.androidx.compose.foundation)
     implementation(libs.material)
@@ -194,25 +185,13 @@ dependencies {
     implementation("com.github.d4rken-org.porter-api:shizuku-bridge:+")
     implementation(libs.hiddenapibypass)
     implementation(libs.gson)
-    implementation(libs.reorderable)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.work.runtime.ktx)
-    implementation(kotlin("reflect"))
-    implementation(libs.symspellkt)
     implementation(libs.androidx.glance.appwidget)
     implementation(libs.androidx.glance.material3)
     implementation(libs.jsoup)
-    implementation(libs.sentry.android)
-    implementation(libs.androidx.graphics.shapes)
     implementation(libs.autoupdater)
-    implementation(libs.androidx.media3.exoplayer)
-    implementation(libs.androidx.media3.common)
-    implementation(libs.androidx.media3.ui)
-    implementation(libs.lottie.compose)
-    implementation(libs.androidx.appfunctions)
-    ksp(libs.androidx.appfunctions.compiler)
     implementation(libs.zxing.core)
-    implementation(libs.play.services.code.scanner)
     implementation(libs.quickjs.kt)
     implementation(libs.okhttp)
     implementation(libs.androidx.browser)

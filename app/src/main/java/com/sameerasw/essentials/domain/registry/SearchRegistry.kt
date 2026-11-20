@@ -12,7 +12,6 @@ package com.sameerasw.essentials.domain.registry
 import android.content.Context
 import com.sameerasw.essentials.R
 import com.sameerasw.essentials.data.repository.SettingsRepository
-import com.sameerasw.essentials.domain.StatusBarIconRegistry
 import com.sameerasw.essentials.domain.model.SearchableItem
 import com.sameerasw.essentials.utils.FuzzySearchUtil
 import com.sameerasw.essentials.utils.SearchUsageTracker
@@ -140,29 +139,6 @@ object SearchRegistry {
                     )
                 }
             }
-
-        // --- Dynamic Status Bar Icons ---
-        StatusBarIconRegistry.ALL_ICONS.forEach { icon ->
-            val title = context.getString(icon.displayNameRes)
-            allItems.add(
-                SearchableItem(
-                    title = title,
-                    description = context.getString(R.string.search_desc_toggle_visibility, title),
-                    category = context.getString(R.string.feat_statusbar_icons_title),
-                    icon = icon.iconRes,
-                    featureKey = "Statusbar icons",
-                    parentFeature = context.getString(R.string.feat_statusbar_icons_title),
-                    targetSettingHighlightKey = title,
-                    keywords =
-                        icon.blacklistNames +
-                            listOf(
-                                context.getString(R.string.keyword_hide),
-                                context.getString(R.string.keyword_show),
-                                context.getString(R.string.keyword_visibility),
-                            ),
-                ),
-            )
-        }
 
         return allItems
     }

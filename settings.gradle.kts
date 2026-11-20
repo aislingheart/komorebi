@@ -21,5 +21,3 @@ dependencyResolutionManagement {
 rootProject.name = "Komorebi"
 include(":app")
 include(":stub")
-include(":island-sdk")
-include(":island-sdk-compose")

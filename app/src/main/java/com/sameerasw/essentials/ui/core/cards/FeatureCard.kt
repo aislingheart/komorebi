@@ -257,42 +257,10 @@ fun FeatureCard(
                                     Modifier
                                         .align(Alignment.TopEnd)
                                         .offset(x = 4.dp, y = (-4).dp)
-                                        .size(18.dp),
+                                        .size(10.dp),
                                 containerColor = MaterialTheme.colorScheme.error,
                                 contentColor = MaterialTheme.colorScheme.onError,
-                            ) {
-                                val composition by com.airbnb.lottie.compose.rememberLottieComposition(
-                                    com.airbnb.lottie.compose.LottieCompositionSpec
-                                        .RawRes(R.raw.update_motion),
-                                )
-                                val progress by com.airbnb.lottie.compose.animateLottieCompositionAsState(
-                                    composition = composition,
-                                    iterations = com.airbnb.lottie.compose.LottieConstants.IterateForever,
-                                )
-                                val onErrorColor = MaterialTheme.colorScheme.onError
-                                val dynamicProperties =
-                                    com.airbnb.lottie.compose.rememberLottieDynamicProperties(
-                                        com.airbnb.lottie.compose.rememberLottieDynamicProperty(
-                                            property = com.airbnb.lottie.LottieProperty.COLOR_FILTER,
-                                            value =
-                                                android.graphics.PorterDuffColorFilter(
-                                                    onErrorColor.toArgb(),
-                                                    android.graphics.PorterDuff.Mode.SRC_ATOP,
-                                                ),
-                                            keyPath = arrayOf("**"),
-                                        ),
-                                    )
-
-                                com.airbnb.lottie.compose.LottieAnimation(
-                                    composition = composition,
-                                    progress = { progress },
-                                    dynamicProperties = dynamicProperties,
-                                    modifier =
-                                        Modifier
-                                            .fillMaxSize()
-                                            .padding(1.dp),
-                                )
-                            }
+                            )
                         }
                     }
                 }

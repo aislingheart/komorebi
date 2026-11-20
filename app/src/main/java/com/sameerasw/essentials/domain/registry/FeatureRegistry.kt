@@ -17,8 +17,6 @@ import com.sameerasw.essentials.ui.activities.PixelSearchbarSettingsActivity
 import com.sameerasw.essentials.viewmodels.MainViewModel
 
 object FeatureRegistry {
-    const val BACK_GESTURE_FEATURE_ID = "Back gesture"
-
     fun getFilteredFeatures(
         context: Context,
         includeUnsupported: Boolean,
@@ -61,8 +59,6 @@ object FeatureRegistry {
                 aboutDescription = R.string.about_desc_pixel_searchbar,
                 showToggle = false,
                 hasMoreSettings = true,
-                isBeta = true,
-                animationRes = R.raw.searchbar_motion,
             ) {
                 override fun isEnabled(viewModel: MainViewModel) = false
 
@@ -78,77 +74,6 @@ object FeatureRegistry {
                 ) {
                     context.startActivity(Intent(context, PixelSearchbarSettingsActivity::class.java))
                 }
-            },
-            object : Feature(
-                id = "Activity launcher",
-                contributors = listOf("jawzf"),
-                title = R.string.feat_activity_launcher_title,
-                iconRes = R.drawable.rounded_app_registration_24,
-                category = R.string.cat_interaction,
-                description = R.string.feat_activity_launcher_desc,
-                aboutDescription = R.string.about_desc_activity_launcher,
-                showToggle = false,
-            ) {
-                override fun isEnabled(viewModel: MainViewModel) = false
-
-                override fun onToggle(
-                    viewModel: MainViewModel,
-                    context: Context,
-                    enabled: Boolean,
-                ) {}
-            },
-            object : Feature(
-                id = "Link actions",
-                title = R.string.feat_link_actions_title,
-                iconRes = R.drawable.rounded_link_24,
-                category = R.string.cat_interaction,
-                description = R.string.feat_link_actions_desc,
-                aboutDescription = R.string.about_desc_link_actions,
-                showToggle = false,
-            ) {
-                override fun isEnabled(viewModel: MainViewModel) = false
-
-                override fun onToggle(
-                    viewModel: MainViewModel,
-                    context: Context,
-                    enabled: Boolean,
-                ) {}
-            },
-            object : Feature(
-                id = "Standby apps",
-                title = R.string.feat_standby_apps_title,
-                iconRes = R.drawable.rounded_app_registration_24,
-                category = R.string.cat_system,
-                description = R.string.feat_standby_apps_desc,
-                aboutDescription = R.string.about_desc_standby_apps,
-                permissionKeys = listOf("SHIZUKU"),
-                showToggle = false,
-                hasMoreSettings = true,
-            ) {
-                override fun isEnabled(viewModel: MainViewModel) = true
-
-                override fun onToggle(
-                    viewModel: MainViewModel,
-                    context: Context,
-                    enabled: Boolean,
-                ) {}
-            },
-            object : Feature(
-                id = "Calendar Sync",
-                title = R.string.feat_calendar_sync_title,
-                iconRes = R.drawable.rounded_calendar_today_24,
-                category = R.string.cat_tools,
-                description = R.string.feat_calendar_sync_desc,
-                aboutDescription = R.string.about_desc_calendar_sync,
-                permissionKeys = listOf("READ_CALENDAR"),
-            ) {
-                override fun isEnabled(viewModel: MainViewModel) = viewModel.isCalendarSyncEnabled.value
-
-                override fun onToggle(
-                    viewModel: MainViewModel,
-                    context: Context,
-                    enabled: Boolean,
-                ) = viewModel.setCalendarSyncEnabled(enabled, context)
             },
         )
 }

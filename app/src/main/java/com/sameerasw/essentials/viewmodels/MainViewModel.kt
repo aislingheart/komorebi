@@ -43,8 +43,6 @@ import com.sameerasw.essentials.R
 import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.data.repository.UpdateRepository
 import com.sameerasw.essentials.domain.model.AppIcon
-import com.sameerasw.essentials.domain.model.AppStandbyInfo
-import com.sameerasw.essentials.domain.model.BackGestureAppConfig
 import com.sameerasw.essentials.domain.model.SearchableItem
 import com.sameerasw.essentials.domain.model.UpdateInfo
 import com.sameerasw.essentials.domain.registry.SearchRegistry
@@ -77,36 +75,26 @@ class MainViewModel : ViewModel() {
     val pinnedFeatureKeys = mutableStateOf<List<String>>(emptyList())
     val isNotificationListenerEnabled = mutableStateOf(false)
     val isOverlayPermissionGranted = mutableStateOf(false)
-    val defaultTab = mutableStateOf(com.sameerasw.essentials.domain.DIYTabs.ESSENTIALS)
     val selectedAppIcon = mutableStateOf(AppIcon.DEFAULT)
     val isDefaultBrowserSet = mutableStateOf(false)
     val isLockscreenShortcutsEnabled = mutableStateOf(false)
-    val isDebugUiMarginOverlay = mutableStateOf(false)
     val isLocationPermissionGranted = mutableStateOf(false)
     val isBackgroundLocationPermissionGranted = mutableStateOf(false)
     val isBluetoothPermissionGranted = mutableStateOf(false)
     val isStoragePermissionGranted = mutableStateOf(false)
     val isUsageStatsPermissionGranted = mutableStateOf(false)
     val appLanguage = mutableStateOf("en")
-    val isCalendarSyncEnabled = mutableStateOf(false)
-    val isCalendarSyncPeriodicEnabled = mutableStateOf(false)
     val isFaceUnlockBrightnessEnabled = mutableStateOf(false)
-    val isAutoAccessibilityEnabled = mutableStateOf(false)
     val isOnboardingCompleted =
         mutableStateOf(true) // Default to true so it doesn't flash on first check if not loaded
     val isHideGestureBarEnabled = mutableStateOf(false)
     val isHideGestureBarOnLauncherEnabled = mutableStateOf(false)
     val isCircleToSearchGestureEnabled = mutableStateOf(false)
-    val backGestureLeftScale = mutableFloatStateOf(1f)
-    val backGestureRightScale = mutableFloatStateOf(1f)
-    val backGestureAppConfigs = mutableStateOf<List<BackGestureAppConfig>>(emptyList())
     val isDisableRotationSuggestionEnabled = mutableStateOf(false)
     val isAllowOverlaysInSettingsEnabled = mutableStateOf(false)
     val isTransparentNavigationBarEnabled = mutableStateOf(false)
     val isSplitScreenGestureEnabled = mutableStateOf(false)
     val isPreferGpuComposingEnabled = mutableStateOf(false)
-    val standbyAppsList = mutableStateOf<List<AppStandbyInfo>>(emptyList())
-    val isStandbyAppsLoading = mutableStateOf(false)
     val isPixelSearchbarEnabled = mutableStateOf(false)
     val pixelSearchbarType = mutableStateOf("empty")
     val pixelSearchbarDateFormat = mutableStateOf("EEEE, MMMM d")
@@ -117,20 +105,10 @@ class MainViewModel : ViewModel() {
     val pixelSearchbarMusicPackage = mutableStateOf("")
     val lockScreenClockId = mutableStateOf<String?>(null)
     val shizukuAuthToken = mutableStateOf("")
-    data class CalendarAccount(
-        val id: Long,
-        val name: String,
-        val accountName: String,
-        val isSelected: Boolean,
-    )
-
-    val availableCalendars = mutableStateListOf<CalendarAccount>()
-    val selectedCalendarIds = mutableStateOf(setOf<String>())
     val isDeviceAdminEnabled = mutableStateOf(false)
     val isDeveloperModeEnabled = mutableStateOf(false)
     val isNotificationPolicyAccessGranted = mutableStateOf(false)
     val isUseUsageAccess = mutableStateOf(false)
-    val isHiddenDebuggingSupport = mutableStateOf(false)
     val searchQuery = mutableStateOf("")
     val searchResults = mutableStateOf<List<SearchableItem>>(emptyList())
     val isSearching = mutableStateOf(false)
@@ -160,9 +138,6 @@ class MainViewModel : ViewModel() {
     val isHealthConnectAvailable = mutableStateOf(false)
     val isHealthConnectPermissionGranted = mutableStateOf(false)
     val healthConnectStatusSummary = mutableStateOf("")
-    val isOnlineHelpMediaEnabled = mutableStateOf(true)
-    val isShakeForHelpEnabled = mutableStateOf(true)
-    val sentryReportMode = mutableStateOf("auto")
     val isPowerSaveModeEnabled = mutableStateOf(false)
     private var powerSaveReceiver: BroadcastReceiver? = null
     val isKeyboardEnabled = mutableStateOf(false)
@@ -277,13 +252,6 @@ class MainViewModel : ViewModel() {
                 }
             }
         }
-    fun setSentryReportMode(
-        mode: String,
-        context: Context,
-    ) {
-        sentryReportMode.value = mode
-        settingsRepository.putString(SettingsRepository.KEY_SENTRY_REPORT_MODE, mode)
-    }
     fun setAppLanguage(languageCode: String) {
         appLanguage.value = languageCode
         val appLocale: LocaleListCompat = LocaleListCompat.forLanguageTags(languageCode)
@@ -327,8 +295,6 @@ class MainViewModel : ViewModel() {
         if (settingsRepository.getBoolean(SettingsRepository.KEY_AUTO_UPDATE_ENABLED, true)) {
             com.sameerasw.essentials.utils.ServiceUtils.schedulePeriodicAppUpdateCheck(context)
         }
-        isAutoAccessibilityEnabled.value =
-            settingsRepository.getBoolean(SettingsRepository.KEY_AUTO_ACCESSIBILITY_ENABLED)
         isHideGestureBarEnabled.value =
             settingsRepository.getBoolean(SettingsRepository.KEY_HIDE_GESTURE_BAR_ENABLED, false)
         isCircleToSearchGestureEnabled.value =
@@ -464,8 +430,6 @@ class MainViewModel : ViewModel() {
 
         isUseUsageAccess.value =
             settingsRepository.getBoolean(SettingsRepository.KEY_USE_USAGE_ACCESS)
-        isHiddenDebuggingSupport.value =
-            settingsRepository.getBoolean(SettingsRepository.KEY_HIDDEN_DEBUGGING_SUPPORT)
         isOnboardingCompleted.value =
             settingsRepository.getBoolean(SettingsRepository.KEY_ONBOARDING_COMPLETED, false)
 
@@ -479,13 +443,7 @@ class MainViewModel : ViewModel() {
             isRootPermissionGranted.value = false
         }
 
-        defaultTab.value = settingsRepository.getDIYTab()
         selectedAppIcon.value = settingsRepository.getAppIcon()
-        isOnlineHelpMediaEnabled.value = settingsRepository.isOnlineHelpMediaEnabled()
-        isShakeForHelpEnabled.value = settingsRepository.isShakeForHelpEnabled()
-        sentryReportMode.value =
-            settingsRepository.getString(SettingsRepository.KEY_SENTRY_REPORT_MODE, "auto")
-                ?: "auto"
 
         isLockscreenShortcutsEnabled.value = settingsRepository.isLockscreenShortcutsEnabled()
         isPitchBlackThemeEnabled.value =
@@ -505,10 +463,6 @@ class MainViewModel : ViewModel() {
         isPreReleaseCheckEnabled.value =
             settingsRepository.getBoolean(SettingsRepository.KEY_CHECK_PRE_RELEASES_ENABLED)
         pinnedFeatureKeys.value = settingsRepository.getPinnedFeatures()
-        isCalendarSyncEnabled.value =
-            settingsRepository.getBoolean(SettingsRepository.KEY_CALENDAR_SYNC_ENABLED, false)
-        isCalendarSyncPeriodicEnabled.value = settingsRepository.isCalendarSyncPeriodicEnabled()
-        selectedCalendarIds.value = settingsRepository.getCalendarSyncSelectedCalendars()
         pixelSearchResultApps.value = settingsRepository.isPixelSearchResultAppsEnabled()
         pixelSearchResultMedia.value = settingsRepository.isPixelSearchResultMediaEnabled()
         pixelSearchResultFiles.value = settingsRepository.isPixelSearchResultFilesEnabled()
@@ -599,40 +553,6 @@ class MainViewModel : ViewModel() {
     fun clearRecentSearches() {
         recentSearches.value = emptyList()
         settingsRepository.saveRecentSearches(emptyList())
-    }
-    fun togglePinFeature(featureId: String) {
-        val current = pinnedFeatureKeys.value.toMutableList()
-        if (current.contains(featureId)) {
-            current.remove(featureId)
-        } else {
-            current.add(featureId) // Append at the end to keep order
-        }
-        pinnedFeatureKeys.value = current
-        settingsRepository.savePinnedFeatures(current)
-
-        appContext?.let { context ->
-            com.sameerasw.essentials.utils.ShortcutUtil
-                .updateLauncherDynamicShortcuts(context)
-            val intent =
-                Intent("com.sameerasw.essentials.action.FAVORITES_WIDGET_UPDATE").apply {
-                    setPackage(context.packageName)
-                }
-            context.sendBroadcast(intent)
-        }
-    }
-    fun updatePinnedFeatures(newOrder: List<String>) {
-        pinnedFeatureKeys.value = newOrder
-        settingsRepository.savePinnedFeatures(newOrder)
-
-        appContext?.let { context ->
-            com.sameerasw.essentials.utils.ShortcutUtil
-                .updateLauncherDynamicShortcuts(context)
-            val intent =
-                Intent("com.sameerasw.essentials.action.FAVORITES_WIDGET_UPDATE").apply {
-                    setPackage(context.packageName)
-                }
-            context.sendBroadcast(intent)
-        }
     }
     fun setAutoUpdateEnabled(
         enabled: Boolean,
@@ -734,20 +654,6 @@ class MainViewModel : ViewModel() {
                 else -> "Tap to grant Sleep, Steps, Heart rate, Weight & Exercise"
             }
         }
-    }
-    fun setOnlineHelpMediaEnabled(
-        enabled: Boolean,
-        context: Context? = null,
-    ) {
-        settingsRepository.setOnlineHelpMediaEnabled(enabled)
-        isOnlineHelpMediaEnabled.value = enabled
-    }
-    fun setShakeForHelpEnabled(
-        enabled: Boolean,
-        context: Context? = null,
-    ) {
-        settingsRepository.setShakeForHelpEnabled(enabled)
-        isShakeForHelpEnabled.value = enabled
     }
     private fun updateBlurState(context: Context) {
         val useBlurSetting = settingsRepository.getBoolean(SettingsRepository.KEY_USE_BLUR, true)
@@ -863,106 +769,6 @@ class MainViewModel : ViewModel() {
             SettingsRepository.KEY_STATUS_BAR_ICON_CONTROL_ENABLED,
             enabled,
         )
-    }
-    fun loadStandbyApps(context: Context) {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            isStandbyAppsLoading.value = true
-            val pm = context.packageManager
-            val intent = Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_LAUNCHER) }
-            val apps = pm.queryIntentActivities(intent, 0)
-
-            val appList =
-                apps
-                    .mapNotNull { resolveInfo ->
-                        val pkg = resolveInfo.activityInfo.packageName
-                        if (pkg == context.packageName) return@mapNotNull null
-
-                        val label = resolveInfo.loadLabel(pm).toString()
-                        val icon = resolveInfo.loadIcon(pm)
-
-                        var bucket = 10
-                        val output = ShellUtils.runCommandWithOutput(context, "am get-standby-bucket $pkg")
-                        if (output != null) {
-                            val text = output.lowercase().trim()
-                            bucket =
-                                when {
-                                    text.contains("restricted") || text.contains("45") -> 45
-                                    text.contains("rare") || text.contains("40") -> 40
-                                    text.contains("frequent") || text.contains("30") -> 30
-                                    text.contains("working") || text.contains("20") -> 20
-                                    text.contains("active") || text.contains("10") -> 10
-                                    else -> 10
-                                }
-                        }
-
-                        AppStandbyInfo(pkg, label, icon, bucket)
-                    }.sortedBy { it.label.lowercase() }
-
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                standbyAppsList.value = appList
-                isStandbyAppsLoading.value = false
-            }
-        }
-    }
-    fun setAppStandbyBucket(
-        packageName: String,
-        targetBucket: Int,
-        context: Context,
-    ) {
-        val currentList = standbyAppsList.value
-        val updatedList =
-            currentList.map { app ->
-                if (app.packageName == packageName) {
-                    app.copy(bucket = targetBucket)
-                } else {
-                    app
-                }
-            }
-        standbyAppsList.value = updatedList
-
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val bucketName =
-                when (targetBucket) {
-                    10 -> "active"
-                    20 -> "working_set"
-                    30 -> "frequent"
-                    40 -> "rare"
-                    45 -> "restricted"
-                    else -> "active"
-                }
-            ShellUtils.runCommand(context, "am set-standby-bucket $packageName $bucketName")
-        }
-    }
-    fun setAppsStandbyBucket(
-        packageNames: Set<String>,
-        targetBucket: Int,
-        context: Context,
-    ) {
-        val currentList = standbyAppsList.value
-        val updatedList =
-            currentList.map { app ->
-                if (packageNames.contains(app.packageName)) {
-                    app.copy(bucket = targetBucket)
-                } else {
-                    app
-                }
-            }
-        standbyAppsList.value = updatedList
-
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val bucketName =
-                when (targetBucket) {
-                    10 -> "active"
-                    20 -> "working_set"
-                    30 -> "frequent"
-                    40 -> "rare"
-                    45 -> "restricted"
-                    else -> "active"
-                }
-            packageNames.forEach { pkg ->
-                ShellUtils.runCommand(context, "am set-standby-bucket $pkg $bucketName")
-            }
-        }
     }
     fun setPixelSearchbarEnabled(
         enabled: Boolean,
@@ -1257,159 +1063,12 @@ class MainViewModel : ViewModel() {
         isLockscreenShortcutsEnabled.value = enabled
         settingsRepository.setLockscreenShortcutsEnabled(enabled)
     }
-    fun setDebugUiMarginOverlay(enabled: Boolean) {
-        isDebugUiMarginOverlay.value = enabled
-        settingsRepository.setDebugUiMarginOverlayEnabled(enabled)
-    }
-    fun setHiddenDebuggingSupport(enabled: Boolean) {
-        isHiddenDebuggingSupport.value = enabled
-        settingsRepository.putBoolean(SettingsRepository.KEY_HIDDEN_DEBUGGING_SUPPORT, enabled)
-    }
     fun setUseUsageAccess(
         enabled: Boolean,
         context: Context,
     ) {
         isUseUsageAccess.value = enabled
         settingsRepository.putBoolean(SettingsRepository.KEY_USE_USAGE_ACCESS, enabled)
-    }
-    fun restartSystemUI() {
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) {
-                if (ShizukuUtils.isShizukuAvailable() && ShizukuUtils.hasPermission()) {
-                    ShizukuUtils.runCommand("am crash com.android.systemui")
-                } else if (RootUtils.isRootAvailable() && RootUtils.isRootPermissionGranted()) {
-                    RootUtils.runCommand("am crash com.android.systemui")
-                }
-            }
-        }
-    }
-    fun setCalendarSyncEnabled(
-        enabled: Boolean,
-        context: Context,
-    ) {
-        isCalendarSyncEnabled.value = enabled
-        settingsRepository.putBoolean(SettingsRepository.KEY_CALENDAR_SYNC_ENABLED, enabled)
-        if (enabled) {
-            com.sameerasw.essentials.services.CalendarSyncManager
-                .forceSync(context)
-            if (isCalendarSyncPeriodicEnabled.value) {
-                schedulePeriodicCalendarSync(context)
-            }
-        } else {
-            cancelPeriodicCalendarSync(context)
-        }
-    }
-    fun fetchCalendars(context: Context) {
-        if (ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.READ_CALENDAR,
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            return
-        }
-
-        viewModelScope.launch(Dispatchers.IO) {
-            val savedSelected = settingsRepository.getCalendarSyncSelectedCalendars()
-            withContext(Dispatchers.Main) {
-                selectedCalendarIds.value = savedSelected
-            }
-
-            val calendars = mutableListOf<CalendarAccount>()
-            val projection =
-                arrayOf(
-                    CalendarContract.Calendars._ID,
-                    CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
-                    CalendarContract.Calendars.ACCOUNT_NAME,
-                    CalendarContract.Calendars.CALENDAR_COLOR,
-                )
-
-            context.contentResolver
-                .query(
-                    CalendarContract.Calendars.CONTENT_URI,
-                    projection,
-                    null,
-                    null,
-                    null,
-                )?.use { cursor ->
-                    val idColumn = cursor.getColumnIndex(CalendarContract.Calendars._ID)
-                    val nameColumn = cursor.getColumnIndex(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME)
-                    val accountColumn = cursor.getColumnIndex(CalendarContract.Calendars.ACCOUNT_NAME)
-
-                    while (cursor.moveToNext()) {
-                        val id = cursor.getLong(idColumn)
-                        val name = cursor.getString(nameColumn) ?: context.getString(R.string.calendar_unnamed)
-                        val account = cursor.getString(accountColumn) ?: context.getString(R.string.calendar_local)
-
-                        calendars.add(
-                            CalendarAccount(
-                                id,
-                                name,
-                                account,
-                                selectedCalendarIds.value.contains(id.toString()),
-                            ),
-                        )
-                    }
-                }
-
-            withContext(Dispatchers.Main) {
-                availableCalendars.clear()
-                availableCalendars.addAll(calendars)
-            }
-        }
-    }
-    fun toggleCalendarSelection(calendarId: Long, context: Context? = null) {
-        val currentIds = selectedCalendarIds.value.toMutableSet()
-        val idString = calendarId.toString()
-        if (currentIds.contains(idString)) {
-            currentIds.remove(idString)
-        } else {
-            currentIds.add(idString)
-        }
-        selectedCalendarIds.value = currentIds
-        settingsRepository.saveCalendarSyncSelectedCalendars(currentIds)
-
-        // Update availableCalendars list
-        val index = availableCalendars.indexOfFirst { it.id == calendarId }
-        if (index != -1) {
-            availableCalendars[index] =
-                availableCalendars[index].copy(isSelected = currentIds.contains(idString))
-        }
-
-        context?.let {
-            com.sameerasw.essentials.services.CalendarSyncManager.forceSync(it)
-        }
-    }
-    fun setCalendarSyncPeriodicEnabled(
-        enabled: Boolean,
-        context: Context,
-    ) {
-        isCalendarSyncPeriodicEnabled.value = enabled
-        settingsRepository.setCalendarSyncPeriodicEnabled(enabled)
-        if (enabled && isCalendarSyncEnabled.value) {
-            schedulePeriodicCalendarSync(context)
-        } else {
-            cancelPeriodicCalendarSync(context)
-        }
-    }
-    private fun schedulePeriodicCalendarSync(context: Context) {
-        val workRequest =
-            PeriodicWorkRequestBuilder<com.sameerasw.essentials.services.CalendarSyncWorker>(
-                15,
-                java.util.concurrent.TimeUnit.MINUTES,
-            ).build()
-
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            "calendar_sync_work",
-            ExistingPeriodicWorkPolicy.UPDATE,
-            workRequest,
-        )
-    }
-    private fun cancelPeriodicCalendarSync(context: Context) {
-        WorkManager.getInstance(context).cancelUniqueWork("calendar_sync_work")
-    }
-    fun triggerCalendarSyncNow(context: Context) {
-        com.sameerasw.essentials.services.CalendarSyncManager
-            .forceSync(context)
     }
     fun requestWriteSecureSettingsPermission(context: Context) {
         val adbCommand =
@@ -1424,13 +1083,6 @@ class MainViewModel : ViewModel() {
     }
     fun requestWriteSettingsPermission(context: Context) {
         PermissionUtils.openWriteSettings(context)
-    }
-    fun setDefaultTab(
-        tab: com.sameerasw.essentials.domain.DIYTabs,
-        context: Context,
-    ) {
-        defaultTab.value = tab
-        settingsRepository.saveDIYTab(tab)
     }
     fun setAppIcon(
         appIcon: AppIcon,
@@ -1496,13 +1148,6 @@ class MainViewModel : ViewModel() {
         }
         return success
     }
-    fun setAutoAccessibilityEnabled(
-        isEnabled: Boolean,
-        context: Context,
-    ) {
-        settingsRepository.putBoolean(SettingsRepository.KEY_AUTO_ACCESSIBILITY_ENABLED, isEnabled)
-        isAutoAccessibilityEnabled.value = isEnabled
-    }
     fun setFaceUnlockBrightnessEnabled(enabled: Boolean) {
         settingsRepository.setFaceUnlockBrightnessEnabled(enabled)
         isFaceUnlockBrightnessEnabled.value = enabled
@@ -1535,14 +1180,6 @@ class MainViewModel : ViewModel() {
                 com.sameerasw.essentials.BuildConfig.WHATS_NEW_COUNTER,
             )
         }
-    }
-    fun resetOnboarding(context: Context) {
-        setOnboardingCompleted(false, context)
-        // Reset tab to ESSENTIALS
-        setDefaultTab(com.sameerasw.essentials.domain.DIYTabs.ESSENTIALS, context)
-    }
-    fun resetUpdateNote(context: Context) {
-        settingsRepository.putInt(SettingsRepository.KEY_WHATS_NEW_LAST_SHOWN_COUNTER, 0)
     }
     companion object {
         var cachedIsUpdateAvailable: Boolean = false

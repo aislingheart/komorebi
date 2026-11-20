@@ -121,28 +121,12 @@ fun LicensesBottomSheet(onDismissRequest: () -> Unit) {
                 links = listOf(context.getString(R.string.action_view_on_github) to "https://github.com/raycast/extensions"),
             ),
             LicenseSection(
-                title = "ChargeQuickTile",
-                iconRes = R.drawable.rounded_battery_charging_60_24,
-                description = "Pixel charging Quick Settings tile reference by TebbeUbben.",
-                licenseType = "MIT License",
-                licenseColor = getLicenseColor("MIT"),
-                links = listOf(context.getString(R.string.action_view_on_github) to "https://github.com/TebbeUbben/ChargeQuickTile"),
-            ),
-            LicenseSection(
                 title = "emojis.json",
                 iconRes = R.drawable.rounded_emoji_language_24,
                 description = context.getString(R.string.license_emojis_desc),
                 licenseType = "MIT License",
                 licenseColor = getLicenseColor("MIT"),
                 links = listOf(context.getString(R.string.action_view_on_github) to "https://github.com/chalda-pnuzig/emojis.json"),
-            ),
-            LicenseSection(
-                title = "Watch eSIM Helper",
-                iconRes = R.drawable.rounded_sim_card_24,
-                description = context.getString(R.string.license_watch_esim_desc),
-                licenseType = "Apache License 2.0",
-                licenseColor = getLicenseColor("Apache"),
-                links = listOf(context.getString(R.string.action_view_on_github) to "https://github.com/AllMySlop/pixel-watch-esim-writer"),
             ),
             LicenseSection(
                 title = "generate-kaomoji",

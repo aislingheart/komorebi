@@ -1,2 +1,0 @@
--keep class com.sameerasw.island.sdk.** { *; }
--keepclassmembers class com.sameerasw.island.sdk.** { *; }

@@ -11,9 +11,6 @@ package com.sameerasw.essentials.ui.activities
 
 import com.sameerasw.essentials.assistant.AssistantTts
 import com.sameerasw.essentials.translation.TranslatableText
-import com.sameerasw.essentials.ui.navigation.ProvideBottomBar
-import com.sameerasw.essentials.ui.navigation.BottomBarSpec
-import com.sameerasw.essentials.ui.navigation.AppRoute
 import android.Manifest
 import android.app.Activity
 import android.content.Context
@@ -70,17 +67,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sameerasw.essentials.R
 import com.sameerasw.essentials.data.repository.SettingsRepository
-import com.sameerasw.essentials.domain.model.Feature
-import com.sameerasw.essentials.ui.components.animations.LottieFeatureAnimation
 import com.sameerasw.essentials.ui.components.menus.SegmentedDropdownMenuItem
 import com.sameerasw.essentials.ui.core.cards.ConfigPickerItem
 import com.sameerasw.essentials.ui.core.cards.IconToggleItem
 import com.sameerasw.essentials.ui.core.containers.RoundedCardContainer
 import com.sameerasw.essentials.ui.core.komorebi.pixelSettingsCanvasColor
 import com.sameerasw.essentials.ui.core.komorebi.pixelSettingsTopBarScrolledColor
-import com.sameerasw.essentials.ui.core.sheets.FeatureHelpBottomSheet
 import com.sameerasw.essentials.ui.core.sheets.PermissionsBottomSheet
-import com.sameerasw.essentials.ui.core.sheets.ShakeForHelp
 import com.sameerasw.essentials.ui.theme.EssentialsTheme
 import com.sameerasw.essentials.utils.HapticUtil
 import com.sameerasw.essentials.utils.PermissionUIHelper
@@ -110,29 +103,6 @@ fun PixelSearchbarSettingsScreen(onBack: () -> Unit) {
     }
 
     val isPitchBlackThemeEnabled by viewModel.isPitchBlackThemeEnabled
-    var showHelpSheet by remember { mutableStateOf(false) }
-
-    val pixelSearchbarFeature =
-        remember {
-            object : Feature(
-                id = "Pixel Searchbar",
-                title = R.string.pixel_searchbar_settings_title,
-                iconRes = R.drawable.rounded_search_24,
-                category = R.string.cat_display,
-                description = R.string.feat_pixel_searchbar_desc,
-                aboutDescription = R.string.about_desc_pixel_searchbar,
-                showToggle = false,
-                hasMoreSettings = true,
-            ) {
-                override fun isEnabled(viewModel: MainViewModel) = false
-
-                override fun onToggle(
-                    viewModel: MainViewModel,
-                    context: Context,
-                    enabled: Boolean,
-                ) {}
-            }
-        }
 
     EssentialsTheme(pitchBlackTheme = isPitchBlackThemeEnabled) {
         val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -244,26 +214,6 @@ fun PixelSearchbarSettingsScreen(onBack: () -> Unit) {
                         modifier = Modifier.height(24.dp),
                     )
                 }
-
-                ProvideBottomBar(
-                    route = AppRoute.PixelSearchbarSettings,
-                    spec =
-                        BottomBarSpec(
-                            title = stringResource(R.string.pixel_searchbar_settings_title),
-                            onBack = onBack,
-                            onHelpClick = { showHelpSheet = true },
-                        ),
-                )
-
-                if (showHelpSheet) {
-                    FeatureHelpBottomSheet(
-                        onDismissRequest = { showHelpSheet = false },
-                        feature = pixelSearchbarFeature,
-                        viewModel = viewModel,
-                    )
-                }
-
-                ShakeForHelp(feature = pixelSearchbarFeature, viewModel = viewModel)
             }
         }
     }

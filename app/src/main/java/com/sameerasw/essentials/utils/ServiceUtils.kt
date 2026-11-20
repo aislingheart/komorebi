@@ -17,9 +17,6 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.services.AppUpdateWorker
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
 object ServiceUtils {
@@ -32,7 +29,6 @@ object ServiceUtils {
      */
     fun startRequiredServices(context: Context) {
         val settingsRepository = SettingsRepository(context)
-        applyPostRebootSettings(context, settingsRepository)
         if (settingsRepository.getBoolean(SettingsRepository.KEY_AUTO_UPDATE_ENABLED, true)) {
             schedulePeriodicAppUpdateCheck(context)
         } else {
@@ -61,22 +57,5 @@ object ServiceUtils {
 
     fun cancelPeriodicAppUpdateCheck(context: Context) {
         WorkManager.getInstance(context).cancelUniqueWork(APP_UPDATE_WORK_NAME)
-    }
-
-    fun applyPostRebootSettings(
-        context: Context,
-        settingsRepository: SettingsRepository,
-    ) {
-        if (!ShizukuUtils.isShizukuAvailable() || !ShizukuUtils.hasPermission()) {
-            return
-        }
-
-        CoroutineScope(Dispatchers.IO).launch {
-            StatusBarManager.update(context)
-
-            if (settingsRepository.isSimNamesApplyOnBootEnabled()) {
-                SimCarrierUtil.applySavedCarrierNames(context)
-            }
-        }
     }
 }

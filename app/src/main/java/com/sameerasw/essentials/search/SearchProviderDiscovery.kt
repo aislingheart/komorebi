@@ -34,7 +34,6 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.content.ContextCompat
 import com.sameerasw.essentials.R
-import com.sameerasw.essentials.appfunctions.AppFunctionAvailabilityManager
 import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.domain.model.PixelSearchResultItem
 import com.sameerasw.essentials.raycast.InstalledRaycastExtension
@@ -969,7 +968,7 @@ object SearchProviderDiscovery {
     }
 
     suspend fun indexAppFunctions(context: Context): List<AppFunctionItem> = withContext(Dispatchers.IO) {
-        if (!AppFunctionAvailabilityManager.isSupported(context)) return@withContext emptyList()
+        if (Build.VERSION.SDK_INT < 36) return@withContext emptyList()
         val now = System.currentTimeMillis()
         if (now - lastAppFunctionsFetchMs < APP_FUNCTION_CACHE_TTL_MS && cachedAppFunctions.isNotEmpty()) {
             return@withContext cachedAppFunctions

@@ -20,7 +20,7 @@ import android.view.inputmethod.InputMethodManager
 
 object PermissionUtils {
     private const val ACCESSIBILITY_SERVICE_CLASS =
-        "com.sameerasw.essentials.services.AccessibilityShortcutService1"
+        "com.sameerasw.essentials.services.SearchGestureAccessibilityService"
     private const val NOTIFICATION_LISTENER_CLASS =
         "com.sameerasw.essentials.services.NotificationListener"
 
@@ -61,43 +61,6 @@ object PermissionUtils {
         } catch (_: Exception) {
             null
         }
-
-    /**
-     * Executes the is accessibility shortcut service enabled operation.
-     *
-     * @param context [Context] Target context.
-     * @return The resulting Boolean data.
-     */
-    fun isAccessibilityShortcutServiceEnabled(context: Context, slot: Int = 1): Boolean {
-        val enabledServices =
-            Settings.Secure.getString(
-                context.contentResolver,
-                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-            )
-        val className = when (slot) {
-            1 -> com.sameerasw.essentials.services.AccessibilityShortcutService1::class.java.name
-            2 -> com.sameerasw.essentials.services.AccessibilityShortcutService2::class.java.name
-            3 -> com.sameerasw.essentials.services.AccessibilityShortcutService3::class.java.name
-            else -> com.sameerasw.essentials.services.AccessibilityShortcutService1::class.java.name
-        }
-        val serviceName = "${context.packageName}/$className"
-        return enabledServices?.contains(serviceName) == true
-    }
-
-    fun isShortcutSlotTakenBySplitScreenGesture(context: Context, slot: Int): Boolean {
-        val targets =
-            Settings.Secure.getString(context.contentResolver, "accessibility_gesture_targets")
-                ?.split(':')
-                .orEmpty()
-        val slotClass =
-            when (slot) {
-                1 -> com.sameerasw.essentials.services.AccessibilityShortcutService1::class.java
-                2 -> com.sameerasw.essentials.services.AccessibilityShortcutService2::class.java
-                else -> com.sameerasw.essentials.services.AccessibilityShortcutService3::class.java
-            }
-        val split = ComponentName(context, com.sameerasw.essentials.services.SplitScreenShortcutService::class.java).flattenToString()
-        return split in targets && ComponentName(context, slotClass).flattenToString() in targets
-    }
 
     /**
      * Executes the can write secure settings operation.
