@@ -1662,7 +1662,7 @@
 
     <!-- About Section -->
     <string name="app_developer_name">aislingheart</string>
-    <string name="app_description">The all-in-one toolbox for your Pixel and Androids</string>
+    <string name="app_description">Fast, gesture-first universal search and launcher for Android</string>
 
     <!-- Edge Lighting -->
     <string name="color_mode_system">System</string>
@@ -2514,9 +2514,9 @@
     <string name="label_use_blur">Use blur</string>
     <string name="desc_use_blur">Enable progressive blur elements across the UI</string>
     <string name="label_ripple_animation">Ripple animation</string>
-    <string name="desc_ripple_animation">Enable liquid ripple animations across the UI</string>
-    <string name="label_motion_blur">Motion blur</string>
-    <string name="label_motion_blur_amount">Amount</string>
+    <string name="desc_ripple_animation">Play a ripple wave animation when opening search via gestures</string>
+    <string name="perm_health_connect_title">Health Connect</string>
+    <string name="perm_health_connect_desc">Read sleep, steps, heart rate, weight, and workout stats for Health Search &amp; AI tools</string>
     <string name="label_online_help_media">Online help media</string>
     <string name="label_shake_for_help">Shake for help</string>
     <string name="msg_blur_compatibility_error">Blur is disabled on this device to prevent a known display bug on Samsung devices with Android 15 or below.</string>

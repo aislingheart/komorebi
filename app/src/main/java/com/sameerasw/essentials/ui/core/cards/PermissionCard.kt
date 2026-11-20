@@ -116,7 +116,7 @@ fun PermissionCard(
         shape = Shapes.extraSmall,
         colors =
             CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceBright,
+                containerColor = com.sameerasw.essentials.ui.core.komorebi.pixelSettingsCardColor(),
             ),
     ) {
         Column(

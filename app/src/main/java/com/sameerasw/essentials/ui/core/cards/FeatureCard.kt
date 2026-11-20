@@ -93,38 +93,34 @@ fun FeatureCard(
     hasIconBackground: Boolean = true,
     iconTint: androidx.compose.ui.graphics.Color? = null,
 ) {
+    val defaultCardColor = com.sameerasw.essentials.ui.core.komorebi.pixelSettingsCardColor()
     val selectedContainer by androidx.compose.animation.animateColorAsState(
         targetValue =
             if (isSelected) {
                 MaterialTheme.colorScheme.secondaryContainer
             } else {
-                containerColor ?: MaterialTheme.colorScheme.surfaceContainerLow
+                containerColor ?: defaultCardColor
             },
         label = "feature_card_selected",
     )
     val badgeBg by androidx.compose.animation.animateColorAsState(
         targetValue =
             if (isEnabled) {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f)
+                MaterialTheme.colorScheme.secondaryContainer
             } else {
                 MaterialTheme.colorScheme.surfaceContainerHigh
             },
         label = "feature_card_badge_bg",
     )
     val badgeBorder by androidx.compose.animation.animateColorAsState(
-        targetValue =
-            if (isEnabled) {
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
-            } else {
-                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-            },
+        targetValue = androidx.compose.ui.graphics.Color.Transparent,
         label = "feature_card_badge_border",
     )
     val resolvedIconTint by androidx.compose.animation.animateColorAsState(
         targetValue =
             iconTint
                 ?: if (isEnabled) {
-                    MaterialTheme.colorScheme.onPrimaryContainer
+                    MaterialTheme.colorScheme.onSecondaryContainer
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 },

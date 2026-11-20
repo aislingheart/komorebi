@@ -60,9 +60,10 @@ fun EssentialsTheme(
                     dynamicScheme.copy(
                         background = androidx.compose.ui.graphics.Color.Black,
                         surface = androidx.compose.ui.graphics.Color.Black,
-                        surfaceContainer = androidx.compose.ui.graphics.Color.Black,
                         surfaceContainerLowest = androidx.compose.ui.graphics.Color.Black,
-                        surfaceContainerLow = androidx.compose.ui.graphics.Color.Black,
+                        surfaceContainerLow = androidx.compose.ui.graphics.Color(0xFF111114),
+                        surfaceContainer = androidx.compose.ui.graphics.Color(0xFF16161A),
+                        surfaceContainerHigh = androidx.compose.ui.graphics.Color(0xFF202025),
                     )
                 } else {
                     dynamicScheme
@@ -74,9 +75,10 @@ fun EssentialsTheme(
                     DarkColorScheme.copy(
                         background = androidx.compose.ui.graphics.Color.Black,
                         surface = androidx.compose.ui.graphics.Color.Black,
-                        surfaceContainer = androidx.compose.ui.graphics.Color.Black,
                         surfaceContainerLowest = androidx.compose.ui.graphics.Color.Black,
-                        surfaceContainerLow = androidx.compose.ui.graphics.Color.Black,
+                        surfaceContainerLow = androidx.compose.ui.graphics.Color(0xFF111114),
+                        surfaceContainer = androidx.compose.ui.graphics.Color(0xFF16161A),
+                        surfaceContainerHigh = androidx.compose.ui.graphics.Color(0xFF202025),
                     )
                 } else {
                     DarkColorScheme

@@ -1584,7 +1584,6 @@
     <string name="feat_transparent_navigation_bar_desc">Сделать фон системной панели навигации прозрачным</string>
     <string name="setting_app_icon_title">Иконка приложения</string>
     <string name="setting_app_icon_desc">Выберите иконку, которая будет отображатся на домашнем экране</string>
-    <string name="label_motion_blur">Размытие при скролле</string>
     <string name="label_device_battery">Батарея</string>
     <string name="label_online_help_media">Онлайн-справка Медиа</string>
     <string name="label_ripple_animation">Волновой эффект</string>
@@ -1632,7 +1631,6 @@
     <string name="status_glance_action_swipe_right_title">Свайп вправо</string>
     <string name="status_glance_bold_text_title">Жирный текст</string>
     <string name="setting_show_legacy_features_title">Показать устаревшие функции</string>
-    <string name="label_motion_blur_amount">Значение</string>
     <string name="crash_logs_title">Логирование крашей</string>
     <string name="crash_logs_desc">Просмотр и отправка логов последнего краша</string>
     <string name="conscious_gate_reappear_off">Отключить</string>

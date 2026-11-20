@@ -122,7 +122,6 @@ import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.translation.TranslatableText
 import com.sameerasw.essentials.ui.modifiers.BlurDirection
 import com.sameerasw.essentials.ui.modifiers.progressiveBlur
-import com.sameerasw.essentials.ui.modifiers.scrollMotionBlur
 import com.sameerasw.essentials.ui.components.menus.SegmentedDropdownMenu
 import com.sameerasw.essentials.ui.components.menus.SegmentedDropdownMenuItem
 import com.sameerasw.essentials.ui.core.containers.RoundedCardContainer
@@ -435,11 +434,6 @@ fun LinkPickerScreen(
             }
         }
 
-        val isMotionBlurEnabled =
-            remember(context) {
-                context.getSharedPreferences("essentials_prefs", Context.MODE_PRIVATE)
-                    .getBoolean("motion_blur", false)
-            }
         val sheetScrollState = rememberScrollState()
 
         EssentialsBottomSheet(
@@ -454,7 +448,6 @@ fun LinkPickerScreen(
                         .fillMaxWidth()
                         .imePadding()
                         .clip(RoundedCornerShape(24.dp))
-                        .scrollMotionBlur(sheetScrollState, enabled = isMotionBlurEnabled)
                         .verticalScroll(sheetScrollState)
                         .padding(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),

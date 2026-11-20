@@ -69,21 +69,26 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
@@ -98,6 +103,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.core.app.ActivityCompat
+import androidx.health.connect.client.PermissionController
+import com.sameerasw.essentials.assistant.HealthConnectManager
 import com.sameerasw.essentials.domain.registry.FeatureRegistry
 import com.sameerasw.essentials.domain.registry.PermissionRegistry
 import com.sameerasw.essentials.ui.components.EssentialsFloatingToolbar
@@ -106,6 +113,9 @@ import com.sameerasw.essentials.ui.components.dialogs.AboutSection
 import com.sameerasw.essentials.ui.components.sliders.ConfigSliderItem
 import com.sameerasw.essentials.ui.core.cards.FeatureCard
 import com.sameerasw.essentials.ui.core.cards.IconToggleItem
+import com.sameerasw.essentials.ui.core.komorebi.pixelSettingsCanvasColor
+import com.sameerasw.essentials.ui.core.komorebi.pixelSettingsCardColor
+import com.sameerasw.essentials.ui.core.komorebi.pixelSettingsTopBarScrolledColor
 import com.sameerasw.essentials.ui.core.pickers.PrivilegedModePicker
 import com.sameerasw.essentials.ui.core.cards.PermissionCard
 import com.sameerasw.essentials.ui.core.containers.RoundedCardContainer
@@ -119,9 +129,9 @@ import com.sameerasw.essentials.ui.core.sheets.UnsupportedFeaturesConfirmationSh
 import com.sameerasw.essentials.ui.core.sheets.UpdateBottomSheet
 import androidx.compose.ui.geometry.Offset
 import com.sameerasw.essentials.ui.modifiers.BlurDirection
+import com.sameerasw.essentials.ui.modifiers.GestureRippleWaveOverlay
 import com.sameerasw.essentials.ui.modifiers.liquidRipple
 import com.sameerasw.essentials.ui.modifiers.progressiveBlur
-import com.sameerasw.essentials.ui.modifiers.scrollMotionBlur
 import com.sameerasw.essentials.ui.theme.EssentialsTheme
 import com.sameerasw.essentials.ui.theme.Shapes
 import com.sameerasw.essentials.utils.DeviceUtils
@@ -170,19 +180,12 @@ class SettingsActivity : AppCompatActivity() {
             }
             val isPitchBlackThemeEnabled by viewModel.isPitchBlackThemeEnabled
             EssentialsTheme(pitchBlackTheme = isPitchBlackThemeEnabled) {
-                Box(
-                    modifier =
-                        Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.surfaceContainer),
-                ) {
-                    SettingsContent(
-                        viewModel = viewModel,
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
-                        expandPermissionsInitial = expandPermissionsInitial,
-                        openUpdateSheetNonce = openUpdateSheetNonce,
-                    )
-                }
+                SettingsContent(
+                    viewModel = viewModel,
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    expandPermissionsInitial = expandPermissionsInitial,
+                    openUpdateSheetNonce = openUpdateSheetNonce,
+                )
             }
         }
     }
@@ -474,11 +477,20 @@ fun SettingsContent(
     }
 
     val sentryMode by viewModel.sentryReportMode
-    val isMotionBlurEnabled by viewModel.isMotionBlurEnabled
     val scrollState = rememberScrollState()
-    val appVersion = remember { "v${BuildConfig.VERSION_NAME}" }
     val isSearchOverlayPreferred = remember(settingsRepo) { settingsRepo.getPixelSearchOverlayEnabled() }
     var permissionsSectionY by remember { mutableStateOf<Float?>(null) }
+    var ripplePreviewTrigger by remember { mutableIntStateOf(0) }
+    val isHealthConnectAvailable by viewModel.isHealthConnectAvailable
+    val isHealthConnectPermissionGranted by viewModel.isHealthConnectPermissionGranted
+    val healthConnectStatusSummary by viewModel.healthConnectStatusSummary
+
+    val healthConnectPermissionLauncher =
+        rememberLauncherForActivityResult(
+            contract = PermissionController.createRequestPermissionResultContract(),
+        ) {
+            viewModel.refreshHealthConnectStatus(context)
+        }
 
     LaunchedEffect(expandPermissionsInitial, permissionsSectionY) {
         if (expandPermissionsInitial && permissionsSectionY != null) {
@@ -486,51 +498,68 @@ fun SettingsContent(
         }
     }
 
-    Column(
-        modifier =
-            modifier
-                .fillMaxSize()
-                .scrollMotionBlur(scrollState, enabled = isMotionBlurEnabled)
-                .verticalScroll(scrollState)
-                .padding(contentPadding),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-        horizontalAlignment = Alignment.Start,
-    ) {
-        val view = LocalView.current
+    val view = LocalView.current
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val canvasColor = pixelSettingsCanvasColor()
+    val scrolledBarColor = pixelSettingsTopBarScrolledColor()
 
-        Spacer(
-            modifier =
-                Modifier.height(
-                    WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
-                ),
-        )
-
-        com.sameerasw.essentials.ui.core.komorebi.KomorebiHeroHeader(
-            eyebrow = "Komorebi · $appVersion",
-            title = stringResource(R.string.label_settings),
-            subtitle = "Search triggers, extensions, and device preferences",
-            modifier = Modifier.padding(bottom = 12.dp),
-            action = {
-                com.sameerasw.essentials.ui.core.komorebi.KomorebiHeroActionPill(
-                    label = "Search",
-                    iconRes = R.drawable.rounded_search_24,
-                    onClick = {
-                        HapticUtil.performVirtualKeyHaptic(view)
-                        val service = com.sameerasw.essentials.services.SearchGestureAccessibilityService.instance
-                        if (isSearchOverlayPreferred && service != null) {
-                            service.openSearch()
-                        } else {
-                            com.sameerasw.essentials.utils.AppLaunchUtil.startActivityReliably(
-                                context,
-                                com.sameerasw.essentials.utils.AppLaunchUtil.buildSearchResultsIntent(context),
-                            )
-                        }
+    Box(modifier = modifier.fillMaxSize()) {
+        Scaffold(
+            modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+            containerColor = canvasColor,
+            topBar = {
+                LargeTopAppBar(
+                    title = {
+                        Text(
+                            text = stringResource(R.string.label_settings),
+                            maxLines = 1,
+                        )
                     },
+                    actions = {
+                        com.sameerasw.essentials.ui.core.komorebi.KomorebiHeroActionPill(
+                            label = "Search",
+                            iconRes = R.drawable.rounded_search_24,
+                            onClick = {
+                                HapticUtil.performVirtualKeyHaptic(view)
+                                val service = com.sameerasw.essentials.services.SearchGestureAccessibilityService.instance
+                                if (isSearchOverlayPreferred && service != null) {
+                                    service.openSearch(openedViaGesture = false)
+                                } else {
+                                    com.sameerasw.essentials.utils.AppLaunchUtil.startActivityReliably(
+                                        context,
+                                        com.sameerasw.essentials.utils.AppLaunchUtil.buildSearchResultsIntent(
+                                            context,
+                                            openedViaGesture = false,
+                                        ),
+                                    )
+                                }
+                            },
+                            modifier = Modifier.padding(end = 12.dp),
+                        )
+                    },
+                    colors = TopAppBarDefaults.largeTopAppBarColors(
+                        containerColor = canvasColor,
+                        scrolledContainerColor = scrolledBarColor,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    ),
+                    scrollBehavior = scrollBehavior,
                 )
             },
-            footer = {
+        ) { innerPadding ->
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .verticalScroll(scrollState)
+                        .padding(contentPadding),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalAlignment = Alignment.Start,
+            ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp, bottom = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -570,8 +599,6 @@ fun SettingsContent(
                         },
                     )
                 }
-            },
-        )
 
         // Help & Guides
         RoundedCardContainer {
@@ -691,9 +718,9 @@ fun SettingsContent(
                     Modifier
                         .fillMaxWidth()
                         .background(
-                            MaterialTheme.colorScheme.surfaceContainerLow,
-                            shape = MaterialTheme.shapes.extraSmall,
-                        ).padding(10.dp),
+                            pixelSettingsCardColor(),
+                            shape = RoundedCornerShape(4.dp),
+                        ).padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -765,12 +792,12 @@ fun SettingsContent(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceContainerLow, MaterialTheme.shapes.extraSmall)
+                    .background(pixelSettingsCardColor(), RoundedCornerShape(4.dp))
                     .padding(top = 12.dp),
             ) {
                 TranslatableText(
                     stringResId = R.string.label_haptics_title,
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
@@ -809,33 +836,20 @@ fun SettingsContent(
             IconToggleItem(
                 iconRes = R.drawable.rounded_blur_linear_24,
                 title = stringResource(R.string.label_ripple_animation),
+                description = stringResource(R.string.desc_ripple_animation),
                 isChecked = viewModel.isRippleSettingEnabled.value,
-                onCheckedChange = { viewModel.setRippleEnabled(it, context) },
+                onCheckedChange = { enabled ->
+                    viewModel.setRippleEnabled(enabled, context)
+                    if (enabled) {
+                        ripplePreviewTrigger += 1
+                    }
+                },
                 onCheckedChangeWithPosition = { isChecked, pos ->
                     if (isChecked) {
                         onRippleToggleEnabledWithPosition?.invoke(pos)
                     }
                 },
             )
-
-            IconToggleItem(
-                iconRes = R.drawable.rounded_settings_motion_mode_24,
-                title = stringResource(R.string.label_motion_blur),
-                isChecked = viewModel.isMotionBlurSettingEnabled.value,
-                onCheckedChange = { viewModel.setMotionBlurEnabled(it, context) },
-            )
-
-            if (viewModel.isMotionBlurSettingEnabled.value) {
-                ConfigSliderItem(
-                    iconRes = R.drawable.rounded_settings_motion_mode_24,
-                    title = stringResource(R.string.label_motion_blur_amount),
-                    value = viewModel.motionBlurScale.floatValue,
-                    onValueChange = { viewModel.setMotionBlurScale(it, context) },
-                    valueRange = 0.5f..2.5f,
-                    increment = 0.1f,
-                    showValue = false,
-                )
-            }
 
             IconToggleItem(
                 iconRes = R.drawable.rounded_music_video_24,
@@ -862,10 +876,10 @@ fun SettingsContent(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .height(72.dp)
+                        .height(68.dp)
                         .background(
-                            color = MaterialTheme.colorScheme.surfaceContainerLow,
-                            shape = Shapes.extraSmall,
+                            color = pixelSettingsCardColor(),
+                            shape = RoundedCornerShape(4.dp),
                         )
                         .onGloballyPositioned { coordinates ->
                             permissionsSectionY = coordinates.positionInParent().y
@@ -883,11 +897,11 @@ fun SettingsContent(
                         painter = painterResource(id = R.drawable.rounded_shield_24),
                         contentDescription = null,
                         modifier = Modifier.size(24.dp),
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     TranslatableText(
                         stringResId = R.string.settings_permissions_all,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                 }
@@ -900,6 +914,30 @@ fun SettingsContent(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+
+            IconToggleItem(
+                iconRes = R.drawable.rounded_favorite_24,
+                title = stringResource(R.string.perm_health_connect_title),
+                description = healthConnectStatusSummary.ifBlank { stringResource(R.string.perm_health_connect_desc) },
+                showToggle = false,
+                onClick = {
+                    if (!isHealthConnectAvailable) {
+                        HealthConnectManager.openHealthConnectSettings(context)
+                    } else if (!isHealthConnectPermissionGranted) {
+                        val launched = runCatching {
+                            healthConnectPermissionLauncher.launch(
+                                HealthConnectManager.permissionsToRequest(context),
+                            )
+                            true
+                        }.getOrDefault(false)
+                        if (!launched) {
+                            HealthConnectManager.openHealthConnectSettings(context)
+                        }
+                    } else {
+                        HealthConnectManager.openHealthConnectSettings(context)
+                    }
+                },
+            )
 
             AnimatedVisibility(
                 visible = isPermissionsExpanded,
@@ -965,8 +1003,8 @@ fun SettingsContent(
                     Modifier
                         .fillMaxWidth()
                         .background(
-                            MaterialTheme.colorScheme.surfaceBright,
-                            shape = MaterialTheme.shapes.extraSmall,
+                            pixelSettingsCardColor(),
+                            shape = RoundedCornerShape(4.dp),
                         ).padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1031,8 +1069,8 @@ fun SettingsContent(
                     Modifier
                         .fillMaxWidth()
                         .background(
-                            MaterialTheme.colorScheme.surfaceBright,
-                            shape = MaterialTheme.shapes.extraSmall,
+                            pixelSettingsCardColor(),
+                            shape = RoundedCornerShape(4.dp),
                         ).padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1153,8 +1191,8 @@ fun SettingsContent(
                     Modifier
                         .fillMaxWidth()
                         .background(
-                            color = MaterialTheme.colorScheme.surfaceContainerLow,
-                            shape = Shapes.extraSmall,
+                            color = pixelSettingsCardColor(),
+                            shape = RoundedCornerShape(4.dp),
                         ).padding(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1258,8 +1296,8 @@ fun SettingsContent(
                         Modifier
                             .fillMaxWidth()
                             .background(
-                                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                                shape = Shapes.extraSmall,
+                                color = pixelSettingsCardColor(),
+                                shape = RoundedCornerShape(4.dp),
                             ).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
@@ -1373,8 +1411,8 @@ fun SettingsContent(
                         Modifier
                             .fillMaxWidth()
                             .background(
-                                color = MaterialTheme.colorScheme.surfaceBright,
-                                shape = Shapes.extraSmall,
+                                color = pixelSettingsCardColor(),
+                                shape = RoundedCornerShape(4.dp),
                             ).padding(16.dp),
                 ) {
                     Button(
@@ -1423,6 +1461,14 @@ fun SettingsContent(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+
+        GestureRippleWaveOverlay(
+            triggerKey = ripplePreviewTrigger,
+            enabled = ripplePreviewTrigger > 0,
+            modifier = Modifier.fillMaxSize(),
+        )
     }
 }

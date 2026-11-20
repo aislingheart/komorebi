@@ -80,7 +80,6 @@ fun AboutSection(
 ) {
     val context = LocalContext.current
     val view = LocalView.current
-    var showLicensesSheet by remember { mutableStateOf(false) }
     val versionName =
         try {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
@@ -92,8 +91,8 @@ fun AboutSection(
         modifier =
             modifier
                 .fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceBright,
+        shape = RoundedCornerShape(24.dp),
+        color = com.sameerasw.essentials.ui.core.komorebi.pixelSettingsCardColor(),
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -101,13 +100,14 @@ fun AboutSection(
                 Modifier
                     .fillMaxWidth()
                     .animateContentSize()
-                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                    .padding(horizontal = 16.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(text = "$appName v$versionName", style = MaterialTheme.typography.headlineLarge)
+            Text(text = "$appName v$versionName", style = MaterialTheme.typography.headlineMedium)
             Text(
                 text = description,
                 style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
 
@@ -127,7 +127,7 @@ fun AboutSection(
             Box(
                 modifier =
                     Modifier
-                        .size(180.dp)
+                        .size(152.dp)
                         .onGloballyPositioned { coords ->
                             val pos = coords.positionInRoot()
                             val size = coords.size
@@ -154,7 +154,7 @@ fun AboutSection(
                     contentScale = ContentScale.Fit,
                     modifier =
                         Modifier
-                            .size(160.dp)
+                            .size(136.dp)
                             .graphicsLayer { rotationZ = -rotationDegrees },
                 )
             }
@@ -264,37 +264,6 @@ fun AboutSection(
             Spacer(modifier = Modifier.height(2.dp))
 
             RepoDetailsRow(repoUrl = "https://github.com/aislingheart/komorebi")
-
-            Spacer(modifier = Modifier.height(2.dp))
-
-            ContributorsCarousel()
-
-            Spacer(modifier = Modifier.height(2.dp))
-
-            OutlinedButton(
-                onClick = {
-                    HapticUtil.performUIHaptic(view)
-                    showLicensesSheet = true
-                },
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp),
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.rounded_code_24),
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                TranslatableText(R.string.action_licenses_and_credits)
-            }
         }
-    }
-
-    if (showLicensesSheet) {
-        LicensesBottomSheet(
-            onDismissRequest = { showLicensesSheet = false },
-        )
     }
 }

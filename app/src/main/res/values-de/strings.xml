@@ -1678,7 +1678,6 @@ Zudem muss die Einstellung unter Umständen mehrfach angewendet werden, damit si
     <string name="app_icon_google">Spektrum</string>
     <string name="settings_genai_automation_title">GenAl-Nutzung aktivieren</string>
     <string name="settings_genai_automation_desc">Verwende Gemini Nano auf dem Gerät, um Automatisierungen aus Beschreibungen zu erstellen</string>
-    <string name="label_motion_blur">Bewegungsunschärfe</string>
     <string name="watchface_hide_battery_desc">Akkuanzeige und -indikatoren ausblenden</string>
     <string name="watchface_hide_device_icons_desc">Uhren- und Telefonsymbole unten ausblenden</string>
     <string name="watchface_show_complications_title">Komplikationen anzeigen</string>
@@ -1861,7 +1860,6 @@ Zugriff auf die Barrierefreiheit ist erforderlich, um die Überlagerung zu zeich
     <string name="island_like_while_playing_title">Musik während der Wiedergabe liken</string>
     <string name="duo_action_horizontal_slide_track_desc">Nur aktiv, während Medien wiedergegeben werden</string>
     <string name="duo_action_horizontal_slide_track">Titel wechseln</string>
-    <string name="label_motion_blur_amount">Menge</string>
     <string name="setting_show_legacy_features_title">Legacy-Funktionen anzeigen</string>
     <string name="setting_show_legacy_features_desc">Diese Funktionen erhalten möglicherweise keine zukünftigen Updates aufgrund technischer Einschränkungen oder weil sie nicht essentiell sind.</string>
     <string name="duo_action_horizontal_slide_sound_mode">Tonmodus</string>

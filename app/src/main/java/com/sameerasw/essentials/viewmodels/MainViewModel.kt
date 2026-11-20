@@ -157,9 +157,9 @@ class MainViewModel : ViewModel() {
     val isBlurSettingEnabled = mutableStateOf(true)
     val isRippleEnabled = mutableStateOf(true)
     val isRippleSettingEnabled = mutableStateOf(true)
-    val isMotionBlurEnabled = mutableStateOf(false)
-    val isMotionBlurSettingEnabled = mutableStateOf(false)
-    val motionBlurScale = mutableFloatStateOf(1.0f)
+    val isHealthConnectAvailable = mutableStateOf(false)
+    val isHealthConnectPermissionGranted = mutableStateOf(false)
+    val healthConnectStatusSummary = mutableStateOf("")
     val isOnlineHelpMediaEnabled = mutableStateOf(true)
     val isShakeForHelpEnabled = mutableStateOf(true)
     val sentryReportMode = mutableStateOf("auto")
@@ -424,7 +424,7 @@ class MainViewModel : ViewModel() {
         isPowerSaveModeEnabled.value = DeviceUtils.isPowerSaveMode(context)
         updateBlurState(context)
         updateRippleState(context)
-        updateMotionBlurState(context)
+        refreshHealthConnectStatus(context)
 
         if (powerSaveReceiver == null) {
             powerSaveReceiver =
@@ -438,7 +438,6 @@ class MainViewModel : ViewModel() {
                                 isPowerSaveModeEnabled.value = DeviceUtils.isPowerSaveMode(it)
                                 updateBlurState(it)
                                 updateRippleState(it)
-                                updateMotionBlurState(it)
                             }
                         }
                     }
@@ -712,19 +711,29 @@ class MainViewModel : ViewModel() {
         settingsRepository.putBoolean(SettingsRepository.KEY_USE_RIPPLE, enabled)
         updateRippleState(context)
     }
-    fun setMotionBlurEnabled(
-        enabled: Boolean,
-        context: Context,
-    ) {
-        settingsRepository.putBoolean(SettingsRepository.KEY_MOTION_BLUR, enabled)
-        updateMotionBlurState(context)
-    }
-    fun setMotionBlurScale(
-        scale: Float,
-        context: Context? = null,
-    ) {
-        motionBlurScale.floatValue = scale
-        settingsRepository.putFloat(SettingsRepository.KEY_MOTION_BLUR_SCALE, scale)
+    fun refreshHealthConnectStatus(context: Context) {
+        val appContext = context.applicationContext
+        val avail = com.sameerasw.essentials.assistant.HealthConnectManager.availability(appContext)
+        isHealthConnectAvailable.value = avail == "available"
+        if (avail != "available") {
+            isHealthConnectPermissionGranted.value = false
+            healthConnectStatusSummary.value =
+                if (avail == "update_required") "Update required" else "Not available"
+            return
+        }
+        viewModelScope.launch {
+            val status = com.sameerasw.essentials.assistant.HealthConnectManager.getPermissionStatus(appContext)
+            isHealthConnectPermissionGranted.value = status.hasAnyCorePermission && status.hasBackgroundRead
+            healthConnectStatusSummary.value = when {
+                status.hasAllCorePermissions && status.hasBackgroundRead ->
+                    "All ${status.totalCoreCount} metrics + background access granted"
+                status.hasAnyCorePermission && !status.hasBackgroundRead ->
+                    "${status.grantedCount}/${status.totalCoreCount} metrics granted · allow background access for overlay"
+                status.hasAnyCorePermission ->
+                    "${status.grantedCount}/${status.totalCoreCount} metrics granted"
+                else -> "Tap to grant Sleep, Steps, Heart rate, Weight & Exercise"
+            }
+        }
     }
     fun setOnlineHelpMediaEnabled(
         enabled: Boolean,
@@ -754,15 +763,6 @@ class MainViewModel : ViewModel() {
 
         isRippleSettingEnabled.value = useRippleSetting
         isRippleEnabled.value = useRippleSetting && !isPowerSave
-    }
-    private fun updateMotionBlurState(context: Context) {
-        val useMotionBlurSetting = settingsRepository.getBoolean(SettingsRepository.KEY_MOTION_BLUR, false)
-        val isProblematic = DeviceUtils.isBlurProblematicDevice()
-        val isPowerSave = DeviceUtils.isPowerSaveMode(context)
-
-        isMotionBlurSettingEnabled.value = useMotionBlurSetting
-        isMotionBlurEnabled.value = useMotionBlurSetting && !isProblematic && !isPowerSave
-        motionBlurScale.floatValue = settingsRepository.getFloat(SettingsRepository.KEY_MOTION_BLUR_SCALE, 1.0f)
     }
     fun checkForUpdates(
         context: Context,

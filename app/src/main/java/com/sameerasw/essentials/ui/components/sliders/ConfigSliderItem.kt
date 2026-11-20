@@ -89,7 +89,7 @@ fun ConfigSliderItem(
             modifier
                 .fillMaxWidth()
                 .background(
-                    color = MaterialTheme.colorScheme.surfaceBright,
+                    color = com.sameerasw.essentials.ui.core.komorebi.pixelSettingsCardColor(),
                     shape = RoundedCornerShape(MaterialTheme.shapes.extraSmall.bottomEnd),
                 ).combinedClickable(
                     onClick = {},
@@ -117,7 +117,7 @@ fun ConfigSliderItem(
                             Modifier
                                 .padding(end = 12.dp)
                                 .size(24.dp),
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 Column(modifier = Modifier.weight(1f)) {

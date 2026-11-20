@@ -58,7 +58,7 @@ fun <T> SegmentedPicker(
     textStyleProvider: ((T) -> androidx.compose.ui.text.TextStyle)? = null,
     modifier: Modifier = Modifier,
     cornerShape: CornerSize = MaterialTheme.shapes.extraSmall.bottomEnd,
-    containerColor: Color = MaterialTheme.colorScheme.surfaceBright,
+    containerColor: Color = com.sameerasw.essentials.ui.core.komorebi.pixelSettingsCardColor(),
     contentPadding: PaddingValues = PaddingValues(10.dp),
     title: Any? = null,
     description: Any? = null,

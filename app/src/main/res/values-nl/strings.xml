@@ -1583,7 +1583,6 @@
     <string name="app_icon_default">Standaard</string>
     <string name="app_icon_black">Dynamisch</string>
     <string name="label_ripple_animation">Golf animatie</string>
-    <string name="label_motion_blur">Bewegingsblur</string>
     <string name="label_online_help_media">Online hulp media</string>
     <string name="setting_show_legacy_features_title">Toon oude functies</string>
     <string name="setting_show_legacy_features_desc">Deze functies worden mogelijk niet meer geüpdatet door technische beperkingen of omdat ze niet essentieel zijn.</string>

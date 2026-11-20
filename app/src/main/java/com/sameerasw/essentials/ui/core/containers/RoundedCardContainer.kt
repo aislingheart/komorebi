@@ -26,32 +26,20 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun RoundedCardContainer(
     modifier: Modifier = Modifier,
-    spacing: Dp = 1.dp,
-    cornerRadius: Dp = 20.dp,
-    containerColor: Color = Color.Unspecified,
-    borderColor: Color = Color.Unspecified,
+    spacing: Dp = 2.dp,
+    cornerRadius: Dp = 24.dp,
+    containerColor: Color = Color.Transparent,
+    borderColor: Color = Color.Transparent,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val shape = RoundedCornerShape(cornerRadius)
-    val resolvedContainer =
-        if (containerColor == Color.Unspecified) {
-            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f)
-        } else {
-            containerColor
-        }
-    val resolvedBorder =
-        if (borderColor == Color.Unspecified) {
-            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f)
-        } else {
-            borderColor
-        }
 
     Column(
         modifier =
             modifier
                 .clip(shape)
-                .background(resolvedContainer)
-                .border(1.dp, resolvedBorder, shape),
+                .then(if (containerColor != Color.Transparent) Modifier.background(containerColor) else Modifier)
+                .then(if (borderColor != Color.Transparent) Modifier.border(1.dp, borderColor, shape) else Modifier),
         verticalArrangement = Arrangement.spacedBy(spacing),
         content = content,
     )

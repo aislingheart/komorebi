@@ -43,6 +43,9 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.unit.dp
 import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.ui.activities.PixelSearchResultsScreen
+import com.sameerasw.essentials.ui.modifiers.GestureRippleWaveOverlay
+import com.sameerasw.essentials.ui.modifiers.gestureRippleRefraction
+import com.sameerasw.essentials.ui.modifiers.isGestureRippleEnabled
 import com.sameerasw.essentials.ui.theme.EssentialsTheme
 import com.sameerasw.essentials.utils.overlay.OverlayVisibilityCoordinator
 import com.sameerasw.essentials.utils.overlay.UnifiedOverlayWindowHost
@@ -55,19 +58,26 @@ object SearchOverlayController {
     private var windowView: View? = null
     private var windowManager: WindowManager? = null
     private val backdropState = mutableStateOf<Bitmap?>(null)
+    private val gestureRippleTriggerState = mutableStateOf(0)
     private var pendingHideRunnable: Runnable? = null
 
     @Volatile
     var isShowing: Boolean = false
         private set
 
-    fun show(context: Context, backdrop: Bitmap? = null): Boolean {
+    fun show(
+        context: Context,
+        backdrop: Bitmap? = null,
+        openedViaGesture: Boolean = false,
+    ): Boolean {
         cancelPendingHide()
         if (isShowing) {
             if (backdrop != null) backdropState.value = backdrop
             return true
         }
         backdropState.value = backdrop
+        gestureRippleTriggerState.value =
+            if (openedViaGesture) gestureRippleTriggerState.value + 1 else 0
         val wm = context.getSystemService(WindowManager::class.java) ?: return false
         val canDrawOverlays = Settings.canDrawOverlays(context)
         val isAccessibilityService = context is AccessibilityService
@@ -110,6 +120,10 @@ object SearchOverlayController {
                 val repository = remember { SettingsRepository(appContext) }
                 val isPitchBlack by repository.isPitchBlackThemeEnabled.collectAsState(initial = false)
                 val currentBackdrop by backdropState
+                val rippleTrigger by gestureRippleTriggerState
+                val rippleEnabled = remember(rippleTrigger) {
+                    rippleTrigger > 0 && isGestureRippleEnabled(appContext)
+                }
                 CompositionLocalProvider(
                     LocalContext provides overlayContext,
                     LocalOnBackPressedDispatcherOwner provides overlayHost,
@@ -128,10 +142,18 @@ object SearchOverlayController {
                                         contentScale = ContentScale.Crop,
                                         modifier = Modifier
                                             .fillMaxSize()
-                                            .blur(24.dp),
+                                            .blur(24.dp)
+                                            .gestureRippleRefraction(
+                                                triggerKey = rippleTrigger,
+                                                enabled = rippleEnabled,
+                                            ),
                                     )
                                 }
                             }
+                            GestureRippleWaveOverlay(
+                                triggerKey = rippleTrigger,
+                                enabled = rippleEnabled,
+                            )
                             PixelSearchResultsScreen(
                                 initialQuery = "",
                                 asOverlay = true,

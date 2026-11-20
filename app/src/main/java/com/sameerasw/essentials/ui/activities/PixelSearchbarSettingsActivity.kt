@@ -41,10 +41,15 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Alignment
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,6 +63,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.painterResource
 import androidx.core.app.NotificationManagerCompat
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -70,17 +76,18 @@ import com.sameerasw.essentials.ui.components.menus.SegmentedDropdownMenuItem
 import com.sameerasw.essentials.ui.core.cards.ConfigPickerItem
 import com.sameerasw.essentials.ui.core.cards.IconToggleItem
 import com.sameerasw.essentials.ui.core.containers.RoundedCardContainer
+import com.sameerasw.essentials.ui.core.komorebi.pixelSettingsCanvasColor
+import com.sameerasw.essentials.ui.core.komorebi.pixelSettingsTopBarScrolledColor
 import com.sameerasw.essentials.ui.core.sheets.FeatureHelpBottomSheet
 import com.sameerasw.essentials.ui.core.sheets.PermissionsBottomSheet
 import com.sameerasw.essentials.ui.core.sheets.ShakeForHelp
-import com.sameerasw.essentials.ui.modifiers.scrollMotionBlur
 import com.sameerasw.essentials.ui.theme.EssentialsTheme
 import com.sameerasw.essentials.utils.HapticUtil
 import com.sameerasw.essentials.utils.PermissionUIHelper
 import com.sameerasw.essentials.utils.PermissionUtils
 import com.sameerasw.essentials.viewmodels.MainViewModel
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun PixelSearchbarSettingsScreen(onBack: () -> Unit) {
     val viewModel: MainViewModel = viewModel()
@@ -127,96 +134,106 @@ fun PixelSearchbarSettingsScreen(onBack: () -> Unit) {
             }
         }
 
-    val isBlurEnabled by viewModel.isBlurEnabled
-
     EssentialsTheme(pitchBlackTheme = isPitchBlackThemeEnabled) {
-        @Suppress("UnusedMaterial3ScaffoldPaddingParameter")
+        val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+        val scrollState = rememberScrollState()
+        val view = LocalView.current
+        val overlayRepo = remember(context) { SettingsRepository(context) }
+        val isOverlayEnabled = remember(overlayRepo) { overlayRepo.getPixelSearchOverlayEnabled() }
+        val isGestureConnected =
+            com.sameerasw.essentials.services.SearchGestureAccessibilityService.instance != null
+        val isAssistantActive = viewModel.pixelSearchAssistantEnabled.value
+        val canvasColor = pixelSettingsCanvasColor()
+        val scrolledBarColor = pixelSettingsTopBarScrolledColor()
+
         Scaffold(
-            contentWindowInsets = WindowInsets(0, 0, 0, 0),
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        ) { _ ->
-            val density = LocalDensity.current
-            val statusBarHeightPx =
-                with(density) {
-                    WindowInsets.statusBars
-                        .asPaddingValues()
-                        .calculateTopPadding()
-                        .toPx()
-                }
-
-            val isMotionBlurEnabled by viewModel.isMotionBlurEnabled
-            val scrollState = rememberScrollState()
-            val view = LocalView.current
-            val overlayRepo = remember(context) { SettingsRepository(context) }
-            val isOverlayEnabled = remember(overlayRepo) { overlayRepo.getPixelSearchOverlayEnabled() }
-            val isGestureConnected =
-                com.sameerasw.essentials.services.SearchGestureAccessibilityService.instance != null
-            val isAssistantActive = viewModel.pixelSearchAssistantEnabled.value
-
+            modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+            containerColor = canvasColor,
+            topBar = {
+                LargeTopAppBar(
+                    title = {
+                        Text(
+                            text = "Search & Launcher",
+                            maxLines = 1,
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(
+                            onClick = {
+                                HapticUtil.performVirtualKeyHaptic(view)
+                                onBack()
+                            },
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.rounded_arrow_back_24),
+                                contentDescription = stringResource(R.string.action_back),
+                            )
+                        }
+                    },
+                    actions = {
+                        com.sameerasw.essentials.ui.core.komorebi.KomorebiHeroActionPill(
+                            label = "Try Search",
+                            iconRes = R.drawable.rounded_search_24,
+                            onClick = {
+                                HapticUtil.performVirtualKeyHaptic(view)
+                                val service =
+                                    com.sameerasw.essentials.services.SearchGestureAccessibilityService.instance
+                                if (overlayRepo.getPixelSearchOverlayEnabled() && service != null) {
+                                    service.openSearch(openedViaGesture = false)
+                                } else {
+                                    com.sameerasw.essentials.utils.AppLaunchUtil.startActivityReliably(
+                                        context,
+                                        com.sameerasw.essentials.utils.AppLaunchUtil.buildSearchResultsIntent(
+                                            context,
+                                            openedViaGesture = false,
+                                        ),
+                                    )
+                                }
+                            },
+                            modifier = Modifier.padding(end = 12.dp),
+                        )
+                    },
+                    colors = TopAppBarDefaults.largeTopAppBarColors(
+                        containerColor = canvasColor,
+                        scrolledContainerColor = scrolledBarColor,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+                    ),
+                    scrollBehavior = scrollBehavior,
+                )
+            },
+        ) { innerPadding ->
             Box(
-                modifier =
-                    Modifier
-                        .fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
             ) {
                 Column(
                     modifier =
                         Modifier
                             .fillMaxSize()
-                            .scrollMotionBlur(scrollState, enabled = isMotionBlurEnabled)
                             .verticalScroll(scrollState),
                 ) {
-                    Spacer(
-                        modifier =
-                            Modifier.height(
-                                WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 12.dp,
-                            ),
-                    )
-
-                    com.sameerasw.essentials.ui.core.komorebi.KomorebiHeroHeader(
-                        eyebrow = "Search & Launcher",
-                        title = "Komorebi Search",
-                        subtitle = "Instant overlay, universal gesture, and smart providers",
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        action = {
-                            com.sameerasw.essentials.ui.core.komorebi.KomorebiHeroActionPill(
-                                label = "Try Search",
-                                iconRes = R.drawable.rounded_search_24,
-                                onClick = {
-                                    HapticUtil.performVirtualKeyHaptic(view)
-                                    val service =
-                                        com.sameerasw.essentials.services.SearchGestureAccessibilityService.instance
-                                    if (overlayRepo.getPixelSearchOverlayEnabled() && service != null) {
-                                        service.openSearch()
-                                    } else {
-                                        com.sameerasw.essentials.utils.AppLaunchUtil.startActivityReliably(
-                                            context,
-                                            com.sameerasw.essentials.utils.AppLaunchUtil.buildSearchResultsIntent(context),
-                                        )
-                                    }
-                                },
-                            )
-                        },
-                        footer = {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                com.sameerasw.essentials.ui.core.komorebi.KomorebiStatusChip(
-                                    label = if (isGestureConnected) "Gesture ready" else "Gesture off",
-                                    active = isGestureConnected,
-                                )
-                                com.sameerasw.essentials.ui.core.komorebi.KomorebiStatusChip(
-                                    label = if (isAssistantActive) "Assistant set" else "Assistant off",
-                                    active = isAssistantActive,
-                                )
-                                com.sameerasw.essentials.ui.core.komorebi.KomorebiStatusChip(
-                                    label = if (isOverlayEnabled) "Overlay" else "Window",
-                                    active = isOverlayEnabled,
-                                )
-                            }
-                        },
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        com.sameerasw.essentials.ui.core.komorebi.KomorebiStatusChip(
+                            label = if (isGestureConnected) "Gesture ready" else "Gesture off",
+                            active = isGestureConnected,
+                        )
+                        com.sameerasw.essentials.ui.core.komorebi.KomorebiStatusChip(
+                            label = if (isAssistantActive) "Assistant set" else "Assistant off",
+                            active = isAssistantActive,
+                        )
+                        com.sameerasw.essentials.ui.core.komorebi.KomorebiStatusChip(
+                            label = if (isOverlayEnabled) "Overlay" else "Window",
+                            active = isOverlayEnabled,
+                        )
+                    }
 
                     PixelSearchbarSettingsUI(
                         viewModel = viewModel,
@@ -224,12 +241,7 @@ fun PixelSearchbarSettingsScreen(onBack: () -> Unit) {
                     )
 
                     Spacer(
-                        modifier =
-                            Modifier.height(
-                                WindowInsets.navigationBars
-                                    .asPaddingValues()
-                                    .calculateBottomPadding() + 150.dp,
-                            ),
+                        modifier = Modifier.height(24.dp),
                     )
                 }
 

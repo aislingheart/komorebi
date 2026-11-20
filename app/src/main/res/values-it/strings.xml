@@ -1511,7 +1511,6 @@
     <string name="feat_wireless_display_certification_desc">Mostra le opzioni per la certificazione del display wireless</string>
     <string name="qs_secure_sensitive_tiles_title">Proteggi i riquadri sensibili</string>
     <string name="tile_lockdown_mode_desc">Pulsante spegnimento schermo nel pannello rapido</string>
-    <string name="label_motion_blur">Sfocatura di movimento</string>
     <string name="setting_show_legacy_features_title">Mostra opzioni legacy</string>
     <string name="setting_show_legacy_features_desc">Queste opzioni potrebbero non ricevere aggiornamenti futuri a causa di limiti tecnici o perché non sono essenziali.</string>
     <string name="setting_hidden_debugging_title">Supporto debugging nascosto</string>

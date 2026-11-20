@@ -1522,7 +1522,6 @@ Réinitialiser permet d\'effacer les valeurs personnalisées et le système gér
     <string name="label_battery_charge_time_remaining">Temps de charge restant </string>
     <string name="label_battery_charge_counter"> Charge Actuelle </string>
     <string name="label_ripple_animation">Animation ondulante</string>
-    <string name="label_motion_blur">Flou de mouvement</string>
     <string name="setting_app_icon_title">Icône de l\'App</string>
     <string name="setting_app_icon_desc">Changer l\'icone de l\'application sur l\'écran d\'accueil </string>
     <string name="icon_no_sim">Pas de SIM</string>
@@ -1579,7 +1578,6 @@ Réinitialiser permet d\'effacer les valeurs personnalisées et le système gér
     <string name="feat_wireless_display_certification_desc">Afficher les options pour la certification des écrans sans fil</string>
     <string name="setting_enable_unsupported_features_title">Activer les fonctionnalités non-supportées</string>
     <string name="setting_enable_unsupported_features_desc">Afficher les fonctionnalités réservées à une surcouche ou redondantes cachées par défaut</string>
-    <string name="label_motion_blur_amount">Intensité</string>
     <string name="duo_auto_detect_title">Détecter automatiquement la caméra</string>
     <string name="duo_enable_title">Activer Duo</string>
     <string name="duo_camera_offset_x_title">Position horizontale</string>

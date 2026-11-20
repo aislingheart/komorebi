@@ -1534,7 +1534,6 @@ Aby ustawienie zadziałało, może być konieczne wielokrotne zastosowanie.</str
     <string name="label_low_power_trigger_level">Niestandardowy poziom wyzwolenia </string>
     <string name="setting_app_icon_title">Ikona aplikacji </string>
     <string name="setting_app_icon_desc">Dostosuj ikonę aplikacji na ekranie głównym </string>
-    <string name="label_motion_blur">Rozmycie ruchu </string>
     <string name="label_ripple_animation">Efekt fali</string>
     <string name="feat_networks_desc">Zarządzaj łącznością i sieciami</string>
     <string name="feat_flashlight_title">Latarka</string>
@@ -1576,7 +1575,6 @@ Aby ustawienie zadziałało, może być konieczne wielokrotne zastosowanie.</str
     <string name="qs_secure_sensitive_tiles_desc">Wymagaj odblokowania przed interakcją z wrażliwymi kafelkami</string>
     <string name="setting_location_reached_full_screen_alarm_title">Pełnoekranowy alarm</string>
     <string name="setting_location_reached_full_screen_alarm_desc">Odtwórz dźwięk alarmu i pokaż pełnoekranowy alert gdy dotrzesz na miejsce</string>
-    <string name="label_motion_blur_amount">Ilość</string>
     <string name="haptic_mode_stronger">Mocniejsze</string>
     <string name="setting_hidden_debugging_title">Ukryta obsługa debuggowania</string>
     <string name="feat_app_volume_title">Dźwięki aplikacji</string>

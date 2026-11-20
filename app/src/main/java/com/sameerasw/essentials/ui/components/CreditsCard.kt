@@ -64,13 +64,13 @@ fun CreditsCard(modifier: Modifier = Modifier) {
         modifier =
             modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(32.dp))
+                .clip(RoundedCornerShape(24.dp))
                 .clickable {
                     HapticUtil.performUIHaptic(view)
                     showLicensesSheet = true
                 },
-        color = MaterialTheme.colorScheme.surfaceBright,
-        shape = RoundedCornerShape(32.dp),
+        color = com.sameerasw.essentials.ui.core.komorebi.pixelSettingsCardColor(),
+        shape = RoundedCornerShape(24.dp),
     ) {
         Column(
             modifier =

@@ -269,6 +269,7 @@ class PixelSearchResultsActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_OPEN_TOOL = "open_tool"
+        const val EXTRA_OPENED_VIA_GESTURE = "opened_via_gesture"
 
         @Volatile
         private var foregroundInstance: java.lang.ref.WeakReference<PixelSearchResultsActivity>? = null
@@ -294,6 +295,7 @@ class PixelSearchResultsActivity : ComponentActivity() {
     private var intentNonce = 0
     private var incomingToolModal by mutableStateOf<LauncherToolModal?>(null)
     private var toolNonce = 0
+    private var gestureRippleTrigger by mutableIntStateOf(0)
 
     private fun extractQuery(intent: Intent?): String =
         intent?.getStringExtra(SearchManager.QUERY)
@@ -343,20 +345,34 @@ class PixelSearchResultsActivity : ComponentActivity() {
 
         val initialQuery = extractQuery(intent)
         val initialTool = extractTool(intent)
+        if (intent?.getBooleanExtra(EXTRA_OPENED_VIA_GESTURE, false) == true) {
+            gestureRippleTrigger = 1
+        }
 
         setContent {
             val repository = remember { SettingsRepository(this) }
             val isPitchBlack by repository.isPitchBlackThemeEnabled.collectAsState(initial = false)
+            val rippleTrigger = gestureRippleTrigger
+            val rippleEnabled = remember(rippleTrigger) {
+                rippleTrigger > 0 &&
+                    com.sameerasw.essentials.ui.modifiers.isGestureRippleEnabled(this@PixelSearchResultsActivity)
+            }
 
             EssentialsTheme(pitchBlackTheme = isPitchBlack) {
-                PixelSearchResultsScreen(
-                    initialQuery = initialQuery,
-                    incomingIntentQuery = incomingIntentQuery,
-                    initialToolModal = initialTool,
-                    incomingToolModal = incomingToolModal,
-                    incomingToolNonce = toolNonce,
-                    onFinish = { finish() },
-                )
+                Box(modifier = Modifier.fillMaxSize()) {
+                    com.sameerasw.essentials.ui.modifiers.GestureRippleWaveOverlay(
+                        triggerKey = rippleTrigger,
+                        enabled = rippleEnabled,
+                    )
+                    PixelSearchResultsScreen(
+                        initialQuery = initialQuery,
+                        incomingIntentQuery = incomingIntentQuery,
+                        initialToolModal = initialTool,
+                        incomingToolModal = incomingToolModal,
+                        incomingToolNonce = toolNonce,
+                        onFinish = { finish() },
+                    )
+                }
             }
         }
     }
@@ -390,6 +406,9 @@ class PixelSearchResultsActivity : ComponentActivity() {
         incomingIntentQuery = extractQuery(intent) to intentNonce
         incomingToolModal = extractTool(intent)
         toolNonce += 1
+        if (intent.getBooleanExtra(EXTRA_OPENED_VIA_GESTURE, false)) {
+            gestureRippleTrigger += 1
+        }
     }
 }
 

@@ -60,7 +60,7 @@ fun PrivilegedModePicker(
                 painter = painterResource(id = R.drawable.rounded_numbers_24),
                 contentDescription = null,
                 modifier = Modifier.size(24.dp),
-                tint = MaterialTheme.colorScheme.primary,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         },
         trailingContent = {
@@ -70,14 +70,14 @@ fun PrivilegedModePicker(
                         HapticUtil.performVirtualKeyHaptic(view)
                         isMenuExpanded = true
                     },
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    shape = RoundedCornerShape(100.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                 ) {
                     TranslatableText(
                         stringResId = selectedMode.labelRes,
                         style = MaterialTheme.typography.labelLarge,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                     )
                 }
 
@@ -97,12 +97,12 @@ fun PrivilegedModePicker(
                 }
             }
         },
-        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceBright),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        colors = ListItemDefaults.colors(containerColor = com.sameerasw.essentials.ui.core.komorebi.pixelSettingsCardColor()),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
         content = {
             TranslatableText(
                 stringResId = R.string.setting_privileged_mode_title,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface,
             )
         },

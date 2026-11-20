@@ -97,9 +97,12 @@ class SearchGestureAccessibilityService : AccessibilityService() {
         return false
     }
 
-    internal fun openSearch(toggleIfShowing: Boolean = true) {
+    internal fun openSearch(
+        toggleIfShowing: Boolean = true,
+        openedViaGesture: Boolean = true,
+    ) {
         if (Looper.myLooper() != Looper.getMainLooper()) {
-            mainHandler.post { openSearch(toggleIfShowing) }
+            mainHandler.post { openSearch(toggleIfShowing, openedViaGesture) }
             return
         }
 
@@ -126,7 +129,7 @@ class SearchGestureAccessibilityService : AccessibilityService() {
         }
 
         if (!SettingsRepository(this).getPixelSearchOverlayEnabled()) {
-            launchSearchActivity()
+            launchSearchActivity(openedViaGesture)
             return
         }
 
@@ -135,7 +138,7 @@ class SearchGestureAccessibilityService : AccessibilityService() {
             val watchdog = Runnable {
                 if (overlayOpened.compareAndSet(false, true)) {
                     capturingScreenshot.set(false)
-                    showOverlay(null)
+                    showOverlay(null, openedViaGesture)
                 }
             }
             mainHandler.postDelayed(watchdog, SCREENSHOT_TIMEOUT_MS)
@@ -153,7 +156,7 @@ class SearchGestureAccessibilityService : AccessibilityService() {
                                 mainHandler.removeCallbacks(watchdog)
                                 capturingScreenshot.set(false)
                                 if (overlayOpened.compareAndSet(false, true)) {
-                                    showOverlay(backdrop)
+                                    showOverlay(backdrop, openedViaGesture)
                                 } else if (SearchOverlayController.isShowing && backdrop != null) {
                                     SearchOverlayController.updateBackdrop(backdrop)
                                 }
@@ -166,7 +169,7 @@ class SearchGestureAccessibilityService : AccessibilityService() {
                                 mainHandler.removeCallbacks(watchdog)
                                 capturingScreenshot.set(false)
                                 if (overlayOpened.compareAndSet(false, true)) {
-                                    showOverlay(null)
+                                    showOverlay(null, openedViaGesture)
                                 }
                             }
                         }
@@ -180,21 +183,24 @@ class SearchGestureAccessibilityService : AccessibilityService() {
             mainHandler.removeCallbacks(watchdog)
             capturingScreenshot.set(false)
         }
-        showOverlay(null)
+        showOverlay(null, openedViaGesture)
     }
 
-    private fun showOverlay(backdrop: Bitmap?) {
-        val shown = runCatching { SearchOverlayController.show(this, backdrop) }
+    private fun showOverlay(
+        backdrop: Bitmap?,
+        openedViaGesture: Boolean,
+    ) {
+        val shown = runCatching { SearchOverlayController.show(this, backdrop, openedViaGesture) }
             .onFailure { error ->
                 Log.e(TAG, "Unable to show search overlay", error)
             }
             .getOrDefault(false)
         if (shown) return
-        launchSearchActivity()
+        launchSearchActivity(openedViaGesture)
     }
 
-    private fun launchSearchActivity() {
-        val intent = AppLaunchUtil.buildSearchResultsIntent(this)
+    private fun launchSearchActivity(openedViaGesture: Boolean) {
+        val intent = AppLaunchUtil.buildSearchResultsIntent(this, openedViaGesture = openedViaGesture)
         AppLaunchUtil.startActivityReliably(this, intent)
     }
 

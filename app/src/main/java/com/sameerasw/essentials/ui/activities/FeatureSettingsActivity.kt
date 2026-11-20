@@ -62,7 +62,6 @@ import com.sameerasw.essentials.ui.features.system.ActivityLauncherSearchBar
 import com.sameerasw.essentials.ui.features.system.ActivityLauncherSettingsUI
 import com.sameerasw.essentials.ui.features.system.CalendarSyncSettingsUI
 import com.sameerasw.essentials.ui.modifiers.highlight
-import com.sameerasw.essentials.ui.modifiers.scrollMotionBlur
 import com.sameerasw.essentials.ui.navigation.AppRoute
 import com.sameerasw.essentials.ui.navigation.BottomBarSpec
 import com.sameerasw.essentials.ui.navigation.LocalSelectedFeatureIds
@@ -300,7 +299,6 @@ fun FeatureSettingsScreen(
             val statusBarHeight =
                 WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
-            val isMotionBlurEnabled by viewModel.isMotionBlurEnabled
             val scrollState = rememberScrollState()
 
             Box(modifier = Modifier.fillMaxSize()) {
@@ -308,7 +306,7 @@ fun FeatureSettingsScreen(
                     modifier =
                         Modifier
                             .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.surfaceContainer),
+                            .background(com.sameerasw.essentials.ui.core.komorebi.pixelSettingsCanvasColor()),
                 ) {
                     val hasScroll = featureId != "Activity launcher"
                     Column(
@@ -318,7 +316,6 @@ fun FeatureSettingsScreen(
                                 .then(
                                     if (hasScroll) {
                                         Modifier
-                                            .scrollMotionBlur(scrollState, enabled = isMotionBlurEnabled)
                                             .nestedScroll(nestedScrollConnection)
                                             .verticalScroll(scrollState)
                                     } else {

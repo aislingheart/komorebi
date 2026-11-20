@@ -1632,7 +1632,6 @@ Ve ayarın etkili olması için birden fazla kez uygulanması gerekebilir.</stri
     <string name="watch_watchface_desc">Saat kadranını özelleştirin</string>
     <string name="tile_url_shortener">URL\'i kısalt</string>
     <string name="tile_url_shortener_subtitle">Panoyu Kısalt</string>
-    <string name="label_motion_blur">Hareket bulanıklığı</string>
     <string name="label_ripple_animation">Dalgalanma animasyonu</string>
     <string name="smart_pixels_disable_on_cast_title">Ekran kaydı sırasında devre dışı bırak</string>
     <string name="smart_pixels_disable_on_cast_desc">Ekranı yayınlarken veya kaydederken piksel ızgarası yerleşimini otomatik olarak duraklat</string>
@@ -1797,7 +1796,6 @@ Gizlendiğinde, bildirimler ekranınızın üzerinde belirmek yerine bildirim pa
     <string name="about_desc_lockscreen_shortcuts">Kilit ekranının alt köşelerine Komorebi kısayol düğmeleri ekler. İlgili işlemi gerçekleştirmek için bir kısayola dokunup basılı tutun. Yalnızca sistemin kendi kilit ekranı kısayolları kapalıyken kullanılabilir.</string>
     <string name="feat_activity_launcher_desc">Herhangi bir uygulama ekranını açın veya sabitleyin</string>
     <string name="about_desc_activity_launcher">Herhangi bir uygulamadaki ekranlara (etkinliklere) göz atın, bunları doğrudan açın ve ana ekranınıza sabitleyin. Uygulamanın gizli tuttuğu ekranlar Yalnızca Root olarak işaretlenmiştir ve açılmaları için root yetkisi gerekir.</string>
-    <string name="label_motion_blur_amount">Miktar</string>
     <string name="screen_locked_keep_qs_on_extended_unlock_title">QS\'i genişletilmiş kilit açma modunda görüntüleyin</string>
     <string name="label_battery_charging_policy">Şarj Politikası</string>
     <string name="label_battery_max_current">Maksimum Şarj Akımı</string>

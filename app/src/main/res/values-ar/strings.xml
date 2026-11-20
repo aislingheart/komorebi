@@ -2172,7 +2172,6 @@
     <string name="app_icon_gta">الرذيلة</string>
     <string name="app_icon_google">الطيف</string>
     <string name="label_ripple_animation">الرسوم المتحركة التموجية</string>
-    <string name="label_motion_blur">ضبابية الحركة</string>
     <string name="label_online_help_media">وسائل المساعدة عبر الإنترنت</string>
     <string name="perm_contacts_title">إذن جهات الاتصال</string>
     <string name="perm_contacts_desc">لعرض جهات الاتصال في نتائج بحث Pixel، يحتاج Komorebi إلى إذن لقراءة جهات الاتصال الخاصة بك.</string>

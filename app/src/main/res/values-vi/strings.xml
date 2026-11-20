@@ -1643,7 +1643,6 @@ Cần có quyền quản trị thiết bị nếu sử dụng chế độ khóa.
     <string name="setting_location_reached_full_screen_alarm_title">Báo thức toàn màn hình</string>
     <string name="setting_location_reached_full_screen_alarm_desc">Phát nhạc chuông báo thức và hiển thị thông báo toàn màn hình khi đến nơi</string>
     <string name="label_ripple_animation">Hoạt ảnh gợn sóng</string>
-    <string name="label_motion_blur">Hiệu ứng mờ chuyển động</string>
     <string name="setting_app_icon_title">Biểu tượng ứng dụng</string>
     <string name="setting_app_icon_desc">Tùy chỉnh biểu tượng trình khởi chạy màn hình chính</string>
     <string name="app_icon_default">Mặc định</string>
@@ -2234,7 +2233,6 @@ Tính năng này chỉ được dùng cho trình khởi chạy và không phải
     <string name="about_desc_duo_tile">Bật hoặc tắt lớp phủ vòng camera Duo trong Cài đặt nhanh.</string>
     <string name="about_desc_island_tile">Bật hoặc tắt lớp phủ thông báo Island từ Cài đặt nhanh.</string>
     <string name="about_desc_data_sim">Chuyển dữ liệu di động sang SIM đang hoạt động tiếp theo. Cần quyền Đọc trạng thái điện thoại và Shizuku hoặc quyền root; SIM được chọn cũng sẽ được bật dữ liệu di động.</string>
-    <string name="label_motion_blur_amount">Số lượng</string>
     <string name="batteries_notification_title">Thông báo pin</string>
     <string name="battery_show_percentage_title">Hiển thị phần trăm</string>
     <string name="battery_separate_channels_title">Các kênh pin riêng biệt</string>

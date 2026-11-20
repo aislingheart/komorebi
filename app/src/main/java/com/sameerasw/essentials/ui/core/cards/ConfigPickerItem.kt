@@ -100,25 +100,24 @@ fun ConfigPickerItem(
             },
         trailingContent = {
             Box {
-                Surface(
-                    onClick = {
-                        if (isEnabled) {
-                            HapticUtil.performVirtualKeyHaptic(view)
-                            isMenuExpanded = true
-                        }
-                    },
-                    enabled = isEnabled,
-                    shape = RoundedCornerShape(10.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)),
-                ) {
-                    Text(
-                        text = selectedValue,
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    )
-                }
+                    Surface(
+                        onClick = {
+                            if (isEnabled) {
+                                HapticUtil.performVirtualKeyHaptic(view)
+                                isMenuExpanded = true
+                            }
+                        },
+                        enabled = isEnabled,
+                        shape = RoundedCornerShape(100.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    ) {
+                        Text(
+                            text = selectedValue,
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium),
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                        )
+                    }
 
                 SegmentedDropdownMenu(
                     expanded = isMenuExpanded,
@@ -134,12 +133,12 @@ fun ConfigPickerItem(
         },
         colors =
             ListItemDefaults.colors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                containerColor = com.sameerasw.essentials.ui.core.komorebi.pixelSettingsCardColor(),
             ),
         content = {
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
                 color = MaterialTheme.colorScheme.onSurface,
             )
         },

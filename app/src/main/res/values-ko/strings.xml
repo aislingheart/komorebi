@@ -1577,9 +1577,7 @@
     <string name="setting_location_reached_full_screen_alarm_title">전체 화면 알림</string>
     <string name="setting_show_legacy_features_title">구형 기능 표시</string>
     <string name="setting_show_legacy_features_desc">이러한 구형 기능은 기술적 제약 등으로 인해 더 이상 업데이트되지 않습니다.</string>
-    <string name="label_motion_blur">움직임 블러</string>
     <string name="label_online_help_media">온라인 도움말</string>
-    <string name="label_motion_blur_amount">강도</string>
     <string name="duo_enable_title">Duo 활성화</string>
     <string name="duo_auto_detect_title">카메라 자동 감지</string>
     <string name="duo_auto_detect_desc">카메라를 자동으로 감지하여 위치를 정합니다</string>

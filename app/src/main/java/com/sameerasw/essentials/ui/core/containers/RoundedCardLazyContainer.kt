@@ -27,7 +27,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.sameerasw.essentials.ui.components.linkActions.AppPickerItem
 import com.sameerasw.essentials.ui.components.linkActions.ResolvedAppInfo
-import com.sameerasw.essentials.ui.modifiers.scrollMotionBlur
 
 @Composable
 fun RoundedCardLazyContainer(
@@ -43,11 +42,6 @@ fun RoundedCardLazyContainer(
     demo: Boolean = false,
 ) {
     val context = LocalContext.current
-    val isMotionBlurEnabled =
-        remember(context) {
-            context.getSharedPreferences("essentials_prefs", Context.MODE_PRIVATE)
-                .getBoolean("motion_blur", false)
-        }
     val lazyListState = rememberLazyListState()
 
     LazyColumn(
@@ -55,9 +49,8 @@ fun RoundedCardLazyContainer(
         modifier =
             modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(cornerRadius))
-                .scrollMotionBlur(lazyListState, enabled = isMotionBlurEnabled),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+                .clip(RoundedCornerShape(cornerRadius)),
+        verticalArrangement = Arrangement.spacedBy(spacing),
     ) {
         items(resolveInfos) { info ->
 

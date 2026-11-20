@@ -110,18 +110,11 @@ fun AppToggleItem(
         }
     }
 
+    val cardColor = com.sameerasw.essentials.ui.core.komorebi.pixelSettingsCardColor()
+
     if (showToggle) {
         ListItem(
-            checked = isChecked && enabled,
-            onCheckedChange = { checked ->
-                if (enabled) {
-                    HapticUtil.performVirtualKeyHaptic(view)
-                    onCheckedChange(checked)
-                } else if (onDisabledClick != null) {
-                    HapticUtil.performVirtualKeyHaptic(view)
-                    onDisabledClick()
-                }
-            },
+            onClick = onClickAction,
             enabled = enabled,
             modifier = modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -142,7 +135,7 @@ fun AppToggleItem(
                     {
                         Text(
                             text = description,
-                            style = MaterialTheme.typography.labelMedium,
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -152,18 +145,23 @@ fun AppToggleItem(
             trailingContent = {
                 Switch(
                     checked = if (enabled) isChecked else false,
-                    onCheckedChange = null,
+                    onCheckedChange = { checked ->
+                        if (enabled) {
+                            HapticUtil.performVirtualKeyHaptic(view)
+                            onCheckedChange(checked)
+                        }
+                    },
                     enabled = enabled,
                 )
             },
             colors =
                 ListItemDefaults.colors(
-                    containerColor = MaterialTheme.colorScheme.surfaceBright,
+                    containerColor = cardColor,
                 ),
             contentPadding =
                 androidx.compose.foundation.layout.PaddingValues(
                     horizontal = 16.dp,
-                    vertical = 16.dp,
+                    vertical = 14.dp,
                 ),
             content = {
                 Row(
@@ -229,12 +227,12 @@ fun AppToggleItem(
                 },
             colors =
                 ListItemDefaults.colors(
-                    containerColor = MaterialTheme.colorScheme.surfaceBright,
+                    containerColor = cardColor,
                 ),
             contentPadding =
                 androidx.compose.foundation.layout.PaddingValues(
                     horizontal = 16.dp,
-                    vertical = 16.dp,
+                    vertical = 14.dp,
                 ),
             content = {
                 Row(

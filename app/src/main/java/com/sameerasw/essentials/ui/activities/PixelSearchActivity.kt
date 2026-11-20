@@ -73,7 +73,7 @@ class PixelSearchActivity : Activity() {
             accessibilityService != null &&
             runCatching { SettingsRepository(this).getPixelSearchOverlayEnabled() }.getOrDefault(true)
         ) {
-            accessibilityService.openSearch(toggleIfShowing = true)
+            accessibilityService.openSearch(toggleIfShowing = true, openedViaGesture = true)
             finish()
             return
         }
@@ -83,7 +83,7 @@ class PixelSearchActivity : Activity() {
         }
 
         try {
-            val intent = AppLaunchUtil.buildSearchResultsIntent(this, query)
+            val intent = AppLaunchUtil.buildSearchResultsIntent(this, query, openedViaGesture = isAssistantAction)
             startActivity(intent)
         } catch (t: Throwable) {
             Log.e("PixelSearchActivity", "Failed to open search results", t)

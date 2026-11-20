@@ -1109,13 +1109,23 @@ class RaycastRuntimeEngine(
                         mapOf("error" to "Health Connect is not available on this device."),
                     )
                 }
-                val snapshot = manager.readSnapshot(context).getOrNull()
-                    ?: return gson.toJson(mapOf("error" to "Could not read health data right now."))
+                val snapshot = manager.readSnapshot(context).getOrElse { err ->
+                    val reason = err.localizedMessage?.takeIf { it.isNotBlank() } ?: err.javaClass.simpleName
+                    return gson.toJson(mapOf("error" to "Could not read health data ($reason)."))
+                }
                 if (snapshot.missingPermissions) {
                     return gson.toJson(
                         mapOf(
-                            "error" to "Health permissions missing. Run 'health summary' in Komorebi " +
-                                "search once and grant the permissions it requests, then reopen this extension.",
+                            "error" to "Health permissions missing. Open Komorebi Settings > Permissions > " +
+                                "Health Connect and grant access, then reopen this extension.",
+                        ),
+                    )
+                }
+                if (snapshot.backgroundReadBlocked) {
+                    return gson.toJson(
+                        mapOf(
+                            "error" to "Background Health Connect access is required from the search overlay. " +
+                                "Open Komorebi Settings > Permissions > Health Connect and enable 'Access data in background'.",
                         ),
                     )
                 }

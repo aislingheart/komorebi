@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.sameerasw.essentials.R
 import com.sameerasw.essentials.translation.TranslatableText
+import com.sameerasw.essentials.ui.core.komorebi.pixelSettingsCardColor
 import com.sameerasw.essentials.ui.theme.Shapes
 import com.sameerasw.essentials.utils.AutoBackupManager
 
@@ -68,7 +69,7 @@ fun AutoBackupSetting() {
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceBright, Shapes.extraSmall)
+                    .background(pixelSettingsCardColor(), Shapes.extraSmall)
                     .clickable { expanded = true }
                     .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -114,7 +115,7 @@ fun AutoBackupSetting() {
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surfaceBright, Shapes.extraSmall)
+                        .background(pixelSettingsCardColor(), Shapes.extraSmall)
                         .clickable { folderPicker.launch(null) }
                         .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically,

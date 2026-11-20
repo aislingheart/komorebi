@@ -41,8 +41,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -52,6 +54,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.sameerasw.essentials.ui.core.komorebi.KomorebiIconBadge
+import com.sameerasw.essentials.ui.core.komorebi.pixelSettingsCardColor
 import com.sameerasw.essentials.utils.HapticUtil
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -105,7 +108,15 @@ fun IconToggleItem(
         }
     }
 
-    Box(modifier = modifier.fillMaxWidth()) {
+    val cardColor = pixelSettingsCardColor()
+    val itemShape = RoundedCornerShape(4.dp)
+
+    Box(
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .clip(itemShape),
+    ) {
         if (showToggle) {
             if (onClick != null) {
                 ListItem(
@@ -129,7 +140,7 @@ fun IconToggleItem(
                                 KomorebiIconBadge(
                                     iconRes = finalIconRes,
                                     contentDescription = title,
-                                    active = finalIsChecked && enabled,
+                                    active = enabled,
                                 )
                             }
                         } else {
@@ -140,7 +151,7 @@ fun IconToggleItem(
                             {
                                 Text(
                                     text = finalDescription,
-                                    style = MaterialTheme.typography.bodySmall,
+                                    style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
@@ -203,12 +214,12 @@ fun IconToggleItem(
                     },
                     colors =
                         ListItemDefaults.colors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                            containerColor = cardColor,
                         ),
                     content = {
                         Text(
                             text = title,
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
+                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                     },
@@ -217,13 +228,13 @@ fun IconToggleItem(
                 var switchCenterOffset by remember { mutableStateOf(Offset.Zero) }
 
                 ListItem(
-                    checked = finalIsChecked,
-                    onCheckedChange = { c ->
+                    onClick = {
                         if (dragHandle != null) {
                         } else if (enabled) {
+                            val next = !finalIsChecked
                             HapticUtil.performVirtualKeyHaptic(view)
-                            onCheckedChange(c)
-                            onCheckedChangeWithPosition?.invoke(c, switchCenterOffset)
+                            onCheckedChange(next)
+                            onCheckedChangeWithPosition?.invoke(next, switchCenterOffset)
                         } else if (onDisabledClick != null) {
                             HapticUtil.performVirtualKeyHaptic(view)
                             onDisabledClick()
@@ -240,7 +251,7 @@ fun IconToggleItem(
                                 KomorebiIconBadge(
                                     iconRes = finalIconRes,
                                     contentDescription = title,
-                                    active = finalIsChecked && enabled,
+                                    active = enabled,
                                 )
                             }
                         } else {
@@ -251,7 +262,7 @@ fun IconToggleItem(
                             {
                                 Text(
                                     text = finalDescription,
-                                    style = MaterialTheme.typography.bodySmall,
+                                    style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
@@ -316,7 +327,13 @@ fun IconToggleItem(
                             }
                             Switch(
                                 checked = finalIsChecked,
-                                onCheckedChange = null,
+                                onCheckedChange = { next ->
+                                    if (enabled) {
+                                        HapticUtil.performVirtualKeyHaptic(view)
+                                        onCheckedChange(next)
+                                        onCheckedChangeWithPosition?.invoke(next, switchCenterOffset)
+                                    }
+                                },
                                 enabled = enabled,
                                 modifier = Modifier.onGloballyPositioned { coords ->
                                     val pos = coords.positionInRoot()
@@ -333,12 +350,12 @@ fun IconToggleItem(
                     },
                     colors =
                         ListItemDefaults.colors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                            containerColor = cardColor,
                         ),
                     content = {
                         Text(
                             text = title,
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
+                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                     },
@@ -353,7 +370,7 @@ fun IconToggleItem(
                                 painter = painterResource(id = R.drawable.rounded_chevron_right_24),
                                 contentDescription = null,
                                 modifier = Modifier.size(20.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                             )
                         }
                     } else {
@@ -384,7 +401,7 @@ fun IconToggleItem(
                         {
                             Text(
                                 text = finalDescription,
-                                style = MaterialTheme.typography.bodySmall,
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
@@ -394,12 +411,12 @@ fun IconToggleItem(
                 trailingContent = resolvedTrailingContent,
                 colors =
                     ListItemDefaults.colors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                        containerColor = cardColor,
                     ),
                 content = {
                     Text(
                         text = title,
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                 },

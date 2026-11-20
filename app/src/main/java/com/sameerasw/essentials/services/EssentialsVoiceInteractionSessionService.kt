@@ -40,7 +40,7 @@ class EssentialsVoiceInteractionSession(context: Context) : VoiceInteractionSess
             accessibilityService != null &&
             runCatching { SettingsRepository(context).getPixelSearchOverlayEnabled() }.getOrDefault(true)
         ) {
-            accessibilityService.openSearch(toggleIfShowing = true)
+            accessibilityService.openSearch(toggleIfShowing = true, openedViaGesture = true)
             mainHandler.post { runCatching { hide() } }
             return
         }
@@ -49,7 +49,7 @@ class EssentialsVoiceInteractionSession(context: Context) : VoiceInteractionSess
             SearchOverlayController.hide()
         }
 
-        val intent = AppLaunchUtil.buildSearchResultsIntent(context, query)
+        val intent = AppLaunchUtil.buildSearchResultsIntent(context, query, openedViaGesture = true)
         val launchedViaAssistant =
             runCatching {
                 startAssistantActivity(intent)

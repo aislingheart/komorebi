@@ -80,7 +80,6 @@ import com.sameerasw.essentials.ui.core.sheets.PermissionsBottomSheet
 import com.sameerasw.essentials.ui.core.sheets.ReorderFavoritesBottomSheet
 import com.sameerasw.essentials.ui.features.permissions.PermissionsSearchResultCard
 import com.sameerasw.essentials.utils.PermissionUIHelper
-import com.sameerasw.essentials.ui.modifiers.scrollMotionBlur
 import com.sameerasw.essentials.utils.BiometricSecurityHelper
 import com.sameerasw.essentials.utils.PermissionUtils
 import com.sameerasw.essentials.viewmodels.MainViewModel
@@ -874,7 +873,6 @@ fun SetupFeatures(
             )
         }
 
-    val isMotionBlurEnabled by viewModel.isMotionBlurEnabled
     val appVersion = remember { "v${BuildConfig.VERSION_NAME}" }
     val headerState = rememberPullTitleHeaderState()
 
@@ -895,8 +893,7 @@ fun SetupFeatures(
                 Modifier
                     .fillMaxHeight()
                     .width(listWidth)
-                    .nestedScroll(headerState.nestedScrollConnection)
-                    .scrollMotionBlur(lazyListState, enabled = isMotionBlurEnabled),
+                    .nestedScroll(headerState.nestedScrollConnection),
             contentPadding =
                 PaddingValues(
                     top = contentPadding.calculateTopPadding(),

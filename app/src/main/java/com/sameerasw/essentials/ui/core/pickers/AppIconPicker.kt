@@ -61,12 +61,14 @@ fun AppIconPicker(
 ) {
     val view = LocalView.current
 
+    val cardColor = com.sameerasw.essentials.ui.core.komorebi.pixelSettingsCardColor()
+
     Column(
         modifier =
             modifier
                 .fillMaxWidth()
                 .clip(MaterialTheme.shapes.extraSmall)
-                .background(MaterialTheme.colorScheme.surfaceBright),
+                .background(cardColor),
         verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
         ListItem(
@@ -77,29 +79,29 @@ fun AppIconPicker(
                     painter = painterResource(id = R.drawable.rounded_app_registration_24),
                     contentDescription = null,
                     modifier = Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             },
             contentPadding =
                 PaddingValues(
                     horizontal = 16.dp,
-                    vertical = 16.dp,
+                    vertical = 14.dp,
                 ),
             verticalAlignment = Alignment.CenterVertically,
             colors =
                 ListItemDefaults.colors(
-                    containerColor = MaterialTheme.colorScheme.surfaceBright,
+                    containerColor = cardColor,
                 ),
             content = {
                 Column {
                     TranslatableText(
                         stringResId = R.string.setting_app_icon_title,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     TranslatableText(
                         stringResId = R.string.setting_app_icon_desc,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }

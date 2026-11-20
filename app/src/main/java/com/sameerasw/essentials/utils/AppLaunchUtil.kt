@@ -153,10 +153,14 @@ object AppLaunchUtil {
     fun buildSearchResultsIntent(
         context: Context,
         query: String = "",
+        openedViaGesture: Boolean = false,
     ): Intent =
         Intent(context.applicationContext, PixelSearchResultsActivity::class.java).apply {
             if (query.isNotEmpty()) {
                 putExtra(SearchManager.QUERY, query)
+            }
+            if (openedViaGesture) {
+                putExtra(PixelSearchResultsActivity.EXTRA_OPENED_VIA_GESTURE, true)
             }
             addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK or

@@ -73,8 +73,8 @@ fun RepoDetailsRow(
                     val intent = Intent(Intent.ACTION_VIEW, repoUrl.toUri())
                     context.startActivity(intent)
                 },
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {
         Row(
             modifier =
