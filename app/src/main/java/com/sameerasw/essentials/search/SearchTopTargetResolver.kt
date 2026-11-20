@@ -12,7 +12,6 @@ package com.sameerasw.essentials.search
 
 enum class TopSearchTarget {
     NONE,
-    LOCAL_DECISION_CONFIRMATION,
     SCOPED_PHOTOS_PERMISSION,
     SCOPED_PHOTO,
     SCOPED_APP_INTENT,
@@ -33,7 +32,6 @@ enum class TopSearchTarget {
     SHORTCUT,
     APP_FUNCTION,
     MATCHING_PROVIDER,
-    LOCAL_DECISION,
     WEB_SEARCH,
 }
 
@@ -41,7 +39,6 @@ data class SearchTopTargetInput(
     val trimmedQuery: String,
     val activeScopeKind: SearchProviderKind?,
     val hasMediaPermission: Boolean,
-    val hasPendingDecisionConfirmation: Boolean,
     val hasScopedPhotos: Boolean,
     val hasCalc: Boolean,
     val hasCommands: Boolean,
@@ -62,16 +59,11 @@ data class SearchTopTargetInput(
     val hasShortcuts: Boolean,
     val hasAppFunctions: Boolean,
     val hasMatchingProviders: Boolean,
-    val hasLocalDecisionMatches: Boolean,
     val isWebEnabled: Boolean,
 )
 
 object SearchTopTargetResolver {
     fun resolve(input: SearchTopTargetInput): TopSearchTarget {
-        if (input.hasPendingDecisionConfirmation) {
-            return TopSearchTarget.LOCAL_DECISION_CONFIRMATION
-        }
-
         val scopeKind = input.activeScopeKind
         if (scopeKind != null) {
             return when (scopeKind) {
@@ -125,7 +117,6 @@ object SearchTopTargetResolver {
             input.hasAppFunctions -> TopSearchTarget.APP_FUNCTION
             input.hasPrefixSuggestion -> TopSearchTarget.PREFIX_SCOPE
             input.hasMatchingProviders -> TopSearchTarget.MATCHING_PROVIDER
-            input.hasLocalDecisionMatches -> TopSearchTarget.LOCAL_DECISION
             input.isWebEnabled -> TopSearchTarget.WEB_SEARCH
             else -> TopSearchTarget.NONE
         }

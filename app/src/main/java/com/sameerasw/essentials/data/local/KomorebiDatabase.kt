@@ -5,8 +5,7 @@
  * Feature Module: Local Persistence (Room + FTS4)
  * File: KomorebiDatabase.kt
  * Description: Structured Room + FTS4 database for fast full-text searchable local data
- *              (clipboard history, snippets, quicklinks, tasks) and local intent decision
- *              feedback reinforcement weights.
+ *              (clipboard history, snippets, quicklinks, tasks).
  */
 
 package com.sameerasw.essentials.data.local
@@ -23,10 +22,9 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import com.sameerasw.essentials.assistant.LocalIntentDecisionEngine
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import java.util.Locale
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 @Entity(tableName = "clipboard_entries")
 data class ClipboardEntryEntity(
@@ -59,14 +57,6 @@ data class LocalTaskEntity(
 data class LocalTaskFts(
     @ColumnInfo(name = "title") val title: String,
     @ColumnInfo(name = "notes") val notes: String,
-)
-
-@Entity(tableName = "intent_feedback", primaryKeys = ["token", "tool_id"])
-data class IntentFeedbackEntity(
-    @ColumnInfo(name = "token") val token: String,
-    @ColumnInfo(name = "tool_id") val toolId: String,
-    @ColumnInfo(name = "hits") val hits: Int,
-    @ColumnInfo(name = "updated_at_ms") val updatedAtMs: Long,
 )
 
 @Dao
@@ -124,40 +114,29 @@ interface LocalTaskDao {
     suspend fun deleteById(taskId: String)
 }
 
-@Dao
-interface IntentFeedbackDao {
-    @Query("SELECT * FROM intent_feedback ORDER BY updated_at_ms DESC LIMIT 400")
-    suspend fun allWeights(): List<IntentFeedbackEntity>
-
-    @Query("SELECT * FROM intent_feedback WHERE token = :token AND tool_id = :toolId LIMIT 1")
-    suspend fun get(token: String, toolId: String): IntentFeedbackEntity?
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsert(entity: IntentFeedbackEntity)
-
-    @Query("DELETE FROM intent_feedback")
-    suspend fun clearAll()
-}
-
 @Database(
     entities = [
         ClipboardEntryEntity::class,
         ClipboardEntryFts::class,
         LocalTaskEntity::class,
         LocalTaskFts::class,
-        IntentFeedbackEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class KomorebiDatabase : RoomDatabase() {
     abstract fun clipboardDao(): ClipboardEntryDao
     abstract fun taskDao(): LocalTaskDao
-    abstract fun intentFeedbackDao(): IntentFeedbackDao
 
     companion object {
         @Volatile
         private var instance: KomorebiDatabase? = null
+
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS intent_feedback")
+            }
+        }
 
         fun getInstance(context: Context): KomorebiDatabase =
             instance ?: synchronized(this) {
@@ -166,6 +145,7 @@ abstract class KomorebiDatabase : RoomDatabase() {
                     KomorebiDatabase::class.java,
                     "komorebi_local_v1.db",
                 )
+                    .addMigrations(MIGRATION_1_2)
                     .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                     .also { instance = it }
@@ -180,49 +160,6 @@ abstract class KomorebiDatabase : RoomDatabase() {
                 .filter { it.length >= 2 }
                 .take(8)
             return tokens.joinToString(" ") { "$it*" }
-        }
-    }
-}
-
-/**
- * Local reinforcement store for [LocalIntentDecisionEngine]. Records which tool the user tapped
- * for given query tokens and returns bounded weights (`0f..0.16f` per token) for future ranking.
- */
-object IntentFeedbackStore {
-    @Volatile
-    private var cachedWeights: Map<String, Float>? = null
-
-    suspend fun loadWeights(context: Context): Map<String, Float> {
-        cachedWeights?.let { return it }
-        return withContext(Dispatchers.IO) {
-            val rows = runCatching {
-                KomorebiDatabase.getInstance(context).intentFeedbackDao().allWeights()
-            }.getOrDefault(emptyList())
-            val map = buildMap<String, Float>(rows.size) {
-                for (row in rows) {
-                    val weight = (0.04f * row.hits).coerceAtMost(0.16f)
-                    put("${row.token}->${row.toolId}", weight)
-                }
-            }
-            cachedWeights = map
-            map
-        }
-    }
-
-    suspend fun recordSelection(context: Context, query: String, toolId: String) {
-        val tokens = LocalIntentDecisionEngine.tokenize(query).distinct().take(6)
-        if (tokens.isEmpty()) return
-        withContext(Dispatchers.IO) {
-            runCatching {
-                val dao = KomorebiDatabase.getInstance(context).intentFeedbackDao()
-                val now = System.currentTimeMillis()
-                for (tok in tokens) {
-                    val existing = dao.get(tok, toolId)
-                    val hits = ((existing?.hits ?: 0) + 1).coerceAtMost(20)
-                    dao.upsert(IntentFeedbackEntity(tok, toolId, hits, now))
-                }
-                cachedWeights = null
-            }
         }
     }
 }

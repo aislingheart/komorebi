@@ -14,7 +14,6 @@ class SearchTopTargetResolverTest {
         trimmedQuery: String = "test",
         activeScopeKind: SearchProviderKind? = null,
         hasMediaPermission: Boolean = true,
-        hasPendingDecisionConfirmation: Boolean = false,
         hasScopedPhotos: Boolean = false,
         hasCalc: Boolean = false,
         hasCommands: Boolean = false,
@@ -35,13 +34,11 @@ class SearchTopTargetResolverTest {
         hasShortcuts: Boolean = false,
         hasAppFunctions: Boolean = false,
         hasMatchingProviders: Boolean = false,
-        hasLocalDecisionMatches: Boolean = false,
         isWebEnabled: Boolean = true,
     ) = SearchTopTargetInput(
         trimmedQuery = trimmedQuery,
         activeScopeKind = activeScopeKind,
         hasMediaPermission = hasMediaPermission,
-        hasPendingDecisionConfirmation = hasPendingDecisionConfirmation,
         hasScopedPhotos = hasScopedPhotos,
         hasCalc = hasCalc,
         hasCommands = hasCommands,
@@ -62,7 +59,6 @@ class SearchTopTargetResolverTest {
         hasShortcuts = hasShortcuts,
         hasAppFunctions = hasAppFunctions,
         hasMatchingProviders = hasMatchingProviders,
-        hasLocalDecisionMatches = hasLocalDecisionMatches,
         isWebEnabled = isWebEnabled,
     )
 
@@ -72,32 +68,10 @@ class SearchTopTargetResolverTest {
             baseInput(
                 trimmedQuery = "",
                 hasApps = true,
-                hasLocalDecisionMatches = true,
                 isWebEnabled = true,
             ),
         )
         assertEquals(TopSearchTarget.NONE, result)
-    }
-
-    @Test
-    fun `pending decision confirmation always takes top priority`() {
-        val globalResult = SearchTopTargetResolver.resolve(
-            baseInput(
-                hasPendingDecisionConfirmation = true,
-                hasCalc = true,
-                hasApps = true,
-                hasLocalDecisionMatches = true,
-            ),
-        )
-        assertEquals(TopSearchTarget.LOCAL_DECISION_CONFIRMATION, globalResult)
-
-        val scopedResult = SearchTopTargetResolver.resolve(
-            baseInput(
-                activeScopeKind = SearchProviderKind.APP_INTENT,
-                hasPendingDecisionConfirmation = true,
-            ),
-        )
-        assertEquals(TopSearchTarget.LOCAL_DECISION_CONFIRMATION, scopedResult)
     }
 
     @Test
@@ -139,18 +113,6 @@ class SearchTopTargetResolverTest {
             ),
         )
         assertEquals(TopSearchTarget.PREFIX_SCOPE, result)
-    }
-
-    @Test
-    fun `local decision on search miss displaces web search`() {
-        val result = SearchTopTargetResolver.resolve(
-            baseInput(
-                trimmedQuery = "turn on flashlight please",
-                hasLocalDecisionMatches = true,
-                isWebEnabled = true,
-            ),
-        )
-        assertEquals(TopSearchTarget.LOCAL_DECISION, result)
     }
 
     @Test
@@ -233,7 +195,7 @@ class SearchTopTargetResolverTest {
         )
         assertEquals(
             TopSearchTarget.MATCHING_PROVIDER,
-            SearchTopTargetResolver.resolve(baseInput(hasMatchingProviders = true, hasLocalDecisionMatches = true)),
+            SearchTopTargetResolver.resolve(baseInput(hasMatchingProviders = true, isWebEnabled = true)),
         )
     }
 

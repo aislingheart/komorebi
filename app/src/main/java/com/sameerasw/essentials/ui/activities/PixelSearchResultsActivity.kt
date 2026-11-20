@@ -191,19 +191,10 @@ import com.sameerasw.essentials.domain.registry.SearchRegistry
 import com.sameerasw.essentials.domain.model.NotificationApp
 import com.sameerasw.essentials.assistant.AssistantMemoryRepository
 import com.sameerasw.essentials.assistant.AssistantTts
-import com.sameerasw.essentials.assistant.LocalIntentDecision
-import com.sameerasw.essentials.assistant.decision.LocalDecisionModel
-import com.sameerasw.essentials.assistant.decision.LocalDecisionModelManager
-import com.sameerasw.essentials.assistant.decision.ModelDownloadState
 import com.sameerasw.essentials.assistant.tools.AssistantToolRegistry
-import com.sameerasw.essentials.search.LocalSearchDecisionCoordinator
 import com.sameerasw.essentials.search.SearchTopTargetInput
 import com.sameerasw.essentials.search.SearchTopTargetResolver
 import com.sameerasw.essentials.search.TopSearchTarget
-import com.sameerasw.essentials.ui.components.search.LocalDecisionDownloadPromptCard
-import com.sameerasw.essentials.ui.components.search.LocalDecisionMatchList
-import com.sameerasw.essentials.ui.components.search.LocalDecisionModelHeader
-import com.sameerasw.essentials.ui.components.search.LocalToolConfirmationCard
 import com.sameerasw.essentials.launcher.ActiveNotificationStore
 import com.sameerasw.essentials.launcher.BuiltInLauncherAction
 import com.sameerasw.essentials.launcher.BuiltInLauncherTools
@@ -791,8 +782,6 @@ fun PixelSearchResultsScreen(
     }
     val hideInitialResults = remember { repository.isPixelSearchHideInitialResultsEnabled() }
     val notificationsSearchEnabled = remember { repository.isPixelSearchResultNotificationsEnabled() }
-    val decisionCoordinator = remember { LocalSearchDecisionCoordinator(context.applicationContext) }
-    val decisionState by decisionCoordinator.state.collectAsState()
     LaunchedEffect(typoToleranceEnabled) {
         FuzzySearchUtil.setTypoToleranceEnabled(typoToleranceEnabled)
     }
@@ -801,7 +790,11 @@ fun PixelSearchResultsScreen(
         discoveredProviders = SearchProviderDiscovery.discoverProviders(context)
         runCatching { ClipboardHistoryManager.captureCurrent(context) }
         scope.launch(Dispatchers.IO) {
-            runCatching { decisionCoordinator.warmUp() }
+            runCatching {
+                java.io.File(context.applicationContext.filesDir, "decision_models")
+                    .takeIf { it.exists() }
+                    ?.deleteRecursively()
+            }
             runCatching { RaycastRuntimeEngine.prewarm(context.applicationContext) }
         }
         scope.launch(Dispatchers.IO) {
@@ -895,47 +888,6 @@ fun PixelSearchResultsScreen(
             }.sortedByDescending { it.second }
                 .take(maxResults)
                 .map { it.first }
-        }
-    }
-
-    val modelDownloadStates by LocalDecisionModelManager.states.collectAsState()
-    var decisionReevalNonce by remember { mutableIntStateOf(0) }
-
-    val hasDirectSearchMatches =
-        calcResult != null ||
-            appResults.isNotEmpty() ||
-            contactResults.isNotEmpty() ||
-            mediaResults.isNotEmpty() ||
-            fileResults.isNotEmpty() ||
-            systemSettingResults.isNotEmpty() ||
-            settingResults.isNotEmpty() ||
-            shortcutResults.isNotEmpty() ||
-            entityRoutes.isNotEmpty() ||
-            internalCommands.isNotEmpty() ||
-            appFunctions.isNotEmpty() ||
-            matchingToolActions.isNotEmpty() ||
-            matchingSnippets.isNotEmpty() ||
-            matchingQuicklinks.isNotEmpty() ||
-            notificationResults.isNotEmpty() ||
-            matchingProviders.isNotEmpty()
-
-    LaunchedEffect(
-        query,
-        activeScope,
-        isSearching,
-        hasDirectSearchMatches,
-        decisionState.activeModel,
-        decisionReevalNonce,
-        launcherDataVersion,
-    ) {
-        val trimmed = query.trim()
-        if (activeScope != null || trimmed.length < 2 || isSearching || hasDirectSearchMatches) {
-            decisionCoordinator.clear()
-            return@LaunchedEffect
-        }
-        val decisions = decisionCoordinator.evaluateUnmatchedQuery(trimmed, limit = 3)
-        if (decisions.isNotEmpty()) {
-            speakVoiceResponse("Matched ${decisions.first().tool.title}.")
         }
     }
 
@@ -1500,18 +1452,11 @@ fun PixelSearchResultsScreen(
                 it.keyword.isNotBlank() &&
                     trimmedQuery.split(Regex("\\s+"), limit = 2)[0].equals(it.keyword, ignoreCase = true)
             } == true
-    val hasVisibleLocalDecisions =
-        activeScope == null &&
-            trimmedQuery.length >= 2 &&
-            !isSearching &&
-            !hasDirectSearchMatches &&
-            decisionState.decisions.isNotEmpty()
     val topTarget = SearchTopTargetResolver.resolve(
         SearchTopTargetInput(
             trimmedQuery = trimmedQuery,
             activeScopeKind = activeScope?.kind,
             hasMediaPermission = hasMediaPerm,
-            hasPendingDecisionConfirmation = decisionState.pendingConfirmation != null,
             hasScopedPhotos = scopedPhotos.isNotEmpty(),
             hasCalc = activeScope == null && calcResult != null,
             hasCommands = internalCommands.isNotEmpty(),
@@ -1532,31 +1477,12 @@ fun PixelSearchResultsScreen(
             hasShortcuts = activeScope == null && isShortcutsEnabled && shortcutResults.isNotEmpty(),
             hasAppFunctions = activeScope == null && appFunctions.isNotEmpty(),
             hasMatchingProviders = activeScope == null && matchingProviders.isNotEmpty(),
-            hasLocalDecisionMatches = hasVisibleLocalDecisions,
             isWebEnabled = isWebEnabled,
         ),
     )
 
     val highlightColor = MaterialTheme.colorScheme.secondaryContainer
     val normalCardColor = MaterialTheme.colorScheme.surfaceBright
-
-    fun confirmPendingDecision(pending: LocalIntentDecision) {
-        scope.launch {
-            val result = decisionCoordinator.executeDecision(query, pending)
-            assistantFeedback = AssistantFeedback(result.success, result.message)
-            speakVoiceResponse(result.message)
-        }
-    }
-
-    fun runLocalDecision(decision: LocalIntentDecision) {
-        if (decisionCoordinator.requestExecution(decision)) {
-            scope.launch {
-                val result = decisionCoordinator.executeDecision(query, decision)
-                assistantFeedback = AssistantFeedback(result.success, result.message)
-                speakVoiceResponse(result.message)
-            }
-        }
-    }
 
     fun openEssentialSetting(setting: com.sameerasw.essentials.domain.model.SearchableItem) {
         val feature = FeatureRegistry.ALL_FEATURES.find { it.id == setting.featureKey }
@@ -1623,12 +1549,6 @@ fun PixelSearchResultsScreen(
     fun executeHighlightedTopResult() {
         when (topTarget) {
             TopSearchTarget.NONE -> Unit
-
-            TopSearchTarget.LOCAL_DECISION_CONFIRMATION -> {
-                val pending = decisionState.pendingConfirmation ?: return
-                keyboardController?.hide()
-                confirmPendingDecision(pending)
-            }
 
             TopSearchTarget.SCOPED_PHOTOS_PERMISSION -> {
                 keyboardController?.hide()
@@ -1793,12 +1713,6 @@ fun PixelSearchResultsScreen(
                 } else {
                     enterScope(provider)
                 }
-            }
-
-            TopSearchTarget.LOCAL_DECISION -> {
-                val decision = decisionState.decisions.firstOrNull() ?: return
-                keyboardController?.hide()
-                runLocalDecision(decision)
             }
 
             TopSearchTarget.WEB_SEARCH -> {
@@ -1978,95 +1892,6 @@ fun PixelSearchResultsScreen(
                                 TextButton(onClick = { assistantFeedback = null }) {
                                     Text("Dismiss")
                                 }
-                            }
-                        }
-                    }
-                }
-
-                decisionState.pendingConfirmation?.let { pending ->
-                    item(key = "local_decision_confirmation") {
-                        LocalToolConfirmationCard(
-                            decision = pending,
-                            containerColor = if (topTarget == TopSearchTarget.LOCAL_DECISION_CONFIRMATION) highlightColor else normalCardColor,
-                            onConfirm = {
-                                HapticUtil.performVirtualKeyHaptic(view)
-                                confirmPendingDecision(pending)
-                            },
-                            onCancel = {
-                                HapticUtil.performVirtualKeyHaptic(view)
-                                decisionCoordinator.cancelConfirmation()
-                            },
-                            modifier = Modifier.animateItem(),
-                        )
-                    }
-                }
-
-                if (activeScope == null &&
-                    query.trim().length >= 2 &&
-                    !isSearching &&
-                    !hasDirectSearchMatches
-                ) {
-                    val activeModel = decisionState.activeModel
-                    val activeDlState = modelDownloadStates[activeModel] ?: ModelDownloadState.NotRequired
-                    val showDownloadPrompt =
-                        activeModel.requiresDownload &&
-                            (decisionState.needsDownload || activeDlState is ModelDownloadState.Downloading)
-
-                    item(key = "local_decision_matches") {
-                        Column(
-                            modifier = Modifier.fillMaxWidth().animateItem(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            LocalDecisionModelHeader(
-                                activeModel = activeModel,
-                                isEvaluating = decisionState.isEvaluating,
-                                latencyMs = decisionState.latencyMs,
-                                downloadStates = modelDownloadStates,
-                                onSelectModel = { chosen ->
-                                    HapticUtil.performVirtualKeyHaptic(view)
-                                    decisionCoordinator.selectModel(chosen)
-                                    decisionReevalNonce++
-                                },
-                            )
-                            if (showDownloadPrompt) {
-                                LocalDecisionDownloadPromptCard(
-                                    model = activeModel,
-                                    downloadState = activeDlState,
-                                    containerColor = normalCardColor,
-                                    onDownloadClick = {
-                                        HapticUtil.performVirtualKeyHaptic(view)
-                                        scope.launch {
-                                            val res = decisionCoordinator.downloadModel(activeModel)
-                                            if (res.isSuccess) {
-                                                decisionReevalNonce++
-                                            }
-                                        }
-                                    },
-                                    onUseFastLocalClick = {
-                                        HapticUtil.performVirtualKeyHaptic(view)
-                                        decisionCoordinator.selectModel(LocalDecisionModel.BUILT_IN_LEXICAL)
-                                        decisionReevalNonce++
-                                    },
-                                )
-                            } else if (decisionState.statusNote != null) {
-                                Text(
-                                    text = decisionState.statusNote!!,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 4.dp),
-                                )
-                            }
-                            if (decisionState.decisions.isNotEmpty()) {
-                                LocalDecisionMatchList(
-                                    decisions = decisionState.decisions,
-                                    containerColor = normalCardColor,
-                                    highlightColor = highlightColor,
-                                    highlightTopMatch = topTarget == TopSearchTarget.LOCAL_DECISION,
-                                    onRunDecision = { decision ->
-                                        HapticUtil.performVirtualKeyHaptic(view)
-                                        runLocalDecision(decision)
-                                    },
-                                )
                             }
                         }
                     }

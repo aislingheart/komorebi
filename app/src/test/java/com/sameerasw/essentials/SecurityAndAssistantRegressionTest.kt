@@ -1,6 +1,5 @@
 package com.sameerasw.essentials
 
-import com.sameerasw.essentials.assistant.LocalIntentDecisionEngine
 import com.sameerasw.essentials.assistant.tools.ScreenTools
 import com.sameerasw.essentials.data.local.KomorebiDatabase
 import com.sameerasw.essentials.external.SettingsExternalHandler
@@ -46,49 +45,6 @@ class SecurityAndAssistantRegressionTest {
         } finally {
             tempDir.deleteRecursively()
         }
-    }
-
-    @Test
-    fun localDecisionEngineMatchesNaturalLanguageToToolsAndExtractsSlots() {
-        val torch = LocalIntentDecisionEngine.decide("turn on my torch light")
-        assertTrue("Expected flashlight match", torch.isNotEmpty())
-        assertEquals("flashlight", torch.first().tool.id)
-        assertEquals("on", torch.first().extractedArgs["state"])
-
-        val brightness = LocalIntentDecisionEngine.decide("set screen brightness to 35%")
-        assertTrue("Expected brightness match", brightness.isNotEmpty())
-        assertEquals("brightness", brightness.first().tool.id)
-        assertEquals("set", brightness.first().extractedArgs["action"])
-        assertEquals("35", brightness.first().extractedArgs["value"])
-
-        val timer = LocalIntentDecisionEngine.decide("start a countdown timer for 10 minutes")
-        assertTrue("Expected timer match", timer.isNotEmpty())
-        assertEquals("timer", timer.first().tool.id)
-        assertEquals("10 minutes", timer.first().extractedArgs["duration"])
-
-        val alarm = LocalIntentDecisionEngine.decide("wake me up at 7:30 am")
-        assertTrue("Expected alarm match", alarm.isNotEmpty())
-        assertEquals("alarm", alarm.first().tool.id)
-        assertEquals("7:30 am", alarm.first().extractedArgs["time"])
-    }
-
-    @Test
-    fun localDecisionEngineHandlesTyposConfirmationAndFeedbackBoost() {
-        val typoMatch = LocalIntentDecisionEngine.decide("flshlight on")
-        assertTrue("Expected typo-tolerant flashlight match", typoMatch.isNotEmpty())
-        assertEquals("flashlight", typoMatch.first().tool.id)
-
-        val lock = LocalIntentDecisionEngine.decide("lock my phone screen now")
-        assertTrue("Expected lock_screen match", lock.isNotEmpty())
-        assertEquals("lock_screen", lock.first().tool.id)
-        assertTrue("lock_screen must require explicit user confirmation", lock.first().requiresConfirmation)
-
-        val boosted = LocalIntentDecisionEngine.decide(
-            query = "check battery specs",
-            feedbackWeights = mapOf("battery->device_info" to 0.35f),
-        )
-        assertTrue(boosted.isNotEmpty())
-        assertEquals("device_info", boosted.first().tool.id)
     }
 
     @Test

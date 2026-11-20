@@ -500,8 +500,6 @@ class SettingsRepository(
         const val KEY_VOICE_SEARCH_ENABLED = "voice_search_enabled"
         const val KEY_VOICE_TTS_ENABLED = "voice_tts_enabled"
         const val KEY_VOICE_TTS_PRESET = "voice_tts_preset"
-        const val KEY_LOCAL_DECISION_MODEL = "pixel_search_local_decision_model"
-        const val KEY_LOCAL_SYSTEMONE_URL = "pixel_search_local_systemone_url"
         const val KEY_HOME_ADDRESS = "pixel_search_home_address"
         const val KEY_WORK_ADDRESS = "pixel_search_work_address"
         const val KEY_AUTO_ACCESSIBILITY_ENABLED = "auto_accessibility_enabled"
@@ -3916,18 +3914,6 @@ class SettingsRepository(
 
     fun getVoiceTtsPreset(): String = getString(KEY_VOICE_TTS_PRESET, "default") ?: "default"
     fun setVoiceTtsPreset(preset: String) = putString(KEY_VOICE_TTS_PRESET, preset)
-
-    fun getLocalDecisionModelId(): String =
-        getString(KEY_LOCAL_DECISION_MODEL, "builtin_lexical") ?: "builtin_lexical"
-
-    fun setLocalDecisionModelId(modelId: String) = putString(KEY_LOCAL_DECISION_MODEL, modelId)
-
-    fun getLocalSystemOneUrl(): String =
-        getString(KEY_LOCAL_SYSTEMONE_URL, "http://127.0.0.1:9931/v1/systemone")
-            ?: "http://127.0.0.1:9931/v1/systemone"
-
-    fun setLocalSystemOneUrl(url: String) = putString(KEY_LOCAL_SYSTEMONE_URL, url.trim())
-
 
     fun getHomeAddress(): String? = getString(KEY_HOME_ADDRESS, null)
     fun setHomeAddress(address: String?) = putString(KEY_HOME_ADDRESS, address)
