@@ -24,16 +24,22 @@ import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme =
     darkColorScheme(
-        primary = Purple80,
-        secondary = PurpleGrey80,
-        tertiary = Pink80,
+        primary = KomorebiSageDark,
+        secondary = KomorebiMossDark,
+        tertiary = KomorebiAmberDark,
+        background = KomorebiCanvasDark,
+        surface = KomorebiCanvasDark,
+        surfaceContainer = KomorebiSurfaceDark,
     )
 
 private val LightColorScheme =
     lightColorScheme(
-        primary = Purple40,
-        secondary = PurpleGrey40,
-        tertiary = Pink40,
+        primary = KomorebiSageLight,
+        secondary = KomorebiMossLight,
+        tertiary = KomorebiAmberLight,
+        background = KomorebiCanvasLight,
+        surface = KomorebiCanvasLight,
+        surfaceContainer = KomorebiSurfaceLight,
     )
 
 @Composable

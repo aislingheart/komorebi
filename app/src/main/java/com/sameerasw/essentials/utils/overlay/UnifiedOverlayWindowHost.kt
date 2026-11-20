@@ -193,11 +193,30 @@ class UnifiedOverlayWindowHost(
             if (name == Context.WINDOW_SERVICE) overlayWindowManager else super.getSystemService(name)
 
         override fun startActivity(intent: Intent) {
-            super.startActivity(Intent(intent).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            startActivity(intent, null)
         }
 
         override fun startActivity(intent: Intent, options: Bundle?) {
-            super.startActivity(Intent(intent).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), options)
+            val prepared = Intent(intent).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val effectiveOptions = options ?: com.sameerasw.essentials.utils.AppLaunchUtil.defaultLaunchOptions()
+            val accessibilityHost = com.sameerasw.essentials.services.SearchGestureAccessibilityService.instance
+            if (accessibilityHost != null) {
+                val started =
+                    runCatching {
+                        if (effectiveOptions != null) {
+                            accessibilityHost.startActivity(prepared, effectiveOptions)
+                        } else {
+                            accessibilityHost.startActivity(prepared)
+                        }
+                        true
+                    }.getOrDefault(false)
+                if (started) return
+            }
+            if (effectiveOptions != null) {
+                super.startActivity(prepared, effectiveOptions)
+            } else {
+                super.startActivity(prepared)
+            }
         }
     }
 

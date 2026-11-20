@@ -9,15 +9,14 @@
 
 package com.sameerasw.essentials.ui.core.cards
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -33,12 +32,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.sameerasw.essentials.translation.TranslationManager
 import com.sameerasw.essentials.translation.ui.TranslationBottomSheet
 import com.sameerasw.essentials.ui.components.menus.LocalDropdownMenuDismiss
 import com.sameerasw.essentials.ui.components.menus.SegmentedDropdownMenu
+import com.sameerasw.essentials.ui.core.komorebi.KomorebiIconBadge
 import com.sameerasw.essentials.utils.HapticUtil
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -88,11 +88,10 @@ fun ConfigPickerItem(
         leadingContent =
             if (iconRes != null && iconRes != 0) {
                 {
-                    Icon(
-                        painter = painterResource(id = iconRes),
+                    KomorebiIconBadge(
+                        iconRes = iconRes,
                         contentDescription = title,
-                        modifier = Modifier.size(24.dp),
-                        tint = MaterialTheme.colorScheme.primary,
+                        active = isEnabled,
                     )
                 }
             } else {
@@ -101,14 +100,14 @@ fun ConfigPickerItem(
         contentPadding =
             PaddingValues(
                 horizontal = 16.dp,
-                vertical = 16.dp,
+                vertical = 14.dp,
             ),
         supportingContent =
             if (description != null) {
                 {
                     Text(
                         text = description,
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -125,14 +124,15 @@ fun ConfigPickerItem(
                         }
                     },
                     enabled = isEnabled,
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)),
                 ) {
                     Text(
                         text = selectedValue,
-                        style = MaterialTheme.typography.labelLarge,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                     )
                 }
 
@@ -162,12 +162,12 @@ fun ConfigPickerItem(
         },
         colors =
             ListItemDefaults.colors(
-                containerColor = MaterialTheme.colorScheme.surfaceBright,
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             ),
         content = {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
                 color = MaterialTheme.colorScheme.onSurface,
             )
         },

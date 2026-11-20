@@ -269,6 +269,25 @@ class PixelSearchResultsActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_OPEN_TOOL = "open_tool"
+
+        @Volatile
+        private var foregroundInstance: java.lang.ref.WeakReference<PixelSearchResultsActivity>? = null
+
+        @Volatile
+        var isForeground: Boolean = false
+            private set
+
+        fun dismissIfForeground(): Boolean {
+            if (!isForeground) return false
+            val activity = foregroundInstance?.get() ?: return false
+            if (activity.isFinishing || activity.isDestroyed) return false
+            activity.runOnUiThread {
+                if (!activity.isFinishing && !activity.isDestroyed) {
+                    activity.finish()
+                }
+            }
+            return true
+        }
     }
 
     private var incomingIntentQuery by mutableStateOf<Pair<String, Int>?>(null)
@@ -340,6 +359,27 @@ class PixelSearchResultsActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        foregroundInstance = java.lang.ref.WeakReference(this)
+        isForeground = true
+    }
+
+    override fun onPause() {
+        if (foregroundInstance?.get() === this) {
+            isForeground = false
+        }
+        super.onPause()
+    }
+
+    override fun onDestroy() {
+        if (foregroundInstance?.get() === this) {
+            foregroundInstance = null
+            isForeground = false
+        }
+        super.onDestroy()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -748,13 +788,15 @@ fun PixelSearchResultsScreen(
 
     LaunchedEffect(incomingIntentQuery) {
         incomingIntentQuery?.let { (newQuery, _) ->
-            if (newQuery.isNotEmpty()) {
-                overlayMode = InlineOverlayMode.Search
-                activeScope = null
+            overlayMode = InlineOverlayMode.Search
+            activeScope = null
+            if (incomingToolModal == null) {
                 activeToolModal = null
-                voiceQueryPending = false
-                query = newQuery
             }
+            voiceQueryPending = false
+            query = newQuery
+            runCatching { focusRequester.requestFocus() }
+            keyboardController?.show()
         }
     }
 
@@ -4946,13 +4988,11 @@ private fun applyGrayscaleFilter(bitmap: ImageBitmap): ImageBitmap {
 
 private fun launchApp(context: Context, packageName: String) {
     SearchUsageTracker.record(context, SearchUsageTracker.appKey(packageName))
-    try {
-        val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
-        if (launchIntent != null) {
-            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(launchIntent)
+    val launched = com.sameerasw.essentials.utils.AppLaunchUtil.launchApp(context, packageName)
+    if (!launched) {
+        runCatching {
+            Toast.makeText(context.applicationContext, "Unable to open app", Toast.LENGTH_SHORT).show()
         }
-    } catch (_: Exception) {
     }
 }
 
@@ -4994,27 +5034,24 @@ private fun launchWebSearch(
     useBubbles: Boolean = false,
     searchEngine: String = "Google",
 ) {
-    try {
-        val targetUri = buildSearchOrUrl(query, searchEngine)
-        if (useBubbles) {
-            val launched = WindowingUtils.launchOverlayWindow(context, targetUri)
-            if (launched) return
-        }
-
-        val browserIntent = Intent(Intent.ACTION_VIEW, targetUri).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        context.startActivity(browserIntent)
-    } catch (_: Exception) {
-        val fallbackIntent = Intent(Intent.ACTION_WEB_SEARCH).apply {
-            putExtra(SearchManager.QUERY, query)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        try {
-            context.startActivity(fallbackIntent)
-        } catch (_: Exception) {
-        }
+    val targetUri = buildSearchOrUrl(query, searchEngine)
+    if (useBubbles) {
+        val launched = runCatching { WindowingUtils.launchOverlayWindow(context, targetUri) }.getOrDefault(false)
+        if (launched) return
     }
+
+    val browserIntent = Intent(Intent.ACTION_VIEW, targetUri).apply {
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    if (com.sameerasw.essentials.utils.AppLaunchUtil.startActivityReliably(context, browserIntent)) {
+        return
+    }
+
+    val fallbackIntent = Intent(Intent.ACTION_WEB_SEARCH).apply {
+        putExtra(SearchManager.QUERY, query)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    com.sameerasw.essentials.utils.AppLaunchUtil.startActivityReliably(context, fallbackIntent)
 }
 
 internal fun <T> List<T>.inReachabilityOrder(reachabilityLayout: Boolean): List<T> =

@@ -58,6 +58,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -520,7 +521,7 @@ fun SettingsContent(
     val isMotionBlurEnabled by viewModel.isMotionBlurEnabled
     val scrollState = rememberScrollState()
     val appVersion = remember { "v${BuildConfig.VERSION_NAME}" }
-    val headerState = rememberPullTitleHeaderState()
+    val isSearchOverlayPreferred = remember(settingsRepo) { settingsRepo.getPixelSearchOverlayEnabled() }
     var permissionsSectionY by remember { mutableStateOf<Float?>(null) }
 
     LaunchedEffect(expandPermissionsInitial, permissionsSectionY) {
@@ -533,7 +534,6 @@ fun SettingsContent(
         modifier =
             modifier
                 .fillMaxSize()
-                .nestedScroll(headerState.nestedScrollConnection)
                 .scrollMotionBlur(scrollState, enabled = isMotionBlurEnabled)
                 .verticalScroll(scrollState)
                 .padding(contentPadding),
@@ -542,10 +542,79 @@ fun SettingsContent(
     ) {
         val view = LocalView.current
 
-        PullTitleHeader(
+        Spacer(
+            modifier =
+                Modifier.height(
+                    WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
+                ),
+        )
+
+        com.sameerasw.essentials.ui.core.komorebi.KomorebiHeroHeader(
+            eyebrow = "Komorebi · $appVersion",
             title = stringResource(R.string.label_settings),
-            caption = appVersion,
-            state = headerState,
+            subtitle = "Search triggers, extensions, and device preferences",
+            modifier = Modifier.padding(bottom = 12.dp),
+            action = {
+                com.sameerasw.essentials.ui.core.komorebi.KomorebiHeroActionPill(
+                    label = "Search",
+                    iconRes = R.drawable.rounded_search_24,
+                    onClick = {
+                        HapticUtil.performVirtualKeyHaptic(view)
+                        val service = com.sameerasw.essentials.services.SearchGestureAccessibilityService.instance
+                        if (isSearchOverlayPreferred && service != null) {
+                            service.openSearch()
+                        } else {
+                            com.sameerasw.essentials.utils.AppLaunchUtil.startActivityReliably(
+                                context,
+                                com.sameerasw.essentials.utils.AppLaunchUtil.buildSearchResultsIntent(context),
+                            )
+                        }
+                    },
+                )
+            },
+            footer = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    com.sameerasw.essentials.ui.core.komorebi.KomorebiStatusChip(
+                        label = if (isAccessibilityEnabled) "Gesture active" else "Gesture off",
+                        active = isAccessibilityEnabled,
+                        onClick = {
+                            HapticUtil.performVirtualKeyHaptic(view)
+                            runCatching {
+                                context.startActivity(
+                                    Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS),
+                                )
+                            }
+                        },
+                    )
+                    com.sameerasw.essentials.ui.core.komorebi.KomorebiStatusChip(
+                        label = if (isSearchOverlayPreferred) "Overlay" else "Window",
+                        active = isSearchOverlayPreferred,
+                        onClick = {
+                            HapticUtil.performVirtualKeyHaptic(view)
+                            context.startActivity(
+                                Intent(context, com.sameerasw.essentials.ui.activities.PixelSearchbarSettingsActivity::class.java),
+                            )
+                        },
+                    )
+                    com.sameerasw.essentials.ui.core.komorebi.KomorebiStatusChip(
+                        label = "Permissions",
+                        active = isAccessibilityEnabled && isOverlayPermissionGranted,
+                        onClick = {
+                            HapticUtil.performVirtualKeyHaptic(view)
+                            isPermissionsExpanded = true
+                            permissionsSectionY?.let { targetY ->
+                                grantScope.launch {
+                                    scrollState.animateScrollTo(targetY.toInt())
+                                }
+                            }
+                        },
+                    )
+                }
+            },
         )
 
         // Help & Guides
@@ -566,11 +635,8 @@ fun SettingsContent(
         LaunchedEffect(Unit) {
             indexedPhotosCount = com.sameerasw.essentials.search.semantic.PhotoSemanticEngine.getIndexedCount(context)
         }
-        Text(
-            text = "Preferences",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        com.sameerasw.essentials.ui.core.komorebi.KomorebiSectionHeader(
+            title = "Workspace",
         )
         RoundedCardContainer {
             IconToggleItem(
@@ -635,11 +701,8 @@ fun SettingsContent(
         }
 
         // Updates 
-        TranslatableText(
-            stringResId = R.string.label_updates,
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        com.sameerasw.essentials.ui.core.komorebi.KomorebiSectionHeader(
+            title = stringResource(R.string.label_updates),
         )
 
         RoundedCardContainer {
@@ -672,9 +735,9 @@ fun SettingsContent(
                     Modifier
                         .fillMaxWidth()
                         .background(
-                            MaterialTheme.colorScheme.surfaceBright,
+                            MaterialTheme.colorScheme.surfaceContainerLow,
                             shape = MaterialTheme.shapes.extraSmall,
-                        ).padding(8.dp),
+                        ).padding(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -699,33 +762,29 @@ fun SettingsContent(
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .height(52.dp)
+                            .height(50.dp)
                             .padding(horizontal = 4.dp),
+                    shape = RoundedCornerShape(14.dp),
                     contentPadding = PaddingValues(vertical = 12.dp, horizontal = 16.dp),
                 ) {
                     Icon(
                         painter = painterResource(id = buttonIconRes),
                         contentDescription = null,
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(20.dp),
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = buttonText,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
                     )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
         // Customizations 
-        TranslatableText(
-            stringResId = R.string.settings_section_customizations,
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        com.sameerasw.essentials.ui.core.komorebi.KomorebiSectionHeader(
+            title = stringResource(R.string.settings_section_customizations),
         )
 
         RoundedCardContainer {
@@ -750,12 +809,12 @@ fun SettingsContent(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceBright, MaterialTheme.shapes.extraSmall)
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow, MaterialTheme.shapes.extraSmall)
                     .padding(top = 12.dp),
             ) {
                 TranslatableText(
                     stringResId = R.string.label_haptics_title,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
@@ -837,14 +896,9 @@ fun SettingsContent(
             )
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
         // Permissions 
-        TranslatableText(
-            stringResId = R.string.settings_section_permissions,
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        com.sameerasw.essentials.ui.core.komorebi.KomorebiSectionHeader(
+            title = stringResource(R.string.settings_section_permissions),
         )
 
         RoundedCardContainer {
@@ -854,7 +908,7 @@ fun SettingsContent(
                         .fillMaxWidth()
                         .height(72.dp)
                         .background(
-                            color = MaterialTheme.colorScheme.surfaceBright,
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
                             shape = Shapes.extraSmall,
                         )
                         .onGloballyPositioned { coordinates ->
@@ -1110,14 +1164,9 @@ fun SettingsContent(
             )
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
         // More
-        TranslatableText(
-            stringResId = R.string.settings_section_more,
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        com.sameerasw.essentials.ui.core.komorebi.KomorebiSectionHeader(
+            title = stringResource(R.string.settings_section_more),
         )
 
         RoundedCardContainer {
@@ -1148,7 +1197,7 @@ fun SettingsContent(
                     Modifier
                         .fillMaxWidth()
                         .background(
-                            color = MaterialTheme.colorScheme.surfaceBright,
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
                             shape = Shapes.extraSmall,
                         ).padding(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
@@ -1204,22 +1253,10 @@ fun SettingsContent(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
         // Translations Section
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TranslatableText(
-                stringResId = R.string.settings_translations_section,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        com.sameerasw.essentials.ui.core.komorebi.KomorebiSectionHeader(
+            title = stringResource(R.string.settings_translations_section),
+        )
 
         val currentAppLocale =
             LocalContext.current.resources.configuration.locales[0]
@@ -1357,7 +1394,7 @@ fun SettingsContent(
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         RoundedCardContainer {
             FeatureCard(
@@ -1395,14 +1432,9 @@ fun SettingsContent(
         }
 
         if (isDeveloperModeEnabled) {
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Updates Section
-            TranslatableText(
-                stringResId = R.string.label_developer_options,
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            // Developer Options
+            com.sameerasw.essentials.ui.core.komorebi.KomorebiSectionHeader(
+                title = stringResource(R.string.label_developer_options),
             )
 
             RoundedCardContainer {
@@ -1413,7 +1445,7 @@ fun SettingsContent(
                         Modifier
                             .fillMaxWidth()
                             .background(
-                                color = MaterialTheme.colorScheme.surfaceBright,
+                                color = MaterialTheme.colorScheme.surfaceContainerLow,
                                 shape = Shapes.extraSmall,
                             ).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),

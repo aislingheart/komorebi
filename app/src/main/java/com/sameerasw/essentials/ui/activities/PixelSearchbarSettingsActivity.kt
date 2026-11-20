@@ -28,6 +28,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -39,6 +40,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.Alignment
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -145,54 +147,11 @@ fun PixelSearchbarSettingsScreen(onBack: () -> Unit) {
             val isMotionBlurEnabled by viewModel.isMotionBlurEnabled
             val scrollState = rememberScrollState()
             val view = LocalView.current
-            val minHeaderHeight = 200.dp
-            val maxHeaderHeight = 400.dp
-            var headerHeight by remember { mutableStateOf(minHeaderHeight) }
-
-            val nestedScrollConnection =
-                remember {
-                    object : NestedScrollConnection {
-                        override fun onPreScroll(
-                            available: Offset,
-                            source: NestedScrollSource,
-                        ): Offset {
-                            val delta = available.y
-                            if (delta < 0 && headerHeight > minHeaderHeight) {
-                                val oldHeight = headerHeight
-                                headerHeight =
-                                    with(density) {
-                                        (oldHeight.toPx() + delta).toDp()
-                                    }.coerceAtLeast(minHeaderHeight)
-                                val consumed = oldHeight - headerHeight
-                                return Offset(0f, with(density) { -consumed.toPx() })
-                            }
-                            return Offset.Zero
-                        }
-
-                        override fun onPostScroll(
-                            consumed: Offset,
-                            available: Offset,
-                            source: NestedScrollSource,
-                        ): Offset {
-                            val delta = available.y
-                            if (delta > 0) {
-                                val oldHeight = headerHeight
-                                headerHeight =
-                                    with(density) {
-                                        (oldHeight.toPx() + delta).toDp()
-                                    }.coerceAtMost(maxHeaderHeight)
-
-                                if (headerHeight == maxHeaderHeight && oldHeight < maxHeaderHeight) {
-                                    HapticUtil.performLightHaptic(view)
-                                }
-
-                                val produced = headerHeight - oldHeight
-                                return Offset(0f, with(density) { produced.toPx() })
-                            }
-                            return Offset.Zero
-                        }
-                    }
-                }
+            val overlayRepo = remember(context) { SettingsRepository(context) }
+            val isOverlayEnabled = remember(overlayRepo) { overlayRepo.getPixelSearchOverlayEnabled() }
+            val isGestureConnected =
+                com.sameerasw.essentials.services.SearchGestureAccessibilityService.instance != null
+            val isAssistantActive = viewModel.pixelSearchAssistantEnabled.value
 
             Box(
                 modifier =
@@ -204,20 +163,59 @@ fun PixelSearchbarSettingsScreen(onBack: () -> Unit) {
                         Modifier
                             .fillMaxSize()
                             .scrollMotionBlur(scrollState, enabled = isMotionBlurEnabled)
-                            .nestedScroll(nestedScrollConnection)
                             .verticalScroll(scrollState),
                 ) {
                     Spacer(
                         modifier =
                             Modifier.height(
-                                WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
+                                WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 12.dp,
                             ),
                     )
 
-                    LottieFeatureAnimation(
-                        resId = R.raw.searchbar_motion,
-                        height = headerHeight,
+                    com.sameerasw.essentials.ui.core.komorebi.KomorebiHeroHeader(
+                        eyebrow = "Search & Launcher",
+                        title = "Komorebi Search",
+                        subtitle = "Instant overlay, universal gesture, and smart providers",
                         modifier = Modifier.padding(horizontal = 16.dp),
+                        action = {
+                            com.sameerasw.essentials.ui.core.komorebi.KomorebiHeroActionPill(
+                                label = "Try Search",
+                                iconRes = R.drawable.rounded_search_24,
+                                onClick = {
+                                    HapticUtil.performVirtualKeyHaptic(view)
+                                    val service =
+                                        com.sameerasw.essentials.services.SearchGestureAccessibilityService.instance
+                                    if (overlayRepo.getPixelSearchOverlayEnabled() && service != null) {
+                                        service.openSearch()
+                                    } else {
+                                        com.sameerasw.essentials.utils.AppLaunchUtil.startActivityReliably(
+                                            context,
+                                            com.sameerasw.essentials.utils.AppLaunchUtil.buildSearchResultsIntent(context),
+                                        )
+                                    }
+                                },
+                            )
+                        },
+                        footer = {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                com.sameerasw.essentials.ui.core.komorebi.KomorebiStatusChip(
+                                    label = if (isGestureConnected) "Gesture ready" else "Gesture off",
+                                    active = isGestureConnected,
+                                )
+                                com.sameerasw.essentials.ui.core.komorebi.KomorebiStatusChip(
+                                    label = if (isAssistantActive) "Assistant set" else "Assistant off",
+                                    active = isAssistantActive,
+                                )
+                                com.sameerasw.essentials.ui.core.komorebi.KomorebiStatusChip(
+                                    label = if (isOverlayEnabled) "Overlay" else "Window",
+                                    active = isOverlayEnabled,
+                                )
+                            }
+                        },
                     )
 
                     PixelSearchbarSettingsUI(
@@ -325,9 +323,12 @@ fun PixelSearchbarSettingsUI(
         modifier =
             modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        com.sameerasw.essentials.ui.core.komorebi.KomorebiSectionHeader(
+            title = "Activation & Triggers",
+        )
         RoundedCardContainer {
             IconToggleItem(
                 iconRes = R.drawable.rounded_widgets_24,
@@ -391,6 +392,9 @@ fun PixelSearchbarSettingsUI(
             )
         }
 
+        com.sameerasw.essentials.ui.core.komorebi.KomorebiSectionHeader(
+            title = "Voice & Speech",
+        )
         RoundedCardContainer {
             IconToggleItem(
                 iconRes = R.drawable.rounded_mic_24,
@@ -439,13 +443,8 @@ fun PixelSearchbarSettingsUI(
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        TranslatableText(
-            stringResId = R.string.pixel_search_results_title,
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(start = 16.dp, top = 8.dp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        com.sameerasw.essentials.ui.core.komorebi.KomorebiSectionHeader(
+            title = stringResource(R.string.pixel_search_results_title),
         )
 
         val appsEnabled = viewModel.pixelSearchResultApps.value

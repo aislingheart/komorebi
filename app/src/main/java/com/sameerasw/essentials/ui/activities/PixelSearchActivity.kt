@@ -14,7 +14,10 @@ import android.app.SearchManager
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
-import com.sameerasw.essentials.ui.activities.PixelSearchResultsActivity
+import com.sameerasw.essentials.data.repository.SettingsRepository
+import com.sameerasw.essentials.services.SearchGestureAccessibilityService
+import com.sameerasw.essentials.services.SearchOverlayController
+import com.sameerasw.essentials.utils.AppLaunchUtil
 
 class PixelSearchActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,17 +60,31 @@ class PixelSearchActivity : Activity() {
             ?: incoming?.getStringExtra("query")
             ?: ""
 
+        val action = incoming?.action
+        val isAssistantAction =
+            action == Intent.ACTION_ASSIST ||
+                action == Intent.ACTION_SEARCH_LONG_PRESS ||
+                action == Intent.ACTION_VOICE_COMMAND
+
+        val accessibilityService = SearchGestureAccessibilityService.instance
+        if (
+            isAssistantAction &&
+            query.isEmpty() &&
+            accessibilityService != null &&
+            runCatching { SettingsRepository(this).getPixelSearchOverlayEnabled() }.getOrDefault(true)
+        ) {
+            accessibilityService.openSearch(toggleIfShowing = true)
+            finish()
+            return
+        }
+
+        if (SearchOverlayController.isShowing) {
+            SearchOverlayController.hide()
+        }
+
         try {
-            startActivity(
-                Intent(this, PixelSearchResultsActivity::class.java).apply {
-                    putExtra(SearchManager.QUERY, query)
-                    addFlags(
-                        Intent.FLAG_ACTIVITY_NEW_TASK or
-                            Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                            Intent.FLAG_ACTIVITY_SINGLE_TOP,
-                    )
-                },
-            )
+            val intent = AppLaunchUtil.buildSearchResultsIntent(this, query)
+            startActivity(intent)
         } catch (t: Throwable) {
             Log.e("PixelSearchActivity", "Failed to open search results", t)
             runCatching {

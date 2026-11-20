@@ -15,6 +15,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -97,9 +98,37 @@ fun FeatureCard(
             if (isSelected) {
                 MaterialTheme.colorScheme.secondaryContainer
             } else {
-                containerColor ?: MaterialTheme.colorScheme.surfaceBright
+                containerColor ?: MaterialTheme.colorScheme.surfaceContainerLow
             },
         label = "feature_card_selected",
+    )
+    val badgeBg by androidx.compose.animation.animateColorAsState(
+        targetValue =
+            if (isEnabled) {
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f)
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerHigh
+            },
+        label = "feature_card_badge_bg",
+    )
+    val badgeBorder by androidx.compose.animation.animateColorAsState(
+        targetValue =
+            if (isEnabled) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
+            } else {
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+            },
+        label = "feature_card_badge_border",
+    )
+    val resolvedIconTint by androidx.compose.animation.animateColorAsState(
+        targetValue =
+            iconTint
+                ?: if (isEnabled) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+        label = "feature_card_icon_tint",
     )
     val view = LocalView.current
     var showMenu by remember { mutableStateOf(false) }
@@ -166,26 +195,33 @@ fun FeatureCard(
             if (iconPainter != null || iconRes != null) {
                 {
                     Box {
+                        val badgeShape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
                         val containerModifier =
                             if (hasIconBackground) {
                                 Modifier
-                                    .size(40.dp)
+                                    .size(38.dp)
                                     .background(
-                                        color = ColorUtil.getPastelColorFor(resolvedTitle),
-                                        shape = CircleShape,
+                                        color = badgeBg,
+                                        shape = badgeShape,
+                                    )
+                                    .border(
+                                        width = 1.dp,
+                                        color = badgeBorder,
+                                        shape = badgeShape,
                                     )
                             } else {
-                                Modifier.size(40.dp)
+                                Modifier.size(38.dp)
                             }
                         Box(
                             modifier = containerModifier,
                             contentAlignment = Alignment.Center,
                         ) {
+                            val effectiveIconSize = if (iconSize == 24.dp && hasIconBackground) 20.dp else iconSize
                             if (iconPainter != null) {
                                 androidx.compose.foundation.Image(
                                     painter = iconPainter,
                                     contentDescription = resolvedTitle,
-                                    modifier = Modifier.size(iconSize),
+                                    modifier = Modifier.size(effectiveIconSize),
                                 )
                             } else if (iconRes != null) {
                                 val context = LocalContext.current
@@ -206,17 +242,15 @@ fun FeatureCard(
                                     Image(
                                         bitmap = iconBitmap,
                                         contentDescription = resolvedTitle,
-                                        modifier = Modifier.size(iconSize),
-                                        colorFilter = ColorFilter.tint(
-                                            iconTint ?: ColorUtil.getVibrantColorFor(resolvedTitle)
-                                        ),
+                                        modifier = Modifier.size(effectiveIconSize),
+                                        colorFilter = ColorFilter.tint(resolvedIconTint),
                                     )
                                 } else {
                                     Icon(
                                         painter = painterResource(id = R.drawable.rounded_settings_24),
                                         contentDescription = resolvedTitle,
-                                        modifier = Modifier.size(iconSize),
-                                        tint = iconTint ?: ColorUtil.getVibrantColorFor(resolvedTitle),
+                                        modifier = Modifier.size(effectiveIconSize),
+                                        tint = resolvedIconTint,
                                     )
                                 }
                             }

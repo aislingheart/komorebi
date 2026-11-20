@@ -10,31 +10,43 @@
 package com.sameerasw.essentials.services
 
 import android.accessibilityservice.AccessibilityButtonController
-import android.accessibilityservice.AccessibilityService.ScreenshotResult
 import android.accessibilityservice.AccessibilityService
-import android.content.Intent
+import android.accessibilityservice.AccessibilityService.ScreenshotResult
 import android.graphics.Bitmap
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
+import android.util.Log
 import android.view.Display
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
+import com.sameerasw.essentials.assistant.ScreenCaptureStore
 import com.sameerasw.essentials.assistant.ScreenContextExtractor
 import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.ui.activities.PixelSearchResultsActivity
+import com.sameerasw.essentials.utils.AppLaunchUtil
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 
 class SearchGestureAccessibilityService : AccessibilityService() {
     companion object {
+        private const val TAG = "SearchGestureService"
         private const val DOUBLE_PRESS_WINDOW_MS = 550L
+        private const val TRIGGER_DEBOUNCE_MS = 220L
+        private const val SCREENSHOT_TIMEOUT_MS = 180L
         private const val BACKDROP_MAX_WIDTH = 720
         @Volatile internal var instance: SearchGestureAccessibilityService? = null
     }
 
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val screenshotExecutor = Executors.newSingleThreadExecutor()
     private var accessibilityButtonController: AccessibilityButtonController? = null
     private var buttonCallback: AccessibilityButtonController.AccessibilityButtonCallback? = null
     private var lastHardwareKeyPressAt = 0L
+    private var lastTriggerAt = 0L
     private var consumeNextUp = false
-    @Volatile private var capturingScreenshot = false
+    private val capturingScreenshot = AtomicBoolean(false)
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -85,39 +97,88 @@ class SearchGestureAccessibilityService : AccessibilityService() {
         return false
     }
 
-    internal fun openSearch() {
-        if (SearchOverlayController.isShowing) {
-            SearchOverlayController.hide()
+    internal fun openSearch(toggleIfShowing: Boolean = true) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            mainHandler.post { openSearch(toggleIfShowing) }
             return
         }
-        ScreenContextExtractor.capture(this)
+
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastTriggerAt < TRIGGER_DEBOUNCE_MS) return
+        lastTriggerAt = now
+
+        if (SearchOverlayController.isShowing) {
+            if (toggleIfShowing) {
+                SearchOverlayController.hide()
+            }
+            return
+        }
+
+        if (toggleIfShowing && PixelSearchResultsActivity.dismissIfForeground()) {
+            return
+        }
+
+        runCatching {
+            val activePkg = rootInActiveWindow?.packageName?.toString()
+            if (activePkg != packageName) {
+                ScreenContextExtractor.capture(this)
+            }
+        }
+
         if (!SettingsRepository(this).getPixelSearchOverlayEnabled()) {
             launchSearchActivity()
             return
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !capturingScreenshot) {
-            capturingScreenshot = true
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && capturingScreenshot.compareAndSet(false, true)) {
+            val overlayOpened = AtomicBoolean(false)
+            val watchdog = Runnable {
+                if (overlayOpened.compareAndSet(false, true)) {
+                    capturingScreenshot.set(false)
+                    showOverlay(null)
+                }
+            }
+            mainHandler.postDelayed(watchdog, SCREENSHOT_TIMEOUT_MS)
+
             val started = runCatching {
                 takeScreenshot(
                     Display.DEFAULT_DISPLAY,
-                    mainExecutor,
+                    screenshotExecutor,
                     object : TakeScreenshotCallback {
                         override fun onSuccess(screenshot: ScreenshotResult) {
-                            capturingScreenshot = false
                             val full = screenshot.toSoftwareBitmap()
-                            com.sameerasw.essentials.assistant.ScreenCaptureStore.store(full)
-                            showOverlay(downscaleForBackdrop(full))
+                            val backdrop = downscaleForBackdrop(full)
+                            ScreenCaptureStore.store(full)
+                            mainHandler.post {
+                                mainHandler.removeCallbacks(watchdog)
+                                capturingScreenshot.set(false)
+                                if (overlayOpened.compareAndSet(false, true)) {
+                                    showOverlay(backdrop)
+                                } else if (SearchOverlayController.isShowing && backdrop != null) {
+                                    SearchOverlayController.updateBackdrop(backdrop)
+                                }
+                            }
                         }
 
                         override fun onFailure(errorCode: Int) {
-                            capturingScreenshot = false
-                            showOverlay(null)
+                            Log.d(TAG, "takeScreenshot skipped (code=$errorCode); opening overlay immediately")
+                            mainHandler.post {
+                                mainHandler.removeCallbacks(watchdog)
+                                capturingScreenshot.set(false)
+                                if (overlayOpened.compareAndSet(false, true)) {
+                                    showOverlay(null)
+                                }
+                            }
                         }
                     },
                 )
+            }.onFailure { error ->
+                Log.w(TAG, "takeScreenshot threw; opening overlay immediately", error)
             }.isSuccess
+
             if (started) return
-            capturingScreenshot = false
+            mainHandler.removeCallbacks(watchdog)
+            capturingScreenshot.set(false)
         }
         showOverlay(null)
     }
@@ -125,7 +186,7 @@ class SearchGestureAccessibilityService : AccessibilityService() {
     private fun showOverlay(backdrop: Bitmap?) {
         val shown = runCatching { SearchOverlayController.show(this, backdrop) }
             .onFailure { error ->
-                android.util.Log.e("SearchGestureService", "Unable to show search overlay", error)
+                Log.e(TAG, "Unable to show search overlay", error)
             }
             .getOrDefault(false)
         if (shown) return
@@ -133,15 +194,8 @@ class SearchGestureAccessibilityService : AccessibilityService() {
     }
 
     private fun launchSearchActivity() {
-        val intent =
-            Intent(this, PixelSearchResultsActivity::class.java).apply {
-                addFlags(
-                    Intent.FLAG_ACTIVITY_NEW_TASK or
-                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                        Intent.FLAG_ACTIVITY_SINGLE_TOP,
-                )
-            }
-        runCatching { startActivity(intent) }
+        val intent = AppLaunchUtil.buildSearchResultsIntent(this)
+        AppLaunchUtil.startActivityReliably(this, intent)
     }
 
     @androidx.annotation.RequiresApi(Build.VERSION_CODES.R)
@@ -168,12 +222,15 @@ class SearchGestureAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         if (instance === this) instance = null
+        mainHandler.removeCallbacksAndMessages(null)
+        capturingScreenshot.set(false)
         SearchOverlayController.hide()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && buttonCallback != null) {
             accessibilityButtonController?.unregisterAccessibilityButtonCallback(buttonCallback!!)
         }
         buttonCallback = null
         accessibilityButtonController = null
+        screenshotExecutor.shutdownNow()
         super.onDestroy()
     }
 }

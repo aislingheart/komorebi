@@ -49,10 +49,12 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.sameerasw.essentials.translation.TranslationManager
 import com.sameerasw.essentials.translation.ui.TranslationBottomSheet
 import com.sameerasw.essentials.ui.components.menus.SegmentedDropdownMenu
+import com.sameerasw.essentials.ui.core.komorebi.KomorebiIconBadge
 import com.sameerasw.essentials.utils.HapticUtil
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -158,11 +160,10 @@ fun IconToggleItem(
                             leadingIcon
                         } else if (finalIconRes != 0) {
                             {
-                                Icon(
-                                    painter = painterResource(id = finalIconRes),
+                                KomorebiIconBadge(
+                                    iconRes = finalIconRes,
                                     contentDescription = title,
-                                    modifier = Modifier.size(24.dp),
-                                    tint = MaterialTheme.colorScheme.primary,
+                                    active = finalIsChecked && enabled,
                                 )
                             }
                         } else {
@@ -173,7 +174,7 @@ fun IconToggleItem(
                             {
                                 Text(
                                     text = finalDescription,
-                                    style = MaterialTheme.typography.labelMedium,
+                                    style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
@@ -191,7 +192,7 @@ fun IconToggleItem(
                         } else {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
                             if (infoText != null || onInfoClick != null) {
                                 IconButton(
@@ -216,9 +217,9 @@ fun IconToggleItem(
                             VerticalDivider(
                                 modifier =
                                     Modifier
-                                        .height(32.dp)
+                                        .height(28.dp)
                                         .width(1.dp),
-                                color = MaterialTheme.colorScheme.outlineVariant,
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
                             )
                             Switch(
                                 checked = finalIsChecked,
@@ -236,12 +237,12 @@ fun IconToggleItem(
                     },
                     colors =
                         ListItemDefaults.colors(
-                            containerColor = MaterialTheme.colorScheme.surfaceBright,
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                         ),
                     content = {
                         Text(
                             text = title,
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         renderMenu()
@@ -272,11 +273,10 @@ fun IconToggleItem(
                             leadingIcon
                         } else if (finalIconRes != 0) {
                             {
-                                Icon(
-                                    painter = painterResource(id = finalIconRes),
+                                KomorebiIconBadge(
+                                    iconRes = finalIconRes,
                                     contentDescription = title,
-                                    modifier = Modifier.size(24.dp),
-                                    tint = MaterialTheme.colorScheme.primary,
+                                    active = finalIsChecked && enabled,
                                 )
                             }
                         } else {
@@ -287,7 +287,7 @@ fun IconToggleItem(
                             {
                                 Text(
                                     text = finalDescription,
-                                    style = MaterialTheme.typography.labelMedium,
+                                    style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
@@ -347,7 +347,7 @@ fun IconToggleItem(
                                         Modifier
                                             .height(28.dp)
                                             .width(1.dp),
-                                    color = MaterialTheme.colorScheme.outlineVariant,
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
                                 )
                             }
                             Switch(
@@ -369,12 +369,12 @@ fun IconToggleItem(
                     },
                     colors =
                         ListItemDefaults.colors(
-                            containerColor = MaterialTheme.colorScheme.surfaceBright,
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                         ),
                     content = {
                         Text(
                             text = title,
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         renderMenu()
@@ -382,6 +382,21 @@ fun IconToggleItem(
                 )
             }
         } else {
+            val resolvedTrailingContent: (@Composable () -> Unit)? =
+                trailingContent
+                    ?: if (onClick != null && enabled) {
+                        {
+                            Icon(
+                                painter = painterResource(id = R.drawable.rounded_chevron_right_24),
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+                            )
+                        }
+                    } else {
+                        null
+                    }
+
             ListItem(
                 onClick = onClickAction,
                 onLongClick = onLongClickAction,
@@ -390,14 +405,13 @@ fun IconToggleItem(
                 verticalAlignment = Alignment.CenterVertically,
                 leadingContent =
                     if (leadingIcon != null) {
-                            leadingIcon
-                        } else if (finalIconRes != 0) {
+                        leadingIcon
+                    } else if (finalIconRes != 0) {
                         {
-                            Icon(
-                                painter = painterResource(id = finalIconRes),
+                            KomorebiIconBadge(
+                                iconRes = finalIconRes,
                                 contentDescription = title,
-                                modifier = Modifier.size(24.dp),
-                                tint = MaterialTheme.colorScheme.primary,
+                                active = enabled,
                             )
                         }
                     } else {
@@ -408,22 +422,22 @@ fun IconToggleItem(
                         {
                             Text(
                                 text = finalDescription,
-                                style = MaterialTheme.typography.labelMedium,
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     } else {
                         null
                     },
-                trailingContent = trailingContent,
+                trailingContent = resolvedTrailingContent,
                 colors =
                     ListItemDefaults.colors(
-                        containerColor = MaterialTheme.colorScheme.surfaceBright,
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                     ),
                 content = {
                     Text(
                         text = title,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     renderMenu()

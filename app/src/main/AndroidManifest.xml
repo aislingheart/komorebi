@@ -257,9 +257,11 @@
 
         <activity
             android:name=".ui.activities.PixelSearchResultsActivity"
+            android:excludeFromRecents="true"
             android:exported="true"
             android:label="@string/essential_search_label"
             android:launchMode="singleTask"
+            android:taskAffinity=""
             android:theme="@style/Theme.Komorebi.WallpaperTranslucent"
             android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
 

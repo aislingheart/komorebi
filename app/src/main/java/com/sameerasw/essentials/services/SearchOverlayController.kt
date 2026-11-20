@@ -12,6 +12,8 @@ package com.sameerasw.essentials.services
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.graphics.Bitmap
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.KeyEvent
@@ -21,12 +23,15 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -45,15 +50,24 @@ import com.sameerasw.essentials.utils.overlay.UnifiedOverlayWindowHost
 object SearchOverlayController {
     private const val TAG = "SearchOverlayController"
     private const val OVERLAY_ID = "komorebi_search_overlay"
+    private val mainHandler = Handler(Looper.getMainLooper())
     private var host: UnifiedOverlayWindowHost? = null
     private var windowView: View? = null
     private var windowManager: WindowManager? = null
+    private val backdropState = mutableStateOf<Bitmap?>(null)
+    private var pendingHideRunnable: Runnable? = null
 
+    @Volatile
     var isShowing: Boolean = false
         private set
 
     fun show(context: Context, backdrop: Bitmap? = null): Boolean {
-        if (isShowing) return true
+        cancelPendingHide()
+        if (isShowing) {
+            if (backdrop != null) backdropState.value = backdrop
+            return true
+        }
+        backdropState.value = backdrop
         val wm = context.getSystemService(WindowManager::class.java) ?: return false
         val canDrawOverlays = Settings.canDrawOverlays(context)
         val isAccessibilityService = context is AccessibilityService
@@ -65,17 +79,25 @@ object SearchOverlayController {
                 return false
             }
         }
-        return showWithWindowType(context, wm, primaryWindowType, backdrop) ||
+        return showWithWindowType(context, wm, primaryWindowType) ||
             (isAccessibilityService &&
                 canDrawOverlays &&
-                showWithWindowType(context, wm, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, backdrop))
+                showWithWindowType(context, wm, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY))
+    }
+
+    fun updateBackdrop(backdrop: Bitmap?) {
+        if (!isShowing || backdrop == null) return
+        mainHandler.post {
+            if (isShowing) {
+                backdropState.value = backdrop
+            }
+        }
     }
 
     private fun showWithWindowType(
         context: Context,
         wm: WindowManager,
         windowType: Int,
-        backdrop: Bitmap?,
     ): Boolean {
         val appContext = context.applicationContext ?: context
         val overlayContext = UnifiedOverlayWindowHost.createThemedOverlayContext(context, windowType)
@@ -87,6 +109,7 @@ object SearchOverlayController {
             setContent {
                 val repository = remember { SettingsRepository(appContext) }
                 val isPitchBlack by repository.isPitchBlackThemeEnabled.collectAsState(initial = false)
+                val currentBackdrop by backdropState
                 CompositionLocalProvider(
                     LocalContext provides overlayContext,
                     LocalOnBackPressedDispatcherOwner provides overlayHost,
@@ -94,20 +117,25 @@ object SearchOverlayController {
                 ) {
                     EssentialsTheme(pitchBlackTheme = isPitchBlack) {
                         Box(modifier = Modifier.fillMaxSize()) {
-                            backdrop?.let { image ->
-                                Image(
-                                    bitmap = image.asImageBitmap(),
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .blur(24.dp),
-                                )
+                            AnimatedVisibility(
+                                visible = currentBackdrop != null,
+                                enter = fadeIn(),
+                            ) {
+                                currentBackdrop?.let { image ->
+                                    Image(
+                                        bitmap = image.asImageBitmap(),
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .blur(24.dp),
+                                    )
+                                }
                             }
                             PixelSearchResultsScreen(
                                 initialQuery = "",
                                 asOverlay = true,
-                                onFinish = { hide() },
+                                onFinish = { hideDeferred() },
                             )
                         }
                     }
@@ -166,7 +194,30 @@ object SearchOverlayController {
         return true
     }
 
+    /**
+     * Dismisses the overlay on the next UI frame after hiding the IME so any
+     * Activity/LauncherApps launch dispatched from inside the overlay completes
+     * cleanly before window teardown.
+     */
+    fun hideDeferred(delayMs: Long = 48L) {
+        val view = windowView
+        if (view != null) {
+            runCatching {
+                val imm = view.context.getSystemService(InputMethodManager::class.java)
+                imm?.hideSoftInputFromWindow(view.windowToken, 0)
+            }
+        }
+        cancelPendingHide()
+        val runnable = Runnable {
+            pendingHideRunnable = null
+            hide()
+        }
+        pendingHideRunnable = runnable
+        mainHandler.postDelayed(runnable, delayMs)
+    }
+
     fun hide() {
+        cancelPendingHide()
         val view = windowView
         val wm = windowManager
         val overlayHost = host
@@ -174,6 +225,7 @@ object SearchOverlayController {
         windowManager = null
         host = null
         isShowing = false
+        backdropState.value = null
         OverlayVisibilityCoordinator.markHidden(OVERLAY_ID)
         if (view != null) {
             runCatching {
@@ -187,5 +239,10 @@ object SearchOverlayController {
         }
         runCatching { overlayHost?.onDestroy() }
             .onFailure { error -> Log.w(TAG, "Failed to destroy search overlay host", error) }
+    }
+
+    private fun cancelPendingHide() {
+        pendingHideRunnable?.let { mainHandler.removeCallbacks(it) }
+        pendingHideRunnable = null
     }
 }
