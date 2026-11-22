@@ -58,6 +58,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.aspectRatio
@@ -106,7 +108,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
-import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
@@ -184,7 +185,16 @@ import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import com.sameerasw.essentials.FeatureSettingsActivity
 import com.sameerasw.essentials.R
+import com.sameerasw.essentials.SettingsActivity
 import com.sameerasw.essentials.data.repository.SettingsRepository
+import com.sameerasw.essentials.services.SearchOverlayController
+import com.sameerasw.essentials.search.InteractiveSearchSettingCard
+import com.sameerasw.essentials.search.InternalSettingsCatalog
+import com.sameerasw.essentials.search.triggerInteractiveSettingPrimaryAction
+import com.sameerasw.essentials.ui.modifiers.LocalGestureRippleController
+import com.sameerasw.essentials.ui.modifiers.interactiveGestureRipple
+import com.sameerasw.essentials.ui.modifiers.isGestureRippleEnabled
+import com.sameerasw.essentials.ui.modifiers.rememberGestureRippleController
 import com.sameerasw.essentials.domain.model.PixelSearchResultItem
 import com.sameerasw.essentials.domain.registry.FeatureRegistry
 import com.sameerasw.essentials.domain.registry.SearchRegistry
@@ -349,29 +359,56 @@ class PixelSearchResultsActivity : ComponentActivity() {
             gestureRippleTrigger = 1
         }
 
+        if (SearchOverlayController.isShowing) {
+            SearchOverlayController.hide()
+        }
+
         setContent {
             val repository = remember { SettingsRepository(this) }
             val isPitchBlack by repository.isPitchBlackThemeEnabled.collectAsState(initial = false)
-            val rippleTrigger = gestureRippleTrigger
-            val rippleEnabled = remember(rippleTrigger) {
-                rippleTrigger > 0 &&
-                    com.sameerasw.essentials.ui.modifiers.isGestureRippleEnabled(this@PixelSearchResultsActivity)
+            var ripplePrefEnabled by remember { mutableStateOf(isGestureRippleEnabled(this@PixelSearchResultsActivity)) }
+
+            LaunchedEffect(repository) {
+                repository.observeKeyChanges().collect { key ->
+                    if (key == SettingsRepository.KEY_USE_RIPPLE || key == null) {
+                        ripplePrefEnabled = isGestureRippleEnabled(this@PixelSearchResultsActivity)
+                    }
+                }
             }
 
-            EssentialsTheme(pitchBlackTheme = isPitchBlack) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    com.sameerasw.essentials.ui.modifiers.GestureRippleWaveOverlay(
-                        triggerKey = rippleTrigger,
-                        enabled = rippleEnabled,
-                    )
-                    PixelSearchResultsScreen(
-                        initialQuery = initialQuery,
-                        incomingIntentQuery = incomingIntentQuery,
-                        initialToolModal = initialTool,
-                        incomingToolModal = incomingToolModal,
-                        incomingToolNonce = toolNonce,
-                        onFinish = { finish() },
-                    )
+            val rippleTrigger = gestureRippleTrigger
+            val rippleController = rememberGestureRippleController()
+            LaunchedEffect(rippleTrigger, ripplePrefEnabled) {
+                if (rippleTrigger > 0 && ripplePrefEnabled) {
+                    rippleController.spawnLaunch()
+                }
+            }
+
+            androidx.compose.runtime.CompositionLocalProvider(
+                LocalGestureRippleController provides rippleController,
+            ) {
+                EssentialsTheme(pitchBlackTheme = isPitchBlack) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .interactiveGestureRipple(
+                                controller = rippleController,
+                                enabled = ripplePrefEnabled,
+                            ),
+                    ) {
+                        com.sameerasw.essentials.ui.modifiers.GestureRippleWaveOverlay(
+                            enabled = ripplePrefEnabled,
+                            controller = rippleController,
+                        )
+                        PixelSearchResultsScreen(
+                            initialQuery = initialQuery,
+                            incomingIntentQuery = incomingIntentQuery,
+                            initialToolModal = initialTool,
+                            incomingToolModal = incomingToolModal,
+                            incomingToolNonce = toolNonce,
+                            onFinish = { finish() },
+                        )
+                    }
                 }
             }
         }
@@ -379,6 +416,9 @@ class PixelSearchResultsActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (SearchOverlayController.isShowing) {
+            SearchOverlayController.hide()
+        }
         foregroundInstance = java.lang.ref.WeakReference(this)
         isForeground = true
     }
@@ -440,10 +480,33 @@ fun PixelSearchResultsScreen(
     val keyboardController = LocalSoftwareKeyboardController.current
     val density = LocalDensity.current
 
-    var query by rememberSaveable { mutableStateOf(initialQuery) }
+    val queryState = rememberSaveable { mutableStateOf(initialQuery) }
+    var settledQuery by remember { mutableStateOf(initialQuery) }
     val focusRequester = remember { FocusRequester() }
     var activeToolModal by remember { mutableStateOf(initialToolModal) }
     var launcherDataVersion by remember { mutableIntStateOf(0) }
+    var settingsRefreshNonce by remember { mutableIntStateOf(0) }
+    val rippleController = LocalGestureRippleController.current
+
+    LaunchedEffect(repository) {
+        repository.observeKeyChanges().collect { key ->
+            if (key == null ||
+                key.startsWith("pixel_search_") ||
+                key.startsWith("voice_") ||
+                key == SettingsRepository.KEY_USE_BLUR ||
+                key == SettingsRepository.KEY_USE_RIPPLE ||
+                key == SettingsRepository.KEY_PITCH_BLACK_THEME_ENABLED ||
+                key.startsWith("haptic_") ||
+                key == SettingsRepository.KEY_ENABLE_UNSUPPORTED_FEATURES ||
+                key == SettingsRepository.KEY_SHOW_LEGACY_FEATURES ||
+                key == SettingsRepository.KEY_AUTO_UPDATE_ENABLED ||
+                key == SettingsRepository.KEY_CHECK_PRE_RELEASES_ENABLED ||
+                key == SettingsRepository.KEY_DEVELOPER_MODE_ENABLED
+            ) {
+                settingsRefreshNonce++
+            }
+        }
+    }
 
     LaunchedEffect(initialToolModal) {
         if (initialToolModal != null) {
@@ -682,9 +745,9 @@ fun PixelSearchResultsScreen(
     var clipboardCardDismissed by remember { mutableStateOf(false) }
     var qrDialogText by remember { mutableStateOf<String?>(null) }
 
-    val voiceSearchEnabled = remember { repository.isVoiceSearchEnabled() }
-    val voiceTtsEnabled = remember { repository.isVoiceTtsEnabled() }
-    val voiceTtsPreset = remember { repository.getVoiceTtsPreset() }
+    val voiceSearchEnabled = remember(settingsRefreshNonce) { repository.isVoiceSearchEnabled() }
+    val voiceTtsEnabled = remember(settingsRefreshNonce) { repository.isVoiceTtsEnabled() }
+    val voiceTtsPreset = remember(settingsRefreshNonce) { repository.getVoiceTtsPreset() }
     var isVoiceListening by remember { mutableStateOf(false) }
     var voiceQueryPending by remember { mutableStateOf(false) }
     var speechRecognizer by remember { mutableStateOf<SpeechRecognizer?>(null) }
@@ -752,7 +815,7 @@ fun PixelSearchResultsScreen(
                         if (text.isNullOrBlank()) {
                             assistantFeedback = AssistantFeedback(false, "I didn't catch that. Try again.")
                         } else {
-                            query = text
+                            queryState.value = text
                             voiceQueryPending = true
                         }
                     }
@@ -813,65 +876,68 @@ fun PixelSearchResultsScreen(
                 activeToolModal = null
             }
             voiceQueryPending = false
-            query = newQuery
+            queryState.value = newQuery
             runCatching { focusRequester.requestFocus() }
             keyboardController?.show()
         }
     }
 
-    val prefixSuggestion = remember(query, activeScope, discoveredProviders) {
+    val prefixSuggestion = remember(settledQuery, activeScope, discoveredProviders) {
         if (activeScope == null) {
-            SearchProviderDiscovery.matchPrefixSuggestion(query, discoveredProviders)
+            SearchProviderDiscovery.matchPrefixSuggestion(settledQuery, discoveredProviders)
         } else {
             null
         }
     }
 
-    val isAppsEnabled = remember { repository.isPixelSearchResultAppsEnabled() }
-    val isContactsEnabled = remember { repository.isPixelSearchResultContactsEnabled() }
-    val isMediaEnabled = remember { repository.isPixelSearchResultMediaEnabled() }
-    val isFilesEnabled = remember { repository.isPixelSearchResultFilesEnabled() }
-    val isSettingsEnabled = remember { repository.isPixelSearchResultSettingsEnabled() }
-    val isShortcutsEnabled = remember { repository.isPixelSearchResultShortcutsEnabled() }
-    val isWebEnabled = remember { repository.isPixelSearchResultWebEnabled() }
-    val isBubblesWebEnabled = remember { repository.isPixelSearchBubblesWebEnabled() }
-    val searchEngine = remember { repository.getPixelSearchEngine() }
-    val reachabilityLayout = remember { repository.isPixelSearchReachabilityEnabled() }
-    val typoToleranceEnabled = remember { repository.isPixelSearchTypoToleranceEnabled() }
-    val maxResults = remember {
+    val isAppsEnabled = remember(settingsRefreshNonce) { repository.isPixelSearchResultAppsEnabled() }
+    val isContactsEnabled = remember(settingsRefreshNonce) { repository.isPixelSearchResultContactsEnabled() }
+    val isMediaEnabled = remember(settingsRefreshNonce) { repository.isPixelSearchResultMediaEnabled() }
+    val isFilesEnabled = remember(settingsRefreshNonce) { repository.isPixelSearchResultFilesEnabled() }
+    val isSettingsEnabled = remember(settingsRefreshNonce) { repository.isPixelSearchResultSettingsEnabled() }
+    val isShortcutsEnabled = remember(settingsRefreshNonce) { repository.isPixelSearchResultShortcutsEnabled() }
+    val isWebEnabled = remember(settingsRefreshNonce) { repository.isPixelSearchResultWebEnabled() }
+    val isBubblesWebEnabled = remember(settingsRefreshNonce) { repository.isPixelSearchBubblesWebEnabled() }
+    val searchEngine = remember(settingsRefreshNonce) { repository.getPixelSearchEngine() }
+    val reachabilityLayout = remember(settingsRefreshNonce) { repository.isPixelSearchReachabilityEnabled() }
+    val typoToleranceEnabled = remember(settingsRefreshNonce) { repository.isPixelSearchTypoToleranceEnabled() }
+    val maxResults = remember(settingsRefreshNonce) {
         repository.getPixelSearchMaxResults().let { if (it <= 0) Int.MAX_VALUE else it }
     }
-    val hideInitialResults = remember { repository.isPixelSearchHideInitialResultsEnabled() }
-    val notificationsSearchEnabled = remember { repository.isPixelSearchResultNotificationsEnabled() }
+    val hideInitialResults = remember(settingsRefreshNonce) { repository.isPixelSearchHideInitialResultsEnabled() }
+    val notificationsSearchEnabled = remember(settingsRefreshNonce) { repository.isPixelSearchResultNotificationsEnabled() }
     LaunchedEffect(typoToleranceEnabled) {
         FuzzySearchUtil.setTypoToleranceEnabled(typoToleranceEnabled)
     }
 
     LaunchedEffect(Unit) {
-        discoveredProviders = SearchProviderDiscovery.discoverProviders(context)
+        // Let the first frame draw and claim IME focus before kicking off heavy IO/PackageManager work.
+        delay(180)
         runCatching { ClipboardHistoryManager.captureCurrent(context) }
-        scope.launch(Dispatchers.IO) {
-            runCatching {
-                java.io.File(context.applicationContext.filesDir, "decision_models")
-                    .takeIf { it.exists() }
-                    ?.deleteRecursively()
-            }
-            runCatching { RaycastRuntimeEngine.prewarm(context.applicationContext) }
+        discoveredProviders = withContext(Dispatchers.IO) {
+            SearchProviderDiscovery.discoverProviders(context)
         }
         scope.launch(Dispatchers.IO) {
-            runCatching { LauncherCalculator.refreshRatesIfNeeded(context) }
-        }
-        scope.launch(Dispatchers.IO) {
+            // Warm lightweight preference-backed repos first so they never block first keystrokes.
             runCatching { SnippetsRepository.search(context, "") }
             runCatching { QuicklinksRepository.search(context, "") }
-        }
-        scope.launch(Dispatchers.IO) {
+            runCatching { LauncherCalculator.refreshRatesIfNeeded(context) }
+            // Run heavy SearchIndex sequentially after provider discovery so PackageManager/ResourcesManager locks don't contend.
             runCatching {
                 SearchIndex.get(
                     context,
                     repository.isEnableUnsupportedFeatures(),
                     repository.isShowLegacyFeatures(),
                 )
+            }
+            runCatching {
+                java.io.File(context.applicationContext.filesDir, "decision_models")
+                    .takeIf { it.exists() }
+                    ?.deleteRecursively()
+            }
+            if (installedExtensions.isNotEmpty()) {
+                delay(1200)
+                runCatching { RaycastRuntimeEngine.prewarm(context.applicationContext) }
             }
         }
     }
@@ -889,52 +955,46 @@ fun PixelSearchResultsScreen(
         }
     }
 
-    val calcResult: CalcResult? = remember(query, activeScope) {
-        if (activeScope == null && query.isNotBlank()) LauncherCalculator.evaluate(query, context) else null
-    }
+    val calcResultState = remember { mutableStateOf<CalcResult?>(null) }
+    val calcResult: CalcResult? = calcResultState.value
     val builtInActions = remember { BuiltInLauncherTools.allActions() }
-    LaunchedEffect(query) {
+    LaunchedEffect(settledQuery) {
         assistantFeedback = null
     }
-    val memoryActions = remember(query, launcherDataVersion) {
-        assistantMemoryActions(query, context, scope) { success, message ->
-            assistantFeedback = AssistantFeedback(success, message)
+    var matchingToolActions by remember { mutableStateOf<List<BuiltInLauncherAction>>(emptyList()) }
+    var matchingSnippets by remember { mutableStateOf<List<com.sameerasw.essentials.launcher.TextSnippet>>(emptyList()) }
+    var matchingQuicklinks by remember { mutableStateOf<List<com.sameerasw.essentials.launcher.Quicklink>>(emptyList()) }
+    var notificationResults by remember { mutableStateOf<List<com.sameerasw.essentials.launcher.ActiveNotificationItem>>(emptyList()) }
+
+    LaunchedEffect(launcherDataVersion) {
+        if (launcherDataVersion == 0) return@LaunchedEffect
+        val q = settledQuery.trim()
+        if (activeScope != null || q.isEmpty()) return@LaunchedEffect
+        val refreshed = withContext(Dispatchers.IO) {
+            val mem = assistantMemoryActions(q, context, scope) { success, message ->
+                assistantFeedback = AssistantFeedback(success, message)
+            }
+            val reg = assistantRegistryActions(q, context, scope) { success, message ->
+                assistantFeedback = AssistantFeedback(success, message)
+            }
+            val tools = runCatching {
+                (LauncherAssistantCommands.match(context, q) +
+                    mem +
+                    reg +
+                    BuiltInLauncherTools.search(context, q))
+                    .distinctBy { it.id }
+                    .take(maxResults)
+            }.getOrDefault(emptyList())
+            val snips = runCatching { SnippetsRepository.search(context, q).take(maxResults) }.getOrDefault(emptyList())
+            val links = runCatching { QuicklinksRepository.search(context, q).take(maxResults) }.getOrDefault(emptyList())
+            Triple(tools, snips, links)
         }
+        matchingToolActions = refreshed.first
+        matchingSnippets = refreshed.second
+        matchingQuicklinks = refreshed.third
     }
-    val registryToolActions = remember(query, launcherDataVersion) {
-        assistantRegistryActions(query, context, scope) { success, message ->
-            assistantFeedback = AssistantFeedback(success, message)
-        }
-    }
-    val matchingToolActions = remember(query, activeScope, launcherDataVersion) {
-        if (activeScope == null && query.isNotBlank()) {
-            (LauncherAssistantCommands.match(context, query) +
-                memoryActions +
-                registryToolActions +
-                BuiltInLauncherTools.search(context, query))
-                .distinctBy { it.id }
-                .take(maxResults)
-        } else {
-            emptyList()
-        }
-    }
-    val matchingSnippets = remember(query, activeScope, launcherDataVersion) {
-        if (activeScope == null && query.isNotBlank()) SnippetsRepository.search(context, query).take(maxResults) else emptyList()
-    }
-    val matchingQuicklinks = remember(query, activeScope, launcherDataVersion) {
-        if (activeScope == null && query.isNotBlank()) QuicklinksRepository.search(context, query).take(maxResults) else emptyList()
-    }
-    val notificationResults = remember(query, activeScope, notificationsSearchEnabled) {
-        if (activeScope == null && query.isNotBlank() && notificationsSearchEnabled &&
-            ActiveNotificationStore.hasAccess(context)
-        ) {
-            ActiveNotificationStore.search(context, query, maxResults)
-        } else {
-            emptyList()
-        }
-    }
-    val matchingProviders = remember(query, activeScope, discoveredProviders) {
-        val q = query.trim()
+    val matchingProviders = remember(settledQuery, activeScope, discoveredProviders) {
+        val q = settledQuery.trim()
         if (activeScope != null || q.isEmpty()) {
             emptyList()
         } else {
@@ -970,7 +1030,7 @@ fun PixelSearchResultsScreen(
             is InlineOverlayMode.Search -> {
                 activeScope = null
                 voiceQueryPending = false
-                query = ""
+                queryState.value = ""
             }
             is InlineOverlayMode.ExtensionRunner -> Unit
         }
@@ -1012,7 +1072,7 @@ fun PixelSearchResultsScreen(
                     ?.toString()
             }.getOrNull()?.trim()
             val text = clipText?.takeIf { it.isNotBlank() }
-                ?: query.trim().takeIf { it.isNotBlank() }
+                ?: queryState.value.trim().takeIf { it.isNotBlank() }
             if (text == null) {
                 assistantFeedback = AssistantFeedback(
                     false,
@@ -1051,7 +1111,7 @@ fun PixelSearchResultsScreen(
         }
         activeScope = provider
         voiceQueryPending = false
-        query = ""
+        queryState.value = ""
         runCatching { focusRequester.requestFocus() }
     }
 
@@ -1059,7 +1119,7 @@ fun PixelSearchResultsScreen(
         HapticUtil.performVirtualKeyHaptic(view)
         activeScope = null
         voiceQueryPending = false
-        query = ""
+        queryState.value = ""
         runCatching { focusRequester.requestFocus() }
     }
 
@@ -1118,8 +1178,15 @@ fun PixelSearchResultsScreen(
         searchJob?.cancel()
         val trimmed = q.trim()
         if (currentScope != null) {
-            isSearching = true
             searchJob = scope.launch(Dispatchers.IO) {
+                if (trimmed.isNotEmpty()) {
+                    kotlinx.coroutines.delay(75L)
+                }
+                val spinnerJob = launch {
+                    kotlinx.coroutines.delay(160L)
+                    withContext(Dispatchers.Main) { isSearching = true }
+                }
+                try {
                 when (currentScope.kind) {
                     SearchProviderKind.PHOTOS -> {
                         val photos = if (PermissionUtils.hasMediaPermissions(context)) {
@@ -1235,16 +1302,29 @@ fun PixelSearchResultsScreen(
                     }
 
                     SearchProviderKind.SETTINGS -> {
-                        val index = SearchIndex.get(
-                            context,
-                            repository.isEnableUnsupportedFeatures(),
-                            repository.isShowLegacyFeatures(),
+                        val cachedIndex = SearchIndex.peek()
+                        val allSystemSettings = cachedIndex?.systemSettings
+                            ?: SystemSettingsSearchUtil.all(context)
+                        val allSettings = cachedIndex?.settings
+                            ?: SearchRegistry.indexItems(
+                                context,
+                                repository.isEnableUnsupportedFeatures(),
+                                repository.isShowLegacyFeatures(),
+                            )
+                        val sys = SystemSettingsSearchUtil.search(
+                            context = context,
+                            settings = allSystemSettings,
+                            query = trimmed,
+                            limit = 16,
                         )
-                        val sys = SystemSettingsSearchUtil.search(context, index.systemSettings, trimmed)
                         val mapped = if (trimmed.isNotEmpty()) {
-                            rankSettings(index.settings, trimmed, 12)
+                            rankSettings(allSettings, trimmed, 16)
                         } else {
-                            emptyList()
+                            allSettings
+                                .filter { it.featureKey != "Quick settings tiles" }
+                                .sortedByDescending { it.control != null }
+                                .take(16)
+                                .map { PixelSearchResultItem.SettingItem(it) }
                         }
                         val cmds = SearchProviderDiscovery.matchInternalCommands(
                             context = context,
@@ -1316,129 +1396,228 @@ fun PixelSearchResultsScreen(
                         }
                     }
                 }
+                } finally {
+                    spinnerJob.cancel()
+                }
+                withContext(Dispatchers.Main) {
+                    settledQuery = q
+                    calcResultState.value = null
+                    matchingToolActions = emptyList()
+                    matchingSnippets = emptyList()
+                    matchingQuicklinks = emptyList()
+                    notificationResults = emptyList()
+                }
             }
             return
         }
 
         if (trimmed.isEmpty()) {
-            appResults = emptyList()
-            contactResults = emptyList()
-            mediaResults = emptyList()
-            fileResults = emptyList()
-            systemSettingResults = emptyList()
-            settingResults = emptyList()
-            shortcutResults = emptyList()
-            entityRoutes = emptyList()
-            internalCommands = emptyList()
-            appFunctions = emptyList()
-            scopedPhotos = emptyList()
-            isSearching = false
+            val hadSettled = settledQuery.isNotEmpty()
+            searchJob = scope.launch {
+                if (hadSettled) {
+                    kotlinx.coroutines.delay(45L)
+                }
+                settledQuery = ""
+                calcResultState.value = null
+                matchingToolActions = emptyList()
+                matchingSnippets = emptyList()
+                matchingQuicklinks = emptyList()
+                notificationResults = emptyList()
+                appResults = emptyList()
+                contactResults = emptyList()
+                mediaResults = emptyList()
+                fileResults = emptyList()
+                systemSettingResults = emptyList()
+                settingResults = emptyList()
+                shortcutResults = emptyList()
+                entityRoutes = emptyList()
+                internalCommands = emptyList()
+                appFunctions = emptyList()
+                scopedPhotos = emptyList()
+                isSearching = false
+            }
             return
         }
 
-        isSearching = true
         searchJob = scope.launch(Dispatchers.IO) {
-            val index = SearchIndex.get(
-                context,
-                repository.isEnableUnsupportedFeatures(),
-                repository.isShowLegacyFeatures(),
-            )
-            val rankContext = SearchContextRanker.snapshot(context)
-            val matchedCommands = SearchProviderDiscovery.matchInternalCommands(
-                context = context,
-                query = trimmed,
-                onOpenExtensions = { openExtensionsHub(initialTab = 0) },
-                onOpenStore = { openExtensionsHub(initialTab = 1) },
-                onRunExtension = { ext, cmd -> openInlineExtension(ext, cmd, returnToHub = false) },
-            )
-            withContext(Dispatchers.Main) {
-                internalCommands = matchedCommands
+            kotlinx.coroutines.delay(if (trimmed.length <= 1) 200L else 95L)
+            val spinnerJob = launch {
+                kotlinx.coroutines.delay(160L)
+                withContext(Dispatchers.Main) { isSearching = true }
             }
-
-            val filteredApps = if (isAppsEnabled) {
-                rankApps(index.apps, trimmed, 6, rankContext)
-            } else {
-                emptyList()
-            }
-            withContext(Dispatchers.Main) {
-                appResults = filteredApps
-            }
-
-            val contacts = if (isContactsEnabled && ContextCompat.checkSelfPermission(
-                    context,
-                    android.Manifest.permission.READ_CONTACTS,
-                ) == PackageManager.PERMISSION_GRANTED
-            ) {
-                ContactsSearchUtil.search(context, index.contacts, trimmed)
-            } else {
-                emptyList()
-            }
-            withContext(Dispatchers.Main) {
-                contactResults = contacts
-            }
-
-            val hasMediaPermission = PermissionUtils.hasMediaPermissions(context)
-            val hasStoragePermission =
-                PermissionUtils.hasManageExternalStoragePermission(context) ||
-                    PermissionUtils.hasStoragePermission(context)
-            val indexedFiles = if (hasStoragePermission || hasMediaPermission) {
-                FileSearchUtil.searchIndexedFiles(
+            try {
+                val cachedIndex = SearchIndex.peek()
+                val matchedCommands = SearchProviderDiscovery.matchInternalCommands(
                     context = context,
-                    index = index.files,
                     query = trimmed,
-                    limit = 6,
-                    searchMedia = isMediaEnabled && hasMediaPermission,
-                    searchDocs = isFilesEnabled && hasStoragePermission,
+                    onOpenExtensions = { openExtensionsHub(initialTab = 0) },
+                    onOpenStore = { openExtensionsHub(initialTab = 1) },
+                    onRunExtension = { ext, cmd -> openInlineExtension(ext, cmd, returnToHub = false) },
                 )
-            } else {
-                FileSearchUtil.FileSearchResults()
-            }
-            withContext(Dispatchers.Main) {
-                mediaResults = indexedFiles.mediaItems
-                fileResults = indexedFiles.documentItems
-            }
+                val fastSystemSettings = if (isSettingsEnabled) {
+                    val allSys = cachedIndex?.systemSettings ?: SystemSettingsSearchUtil.all(context)
+                    SystemSettingsSearchUtil.search(context, allSys, trimmed)
+                } else {
+                    emptyList()
+                }
+                val fastMappedSettings = if (isSettingsEnabled) {
+                    val allSettings = cachedIndex?.settings ?: SearchRegistry.indexItems(
+                        context,
+                        repository.isEnableUnsupportedFeatures(),
+                        repository.isShowLegacyFeatures(),
+                    )
+                    rankSettings(allSettings, trimmed, 6)
+                } else {
+                    emptyList()
+                }
+                val evalCalc = runCatching { LauncherCalculator.evaluate(q, context) }.getOrNull()
+                val fastTools = runCatching {
+                    val mem = assistantMemoryActions(q, context, scope) { success, message ->
+                        assistantFeedback = AssistantFeedback(success, message)
+                    }
+                    val reg = assistantRegistryActions(q, context, scope) { success, message ->
+                        assistantFeedback = AssistantFeedback(success, message)
+                    }
+                    (LauncherAssistantCommands.match(context, q) +
+                        mem +
+                        reg +
+                        BuiltInLauncherTools.search(context, q))
+                        .distinctBy { it.id }
+                        .take(maxResults)
+                }.getOrDefault(emptyList())
+                val fastSnippets = runCatching { SnippetsRepository.search(context, q).take(maxResults) }.getOrDefault(emptyList())
+                val fastQuicklinks = runCatching { QuicklinksRepository.search(context, q).take(maxResults) }.getOrDefault(emptyList())
+                val fastNotifications = if (notificationsSearchEnabled) {
+                    runCatching {
+                        if (ActiveNotificationStore.hasAccess(context)) {
+                            ActiveNotificationStore.search(context, q, maxResults)
+                        } else {
+                            emptyList()
+                        }
+                    }.getOrDefault(emptyList())
+                } else {
+                    emptyList()
+                }
 
-            if (isSettingsEnabled) {
-                val systemSettings = SystemSettingsSearchUtil.search(
+                if (cachedIndex == null) {
+                    spinnerJob.cancel()
+                    withContext(Dispatchers.Main) {
+                        settledQuery = q
+                        calcResultState.value = evalCalc
+                        matchingToolActions = fastTools
+                        matchingSnippets = fastSnippets
+                        matchingQuicklinks = fastQuicklinks
+                        notificationResults = fastNotifications
+                        internalCommands = matchedCommands
+                        systemSettingResults = fastSystemSettings
+                        settingResults = fastMappedSettings
+                        isSearching = false
+                    }
+                }
+
+                val index = cachedIndex ?: SearchIndex.get(
                     context,
-                    index.systemSettings,
+                    repository.isEnableUnsupportedFeatures(),
+                    repository.isShowLegacyFeatures(),
+                )
+                if (kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]?.isActive == false) {
+                    return@launch
+                }
+                val rankContext = SearchContextRanker.snapshot(context)
+
+                val filteredApps = if (isAppsEnabled) {
+                    rankApps(index.apps, trimmed, 6, rankContext)
+                } else {
+                    emptyList()
+                }
+
+                val contacts = if (isContactsEnabled && ContextCompat.checkSelfPermission(
+                        context,
+                        android.Manifest.permission.READ_CONTACTS,
+                    ) == PackageManager.PERMISSION_GRANTED
+                ) {
+                    ContactsSearchUtil.search(context, index.contacts, trimmed)
+                } else {
+                    emptyList()
+                }
+
+                val hasMediaPermission = PermissionUtils.hasMediaPermissions(context)
+                val hasStoragePermission =
+                    PermissionUtils.hasManageExternalStoragePermission(context) ||
+                        PermissionUtils.hasStoragePermission(context)
+                val indexedFiles = if (hasStoragePermission || hasMediaPermission) {
+                    FileSearchUtil.searchIndexedFiles(
+                        context = context,
+                        index = index.files,
+                        query = trimmed,
+                        limit = 6,
+                        searchMedia = isMediaEnabled && hasMediaPermission,
+                        searchDocs = isFilesEnabled && hasStoragePermission,
+                    )
+                } else {
+                    FileSearchUtil.FileSearchResults()
+                }
+
+                val shortcuts = if (isShortcutsEnabled) {
+                    SearchProviderDiscovery.searchShortcutsIn(context, index.shortcuts, trimmed)
+                } else {
+                    emptyList()
+                }
+                val routes = SearchProviderDiscovery.resolveEntities(context, trimmed, shortcuts)
+                val appFns = SearchProviderDiscovery.searchAppFunctionsIn(
+                    context,
+                    index.appFunctions,
                     trimmed,
                 )
-                val mappedSettings = rankSettings(index.settings, trimmed, 6)
-                withContext(Dispatchers.Main) {
-                    systemSettingResults = systemSettings
-                    settingResults = mappedSettings
-                }
-            } else {
-                withContext(Dispatchers.Main) {
-                    systemSettingResults = emptyList()
-                    settingResults = emptyList()
-                }
-            }
 
-            val shortcuts = if (isShortcutsEnabled) {
-                SearchProviderDiscovery.searchShortcutsIn(context, index.shortcuts, trimmed)
-            } else {
-                emptyList()
-            }
-            val routes = SearchProviderDiscovery.resolveEntities(context, trimmed, shortcuts)
-            val appFns = SearchProviderDiscovery.searchAppFunctionsIn(
-                context,
-                index.appFunctions,
-                trimmed,
-            )
-            withContext(Dispatchers.Main) {
-                shortcutResults = shortcuts
-                entityRoutes = routes
-                appFunctions = appFns
-                isSearching = false
+                spinnerJob.cancel()
+                withContext(Dispatchers.Main) {
+                    settledQuery = q
+                    calcResultState.value = evalCalc
+                    matchingToolActions = fastTools
+                    matchingSnippets = fastSnippets
+                    matchingQuicklinks = fastQuicklinks
+                    notificationResults = fastNotifications
+                    internalCommands = matchedCommands
+                    appResults = filteredApps
+                    contactResults = contacts
+                    mediaResults = indexedFiles.mediaItems
+                    fileResults = indexedFiles.documentItems
+                    systemSettingResults = fastSystemSettings
+                    settingResults = fastMappedSettings
+                    shortcutResults = shortcuts
+                    entityRoutes = routes
+                    appFunctions = appFns
+                    isSearching = false
+                }
+            } finally {
+                spinnerJob.cancel()
             }
         }
     }
 
-    LaunchedEffect(query, activeScope) {
-        userHasScrolled = false
-        performSearch(query, activeScope)
+    LaunchedEffect(activeScope) {
+        androidx.compose.runtime.snapshotFlow { queryState.value }
+            .collect { latestQuery ->
+                userHasScrolled = false
+                performSearch(latestQuery, activeScope)
+            }
+    }
+
+    LaunchedEffect(
+        isAppsEnabled,
+        isContactsEnabled,
+        isMediaEnabled,
+        isFilesEnabled,
+        isSettingsEnabled,
+        isShortcutsEnabled,
+        isWebEnabled,
+        notificationsSearchEnabled,
+        typoToleranceEnabled,
+    ) {
+        if (settingsRefreshNonce > 0) {
+            performSearch(queryState.value, activeScope)
+        }
     }
 
     LaunchedEffect(
@@ -1477,25 +1656,35 @@ fun PixelSearchResultsScreen(
     LaunchedEffect(Unit) {
         runCatching { focusRequester.requestFocus() }
         keyboardController?.show()
+        if (asOverlay) {
+            kotlinx.coroutines.delay(55L)
+            runCatching { focusRequester.requestFocus() }
+            keyboardController?.show()
+            view.post {
+                if (view.isAttachedToWindow) {
+                    val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
+                    imm?.showSoftInput(view, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+                }
+            }
+        }
     }
     LaunchedEffect(windowInfo.isWindowFocused) {
         if (windowInfo.isWindowFocused) {
             runCatching { focusRequester.requestFocus() }
             keyboardController?.show()
+            if (asOverlay) {
+                view.post {
+                    if (view.isAttachedToWindow) {
+                        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
+                        imm?.showSoftInput(view, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+                    }
+                }
+            }
         }
     }
 
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val navBarHeight = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val imeBottomPx = WindowInsets.ime.getBottom(density)
-    val navBottomPx = WindowInsets.navigationBars.getBottom(density)
-    val searchBarBottomPadding = with(density) {
-        if (imeBottomPx > navBottomPx) {
-            imeBottomPx.toDp() + 8.dp
-        } else {
-            navBottomPx.toDp().coerceAtLeast(16.dp)
-        }
-    }
     var searchBarHeightPx by remember { mutableIntStateOf(0) }
     val searchBarHeightDp = with(density) {
         if (searchBarHeightPx > 0) searchBarHeightPx.toDp() else 64.dp
@@ -1505,7 +1694,7 @@ fun PixelSearchResultsScreen(
     val topBlurHeightPx = with(density) { (statusBarHeight + 24.dp).toPx() }
 
     // Single source of truth for the ONE highlighted most-likely result and Enter/Search execution
-    val trimmedQuery = query.trim()
+    val trimmedQuery = settledQuery.trim()
     val hasMediaPerm = remember(activeScope) { PermissionUtils.hasMediaPermissions(context) }
     val hasExactQuicklinkMatch =
         activeScope == null &&
@@ -1563,21 +1752,26 @@ fun PixelSearchResultsScreen(
             }
 
         val intent =
-            if (targetFeatureKey == "Pixel Searchbar") {
-                Intent(context, PixelSearchbarSettingsActivity::class.java)
-            } else {
-                Intent(context, FeatureSettingsActivity::class.java).apply {
-                    putExtra("feature", targetFeatureKey)
-                    highlightKey?.let {
-                        putExtra("highlight_setting", it)
+            when (targetFeatureKey) {
+                InternalSettingsCatalog.FEATURE_KEY_APP_SETTINGS ->
+                    Intent(context, SettingsActivity::class.java)
+                InternalSettingsCatalog.FEATURE_KEY_SEARCH_SETTINGS ->
+                    Intent(context, PixelSearchbarSettingsActivity::class.java)
+                else ->
+                    Intent(context, FeatureSettingsActivity::class.java).apply {
+                        putExtra("feature", targetFeatureKey)
+                        highlightKey?.let {
+                            putExtra("highlight_setting", it)
+                        }
                     }
-                }
+            }.apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
         SearchUsageTracker.record(
             context,
             SearchUsageTracker.settingKey(setting.featureKey, setting.title),
         )
-        context.startActivity(intent)
+        runCatching { context.startActivity(intent) }
         onFinish()
     }
 
@@ -1632,7 +1826,7 @@ fun PixelSearchResultsScreen(
             TopSearchTarget.SCOPED_APP_INTENT -> {
                 val currentScope = activeScope ?: return
                 keyboardController?.hide()
-                if (SearchProviderDiscovery.launchScopedProviderSearch(context, currentScope, query)) {
+                if (SearchProviderDiscovery.launchScopedProviderSearch(context, currentScope, queryState.value)) {
                     onFinish()
                 }
             }
@@ -1732,19 +1926,61 @@ fun PixelSearchResultsScreen(
 
             TopSearchTarget.SYSTEM_SETTING -> {
                 val systemSetting = systemSettingResults.firstOrNull() ?: return
-                keyboardController?.hide()
                 SearchUsageTracker.record(
                     context,
-                    SearchUsageTracker.suggestionKey("syssetting", systemSetting.title),
+                    SearchUsageTracker.suggestionKey("syssetting", systemSetting.id),
                 )
-                context.startActivity(systemSetting.intent)
-                onFinish()
+                val control = systemSetting.control
+                if (control != null) {
+                    HapticUtil.performVirtualKeyHaptic(view)
+                    rippleController?.spawnBurst()
+                    scope.launch(if (control.runOffMainThread) Dispatchers.IO else Dispatchers.Main.immediate) {
+                        triggerInteractiveSettingPrimaryAction(
+                            context = context,
+                            control = control,
+                            onFallbackOpen = { intent ->
+                                scope.launch(Dispatchers.Main) {
+                                    keyboardController?.hide()
+                                    runCatching { context.startActivity(intent) }
+                                    onFinish()
+                                }
+                            },
+                            onUpdated = {
+                                scope.launch(Dispatchers.Main) { settingsRefreshNonce++ }
+                            },
+                        )
+                    }
+                } else {
+                    keyboardController?.hide()
+                    runCatching { context.startActivity(systemSetting.intent) }
+                    onFinish()
+                }
             }
 
             TopSearchTarget.ESSENTIAL_SETTING -> {
                 val setting = settingResults.firstOrNull()?.searchableItem ?: return
-                keyboardController?.hide()
-                openEssentialSetting(setting)
+                val control = setting.control
+                if (control != null) {
+                    HapticUtil.performVirtualKeyHaptic(view)
+                    rippleController?.spawnBurst()
+                    SearchUsageTracker.record(
+                        context,
+                        SearchUsageTracker.settingKey(setting.featureKey, setting.title),
+                    )
+                    triggerInteractiveSettingPrimaryAction(
+                        context = context,
+                        control = control,
+                        onFallbackOpen = { intent ->
+                            keyboardController?.hide()
+                            runCatching { context.startActivity(intent) }
+                            onFinish()
+                        },
+                        onUpdated = { settingsRefreshNonce++ },
+                    )
+                } else {
+                    keyboardController?.hide()
+                    openEssentialSetting(setting)
+                }
             }
 
             TopSearchTarget.SHORTCUT -> {
@@ -1769,7 +2005,7 @@ fun PixelSearchResultsScreen(
                 val provider = matchingProviders.firstOrNull() ?: return
                 if (provider.kind == SearchProviderKind.APP_INTENT || provider.kind == SearchProviderKind.WEB) {
                     keyboardController?.hide()
-                    SearchProviderDiscovery.launchScopedProviderSearch(context, provider, query)
+                    SearchProviderDiscovery.launchScopedProviderSearch(context, provider, queryState.value)
                     onFinish()
                 } else {
                     enterScope(provider)
@@ -1777,9 +2013,10 @@ fun PixelSearchResultsScreen(
             }
 
             TopSearchTarget.WEB_SEARCH -> {
-                if (trimmedQuery.isNotEmpty()) {
+                val currentQuery = queryState.value.trim()
+                if (currentQuery.isNotEmpty()) {
                     keyboardController?.hide()
-                    launchWebSearch(context, query, isBubblesWebEnabled, searchEngine)
+                    launchWebSearch(context, currentQuery, isBubblesWebEnabled, searchEngine)
                     onFinish()
                 }
             }
@@ -1884,20 +2121,26 @@ fun PixelSearchResultsScreen(
                 }
 
                 is InlineOverlayMode.Search -> {
-            val listBottomPadding = searchBarBottomPadding + searchBarHeightDp + 12.dp
-            val initialResultsHidden = hideInitialResults && activeScope == null && query.isBlank()
+            val listBottomPadding = searchBarHeightDp + 24.dp
+            val initialResultsHidden = hideInitialResults && activeScope == null && settledQuery.isBlank()
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .progressiveBlur(
-                        blurRadius = 40f,
-                        height = topBlurHeightPx,
-                        direction = BlurDirection.TOP,
+                    .windowInsetsPadding(
+                        androidx.compose.foundation.layout.WindowInsets.ime
+                            .union(androidx.compose.foundation.layout.WindowInsets.navigationBars),
                     )
                     .progressiveBlur(
-                        blurRadius = 40f,
+                        blurRadius = 0f,
+                        height = topBlurHeightPx,
+                        direction = BlurDirection.TOP,
+                        showGradientOverlay = true,
+                    )
+                    .progressiveBlur(
+                        blurRadius = 0f,
                         height = bottomBlurHeightPx,
                         direction = BlurDirection.BOTTOM,
+                        showGradientOverlay = true,
                     ),
             ) {
                 if (!initialResultsHidden) {
@@ -1960,7 +2203,7 @@ fun PixelSearchResultsScreen(
 
                 // STAGE 2: SCOPED PHOTOS GRID
                 if (activeScope?.kind == SearchProviderKind.PHOTOS) {
-                    val headerTitle = if (query.isBlank()) "Recent Photos" else "Photos matching \"$query\""
+                    val headerTitle = if (settledQuery.isBlank()) "Recent Photos" else "Photos matching \"$settledQuery\""
                     if (!hasMediaPerm) {
                         item(key = "scoped_photos_perm_section") {
                             Column(
@@ -2123,17 +2366,17 @@ fun PixelSearchResultsScreen(
                             SearchSectionHeader(title = "Search in ${scopeProvider.title}")
                             RoundedCardContainer {
                                 FeatureCard(
-                                    title = if (query.isBlank()) {
+                                    title = if (settledQuery.isBlank()) {
                                         "Open ${scopeProvider.title}"
                                     } else {
-                                        "Search \"${query.trim()}\" in ${scopeProvider.title}"
+                                        "Search \"${settledQuery.trim()}\" in ${scopeProvider.title}"
                                     },
                                     description = scopeProvider.subtitle,
                                     isEnabled = true,
                                     onToggle = {},
                                     onClick = {
                                         HapticUtil.performVirtualKeyHaptic(view)
-                                        SearchProviderDiscovery.launchScopedProviderSearch(context, scopeProvider, query)
+                                        SearchProviderDiscovery.launchScopedProviderSearch(context, scopeProvider, queryState.value)
                                         onFinish()
                                     },
                                     containerColor = if (topTarget == TopSearchTarget.SCOPED_APP_INTENT) highlightColor else normalCardColor,
@@ -2148,7 +2391,7 @@ fun PixelSearchResultsScreen(
                     }
                 }
 
-                if (query.isBlank() && activeScope == null &&
+                if (settledQuery.isBlank() && activeScope == null &&
                     overlayMode is InlineOverlayMode.Search && !hideInitialResults &&
                     clipboardContent != null && !clipboardCardDismissed
                 ) {
@@ -2227,7 +2470,7 @@ fun PixelSearchResultsScreen(
                                 onUseColor = { code ->
                                     HapticUtil.performVirtualKeyHaptic(view)
                                     clipboardCardDismissed = true
-                                    query = code
+                                    queryState.value = code
                                 },
                                 onDismiss = {
                                     HapticUtil.performVirtualKeyHaptic(view)
@@ -2239,46 +2482,64 @@ fun PixelSearchResultsScreen(
                 }
 
                 // STAGE 1: EMPTY QUERY — RAYCAST / VICINAE VERTICAL COMMAND LIST
-                if (activeScope == null && query.isBlank()) {
-                    item(key = "core_tools_section") {
-                        Column(
-                            modifier = Modifier.fillMaxWidth().animateItem(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
+                if (activeScope == null && settledQuery.isBlank()) {
+                    val orderedBuiltInActions = builtInActions.take(maxResults).inReachabilityOrder(reachabilityLayout)
+                    if (!reachabilityLayout) {
+                        item(key = "core_tools_header") {
                             SearchSectionHeader("Core Tools & Commands")
-                            RoundedCardContainer {
-                                builtInActions.take(maxResults).inReachabilityOrder(reachabilityLayout).forEach { action ->
-                                    RaycastCommandRow(
-                                        title = action.title,
-                                        subtitle = action.subtitle,
-                                        badge = action.badge,
-                                        iconRes = action.iconRes,
-                                        containerColor = normalCardColor,
-                                        onClick = { executeBuiltInAction(action) },
-                                    )
-                                }
-                            }
+                        }
+                    }
+                    itemsIndexed(
+                        items = orderedBuiltInActions,
+                        key = { _, action -> "core_tool_${action.id}" },
+                    ) { _, action ->
+                        Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))) {
+                            RaycastCommandRow(
+                                title = action.title,
+                                subtitle = action.subtitle,
+                                badge = action.badge,
+                                iconRes = action.iconRes,
+                                containerColor = normalCardColor,
+                                onClick = { executeBuiltInAction(action) },
+                            )
+                        }
+                    }
+                    if (reachabilityLayout) {
+                        item(key = "core_tools_header") {
+                            SearchSectionHeader("Core Tools & Commands")
                         }
                     }
 
                     if (installedExtensions.isNotEmpty()) {
                         item(key = "installed_ext_section") {
+                            val compatReports by androidx.compose.runtime.produceState<Map<String, com.sameerasw.essentials.raycast.CompatibilityReport>>(
+                                initialValue = installedExtensions.mapNotNull { ext ->
+                                    RaycastCompatibilityAnalyzer.getCachedInstalledReport(ext)?.let { ext.id to it }
+                                }.toMap(),
+                                key1 = installedExtensions,
+                            ) {
+                                value = withContext(Dispatchers.IO) {
+                                    installedExtensions.associate { ext ->
+                                        ext.id to RaycastCompatibilityAnalyzer.analyzeInstalledExtension(ext)
+                                    }
+                                }
+                            }
                             Column(
-                                modifier = Modifier.fillMaxWidth().animateItem(),
+                                modifier = Modifier.fillMaxWidth(),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
                                 SearchSectionHeader("Installed Extensions")
                                 RoundedCardContainer {
                                     val extensionEntries = installedExtensions.flatMap { ext ->
-                                        val report = RaycastCompatibilityAnalyzer.analyzeInstalledExtension(ext)
+                                        val report = compatReports[ext.id]
                                         ext.manifest.commands.map { cmd -> Triple(ext, cmd, report) }
                                     }
-                                    extensionEntries.inReachabilityOrder(reachabilityLayout).forEach { (ext, cmd, report) ->
+                                    extensionEntries.take(maxResults.coerceAtMost(10)).inReachabilityOrder(reachabilityLayout).forEach { (ext, cmd, report) ->
                                         RaycastCommandRow(
                                             title = cmd.title.ifBlank { cmd.name },
                                             subtitle = "${ext.displayTitle}${if (cmd.description.isNotBlank()) " • ${cmd.description}" else ""}",
-                                            badge = when (report.level) {
-                                                AndroidCompatLevel.COMPATIBLE -> "Extension"
+                                            badge = when (report?.level) {
+                                                AndroidCompatLevel.COMPATIBLE, null -> "Extension"
                                                 AndroidCompatLevel.PARTIAL -> "Partial"
                                                 AndroidCompatLevel.INCOMPATIBLE -> "Desktop API"
                                             },
@@ -2293,27 +2554,33 @@ fun PixelSearchResultsScreen(
                     }
 
                     if (discoveredProviders.isNotEmpty()) {
-                        item(key = "providers_vertical_section") {
-                            Column(
-                                modifier = Modifier.fillMaxWidth().animateItem(),
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
+                        val orderedProviders = discoveredProviders.take(maxResults.coerceAtMost(12)).inReachabilityOrder(reachabilityLayout)
+                        if (!reachabilityLayout) {
+                            item(key = "providers_header") {
                                 SearchSectionHeader("Search Providers & App Links")
-                                RoundedCardContainer {
-                                    discoveredProviders.take(maxResults).inReachabilityOrder(reachabilityLayout).forEach { provider ->
-                                        val aliasHint = provider.aliases.firstOrNull()?.let { "Alias: $it" }
-                                        val subtitleText = listOfNotNull(provider.subtitle.takeIf { it.isNotBlank() }, aliasHint).joinToString(" • ")
-                                        RaycastCommandRow(
-                                            title = provider.title,
-                                            subtitle = subtitleText,
-                                            badge = provider.category,
-                                            iconRes = provider.iconRes,
-                                            iconBitmap = provider.appIcon,
-                                            containerColor = normalCardColor,
-                                            onClick = { enterScope(provider) },
-                                        )
-                                    }
-                                }
+                            }
+                        }
+                        itemsIndexed(
+                            items = orderedProviders,
+                            key = { _, provider -> "provider_${provider.id}" },
+                        ) { _, provider ->
+                            val aliasHint = provider.aliases.firstOrNull()?.let { "Alias: $it" }
+                            val subtitleText = listOfNotNull(provider.subtitle.takeIf { it.isNotBlank() }, aliasHint).joinToString(" • ")
+                            Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))) {
+                                RaycastCommandRow(
+                                    title = provider.title,
+                                    subtitle = subtitleText,
+                                    badge = provider.category,
+                                    iconRes = provider.iconRes,
+                                    iconBitmap = provider.appIcon,
+                                    containerColor = normalCardColor,
+                                    onClick = { enterScope(provider) },
+                                )
+                            }
+                        }
+                        if (reachabilityLayout) {
+                            item(key = "providers_header") {
+                                SearchSectionHeader("Search Providers & App Links")
                             }
                         }
                     }
@@ -3060,77 +3327,144 @@ fun PixelSearchResultsScreen(
 
                 // SETTINGS (System Settings)
                 if (isSettingsEnabled && systemSettingResults.isNotEmpty()) {
-                    item(key = "system_settings_section") {
-                        Column(
-                            modifier = Modifier.fillMaxWidth().animateItem(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
+                    val orderedSystemSettings = systemSettingResults.take(maxResults).withIndex().toList().inReachabilityOrder(reachabilityLayout)
+                    if (!reachabilityLayout) {
+                        item(key = "system_settings_header") {
                             SearchSectionHeader(stringResource(R.string.pixel_search_section_system_settings))
-                            RoundedCardContainer {
-                                systemSettingResults.take(maxResults).withIndex().toList().inReachabilityOrder(reachabilityLayout).forEach { (origIndex, setting) ->
-                                    val isTopmost = origIndex == 0 && topTarget == TopSearchTarget.SYSTEM_SETTING
-                                    FeatureCard(
-                                        title = setting.title,
-                                        isEnabled = true,
-                                        onToggle = {},
-                                        onClick = {
-                                            HapticUtil.performVirtualKeyHaptic(view)
-                                            SearchUsageTracker.record(
-                                                context,
-                                                SearchUsageTracker.suggestionKey("syssetting", setting.title),
-                                            )
-                                            context.startActivity(setting.intent)
-                                            onFinish()
-                                        },
-                                        containerColor = if (isTopmost) highlightColor else normalCardColor,
-                                        iconRes = setting.iconRes,
-                                        showToggle = false,
-                                        hasMoreSettings = false,
-                                        description = setting.subtitle,
-                                    )
-                                }
+                        }
+                    }
+                    itemsIndexed(
+                        items = orderedSystemSettings,
+                        key = { _, (origIndex, setting) -> "sys_setting_${setting.id}_$origIndex" },
+                    ) { _, (origIndex, setting) ->
+                        val isTopmost = origIndex == 0 && topTarget == TopSearchTarget.SYSTEM_SETTING
+                        val cardColor = if (isTopmost) highlightColor else normalCardColor
+                        val control = setting.control
+                        Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))) {
+                            if (control != null) {
+                                InteractiveSearchSettingCard(
+                                    id = setting.id,
+                                    title = setting.title,
+                                    subtitle = setting.subtitle,
+                                    iconRes = setting.iconRes,
+                                    control = control,
+                                    containerColor = cardColor,
+                                    refreshNonce = settingsRefreshNonce,
+                                    onSettingChanged = {
+                                        SearchUsageTracker.record(
+                                            context,
+                                            SearchUsageTracker.suggestionKey("syssetting", setting.id),
+                                        )
+                                        settingsRefreshNonce++
+                                    },
+                                    onOpenFallback = { intent ->
+                                        keyboardController?.hide()
+                                        runCatching { context.startActivity(intent) }
+                                        onFinish()
+                                    },
+                                )
+                            } else {
+                                FeatureCard(
+                                    title = setting.title,
+                                    isEnabled = true,
+                                    onToggle = {},
+                                    onClick = {
+                                        HapticUtil.performVirtualKeyHaptic(view)
+                                        SearchUsageTracker.record(
+                                            context,
+                                            SearchUsageTracker.suggestionKey("syssetting", setting.id),
+                                        )
+                                        runCatching { context.startActivity(setting.intent) }
+                                        onFinish()
+                                    },
+                                    containerColor = cardColor,
+                                    iconRes = setting.iconRes,
+                                    showToggle = false,
+                                    hasMoreSettings = false,
+                                    description = setting.subtitle,
+                                )
                             }
+                        }
+                    }
+                    if (reachabilityLayout) {
+                        item(key = "system_settings_header") {
+                            SearchSectionHeader(stringResource(R.string.pixel_search_section_system_settings))
                         }
                     }
                 }
 
-                // ESSENTIALS
+                // ESSENTIALS (Komorebi Internal Settings)
                 if (isSettingsEnabled && settingResults.isNotEmpty()) {
-                    item(key = "essentials_section") {
-                        Column(
-                            modifier = Modifier.fillMaxWidth().animateItem(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
+                    val orderedInternalSettings = settingResults.take(maxResults).withIndex().toList().inReachabilityOrder(reachabilityLayout)
+                    if (!reachabilityLayout) {
+                        item(key = "essentials_header") {
                             SearchSectionHeader(stringResource(R.string.app_name))
-                            RoundedCardContainer {
-                                settingResults.take(maxResults).withIndex().toList().inReachabilityOrder(reachabilityLayout).forEach { (origIndex, item) ->
-                                    val isTopmost = origIndex == 0 && topTarget == TopSearchTarget.ESSENTIAL_SETTING
-                                    val setting = item.searchableItem
-                                    FeatureCard(
-                                        title = setting.title,
-                                        isEnabled = true,
-                                        onToggle = {},
-                                        onClick = {
-                                            HapticUtil.performVirtualKeyHaptic(view)
-                                            openEssentialSetting(setting)
+                        }
+                    }
+                    itemsIndexed(
+                        items = orderedInternalSettings,
+                        key = { _, (origIndex, item) ->
+                            val s = item.searchableItem
+                            "ess_setting_${s.featureKey}_${s.targetSettingHighlightKey ?: s.title}_$origIndex"
+                        },
+                    ) { _, (origIndex, item) ->
+                        val isTopmost = origIndex == 0 && topTarget == TopSearchTarget.ESSENTIAL_SETTING
+                        val cardColor = if (isTopmost) highlightColor else normalCardColor
+                        val setting = item.searchableItem
+                        val control = setting.control
+                        Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))) {
+                            if (control != null) {
+                                InteractiveSearchSettingCard(
+                                    id = "${setting.featureKey}:${setting.targetSettingHighlightKey ?: setting.title}",
+                                    title = setting.title,
+                                    subtitle = setting.description,
+                                    iconRes = setting.icon ?: R.drawable.rounded_settings_24,
+                                    control = control,
+                                    containerColor = cardColor,
+                                    refreshNonce = settingsRefreshNonce,
+                                    onSettingChanged = {
+                                        SearchUsageTracker.record(
+                                            context,
+                                            SearchUsageTracker.settingKey(setting.featureKey, setting.title),
+                                        )
+                                        settingsRefreshNonce++
+                                    },
+                                    onOpenFallback = { intent ->
+                                        keyboardController?.hide()
+                                        runCatching { context.startActivity(intent) }
+                                        onFinish()
+                                    },
+                                )
+                            } else {
+                                FeatureCard(
+                                    title = setting.title,
+                                    isEnabled = true,
+                                    onToggle = {},
+                                    onClick = {
+                                        HapticUtil.performVirtualKeyHaptic(view)
+                                        openEssentialSetting(setting)
+                                    },
+                                    containerColor = cardColor,
+                                    iconRes = setting.icon ?: R.drawable.rounded_settings_24,
+                                    showToggle = false,
+                                    hasMoreSettings = true,
+                                    description = setting.description,
+                                    isBeta = setting.isBeta,
+                                    isLegacy = setting.isLegacy,
+                                    isUnsupported = setting.isUnsupported,
+                                    descriptionOverride =
+                                        if (setting.parentFeature != null) {
+                                            "${setting.parentFeature} > ${setting.description}"
+                                        } else {
+                                            setting.description
                                         },
-                                        containerColor = if (isTopmost) highlightColor else normalCardColor,
-                                        iconRes = setting.icon ?: R.drawable.rounded_settings_24,
-                                        showToggle = false,
-                                        hasMoreSettings = true,
-                                        description = setting.description,
-                                        isBeta = setting.isBeta,
-                                        isLegacy = setting.isLegacy,
-                                        isUnsupported = setting.isUnsupported,
-                                        descriptionOverride =
-                                            if (setting.parentFeature != null) {
-                                                "${setting.parentFeature} > ${setting.description}"
-                                            } else {
-                                                setting.description
-                                            },
-                                    )
-                                }
+                                )
                             }
+                        }
+                    }
+                    if (reachabilityLayout) {
+                        item(key = "essentials_header") {
+                            SearchSectionHeader(stringResource(R.string.app_name))
                         }
                     }
                 }
@@ -3223,7 +3557,7 @@ fun PixelSearchResultsScreen(
                                     val isTopmost = origIndex == 0 && topTarget == TopSearchTarget.MATCHING_PROVIDER
                                     RaycastCommandRow(
                                         title = provider.title,
-                                        subtitle = "Search \"${query.trim()}\" in ${provider.title}",
+                                        subtitle = "Search \"${settledQuery.trim()}\" in ${provider.title}",
                                         badge = provider.category,
                                         iconRes = provider.iconRes,
                                         iconBitmap = provider.appIcon,
@@ -3231,7 +3565,7 @@ fun PixelSearchResultsScreen(
                                         onClick = {
                                             HapticUtil.performVirtualKeyHaptic(view)
                                             if (provider.kind == SearchProviderKind.APP_INTENT || provider.kind == SearchProviderKind.WEB) {
-                                                SearchProviderDiscovery.launchScopedProviderSearch(context, provider, query)
+                                                SearchProviderDiscovery.launchScopedProviderSearch(context, provider, queryState.value)
                                                 onFinish()
                                             } else {
                                                 enterScope(provider)
@@ -3247,15 +3581,15 @@ fun PixelSearchResultsScreen(
                 // WEB SEARCH
                 if ((activeScope == null || activeScope?.kind == SearchProviderKind.WEB) &&
                     isWebEnabled &&
-                    query.isNotBlank()
+                    settledQuery.isNotBlank()
                 ) {
                     val isTopmost = topTarget == TopSearchTarget.WEB_SEARCH
                     item(key = "web_section") {
-                        val isUrl = remember(query) { isLikelyUrl(query.trim()) }
+                        val isUrl = remember(settledQuery) { isLikelyUrl(settledQuery.trim()) }
                         val actionTitle = if (isUrl) {
-                            stringResource(R.string.pixel_search_open_url_action, query)
+                            stringResource(R.string.pixel_search_open_url_action, settledQuery)
                         } else {
-                            stringResource(R.string.pixel_search_web_search_action, query)
+                            stringResource(R.string.pixel_search_web_search_action, settledQuery)
                         }
                         val webIcon = if (isUrl) R.drawable.rounded_link_24 else R.drawable.rounded_language_24
 
@@ -3271,7 +3605,7 @@ fun PixelSearchResultsScreen(
                                     onToggle = {},
                                     onClick = {
                                         HapticUtil.performVirtualKeyHaptic(view)
-                                        launchWebSearch(context, query, isBubblesWebEnabled, searchEngine)
+                                        launchWebSearch(context, settledQuery, isBubblesWebEnabled, searchEngine)
                                         onFinish()
                                     },
                                     containerColor = if (isTopmost) highlightColor else normalCardColor,
@@ -3300,8 +3634,9 @@ fun PixelSearchResultsScreen(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .zIndex(20f)
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
                 .padding(horizontal = 16.dp)
-                .padding(bottom = searchBarBottomPadding)
+                .padding(bottom = 12.dp)
                 .onSizeChanged { searchBarHeightPx = it.height }
                 .then(
                     if (asOverlay) {
@@ -3386,116 +3721,26 @@ fun PixelSearchResultsScreen(
                     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
                     val hintColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.58f)
 
-                    Box(
-                        contentAlignment = Alignment.CenterStart,
+                    PixelSearchInputField(
+                        queryState = queryState,
+                        activeScope = activeScope,
+                        prefixSuggestion = prefixSuggestion,
+                        isVoiceListening = isVoiceListening,
+                        focusRequester = focusRequester,
+                        bodyLargeStyle = bodyLargeStyle,
+                        onSurfaceColor = onSurfaceColor,
+                        hintColor = hintColor,
                         modifier = Modifier
                             .weight(1f)
                             .padding(horizontal = 6.dp, vertical = 6.dp),
-                    ) {
-                        if (query.isEmpty()) {
-                            val currentScope = activeScope
-                            if (isVoiceListening) {
-                                Text(
-                                    text = "Listening…",
-                                    style = bodyLargeStyle,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    maxLines = 1,
-                                )
-                            } else if (currentScope != null) {
-                                Text(
-                                    text = "Search ${currentScope.title.lowercase()}...",
-                                    style = bodyLargeStyle,
-                                    color = hintColor,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            } else {
-                                TranslatableText(
-                                    stringResId = R.string.pixel_search_input_hint,
-                                    style = bodyLargeStyle,
-                                    color = hintColor,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                        } else if (activeScope == null && prefixSuggestion != null) {
-                            val suggestion = prefixSuggestion
-                            val ghostAnnotated = buildAnnotatedString {
-                                withStyle(SpanStyle(color = Color.Transparent)) {
-                                    append(query)
-                                }
-                                if (suggestion.ghostSuffix.isNotEmpty()) {
-                                    withStyle(SpanStyle(color = hintColor)) {
-                                        append(suggestion.ghostSuffix)
-                                    }
-                                }
-                                withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.72f))) {
-                                    append("  • Tab")
-                                }
-                            }
-                            Text(
-                                text = ghostAnnotated,
-                                style = bodyLargeStyle,
-                                maxLines = 1,
-                                overflow = TextOverflow.Clip,
-                            )
-                        }
-
-                        BasicTextField(
-                            value = query,
-                            onValueChange = {
-                                voiceQueryPending = false
-                                query = it
-                            },
-                            singleLine = true,
-                            textStyle = bodyLargeStyle.copy(color = onSurfaceColor),
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                            keyboardOptions = KeyboardOptions(
-                                imeAction = ImeAction.Search,
-                            ),
-                            keyboardActions = KeyboardActions(
-                                onSearch = {
-                                    HapticUtil.performVirtualKeyHaptic(view)
-                                    executeHighlightedTopResult()
-                                },
-                                onDone = {
-                                    HapticUtil.performVirtualKeyHaptic(view)
-                                    executeHighlightedTopResult()
-                                },
-                                onGo = {
-                                    HapticUtil.performVirtualKeyHaptic(view)
-                                    executeHighlightedTopResult()
-                                },
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .focusRequester(focusRequester)
-                                .onPreviewKeyEvent { keyEvent ->
-                                    if (keyEvent.type == KeyEventType.KeyDown) {
-                                        when {
-                                            keyEvent.key == Key.Enter || keyEvent.key == Key.NumPadEnter -> {
-                                                HapticUtil.performVirtualKeyHaptic(view)
-                                                executeHighlightedTopResult()
-                                                true
-                                            }
-                                            (keyEvent.key == Key.Tab || keyEvent.key == Key.Spacebar) &&
-                                                activeScope == null &&
-                                                prefixSuggestion != null -> {
-                                                enterScope(prefixSuggestion.provider)
-                                                true
-                                            }
-                                            keyEvent.key == Key.Backspace && activeScope != null && query.isEmpty() -> {
-                                                exitScope()
-                                                true
-                                            }
-                                            else -> false
-                                        }
-                                    } else {
-                                        false
-                                    }
-                                },
-                        )
-                    }
+                        onQueryEdited = { voiceQueryPending = false },
+                        onExecuteTopResult = {
+                            HapticUtil.performVirtualKeyHaptic(view)
+                            executeHighlightedTopResult()
+                        },
+                        onEnterScope = { enterScope(it) },
+                        onExitScope = { exitScope() },
+                    )
 
                     if (activeScope == null && prefixSuggestion != null) {
                         val suggestion = prefixSuggestion
@@ -3560,33 +3805,17 @@ fun PixelSearchResultsScreen(
                         }
                     }
 
-                    when {
-                        isSearching -> Box(modifier = Modifier.padding(end = 6.dp)) { LoadingIndicator() }
-                        query.isNotEmpty() -> IconButton(
-                            onClick = {
-                                HapticUtil.performVirtualKeyHaptic(view)
-                                voiceQueryPending = false
-                                query = ""
-                            },
-                            modifier = Modifier.size(36.dp),
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.rounded_close_24),
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        activeScope != null -> IconButton(
-                            onClick = { exitScope() },
-                            modifier = Modifier.size(36.dp),
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.rounded_close_24),
-                                contentDescription = "Exit scope",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
+                    PixelSearchTrailingAction(
+                        isSearching = isSearching,
+                        queryState = queryState,
+                        hasActiveScope = activeScope != null,
+                        onClearQuery = {
+                            HapticUtil.performVirtualKeyHaptic(view)
+                            voiceQueryPending = false
+                            queryState.value = ""
+                        },
+                        onExitScope = { exitScope() },
+                    )
                 }
             }
         }
@@ -3607,7 +3836,7 @@ fun PixelSearchResultsScreen(
         activeToolModal?.let { modal ->
             LauncherToolModalOverlay(
                 modal = modal,
-                initialQuery = query,
+                initialQuery = settledQuery,
                 reachabilityLayout = reachabilityLayout,
                 onDismiss = {
                     activeToolModal = null
@@ -5045,6 +5274,161 @@ private fun buildSearchOrUrl(query: String, searchEngine: String): Uri {
         else -> "https://www.google.com/search?q=$encoded"
     }
     return Uri.parse(url)
+}
+
+@Composable
+private fun PixelSearchInputField(
+    queryState: androidx.compose.runtime.MutableState<String>,
+    activeScope: SearchProvider?,
+    prefixSuggestion: PrefixSuggestion?,
+    isVoiceListening: Boolean,
+    focusRequester: FocusRequester,
+    bodyLargeStyle: androidx.compose.ui.text.TextStyle,
+    onSurfaceColor: Color,
+    hintColor: Color,
+    modifier: Modifier = Modifier,
+    onQueryEdited: () -> Unit,
+    onExecuteTopResult: () -> Unit,
+    onEnterScope: (SearchProvider) -> Unit,
+    onExitScope: () -> Unit,
+) {
+    val query = queryState.value
+    Box(
+        contentAlignment = Alignment.CenterStart,
+        modifier = modifier,
+    ) {
+        if (query.isEmpty()) {
+            if (isVoiceListening) {
+                Text(
+                    text = "Listening…",
+                    style = bodyLargeStyle,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                )
+            } else if (activeScope != null) {
+                Text(
+                    text = "Search ${activeScope.title.lowercase()}...",
+                    style = bodyLargeStyle,
+                    color = hintColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            } else {
+                TranslatableText(
+                    stringResId = R.string.pixel_search_input_hint,
+                    style = bodyLargeStyle,
+                    color = hintColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        } else if (activeScope == null && prefixSuggestion != null) {
+            val ghostAnnotated = buildAnnotatedString {
+                withStyle(SpanStyle(color = Color.Transparent)) {
+                    append(query)
+                }
+                if (prefixSuggestion.ghostSuffix.isNotEmpty()) {
+                    withStyle(SpanStyle(color = hintColor)) {
+                        append(prefixSuggestion.ghostSuffix)
+                    }
+                }
+                withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.72f))) {
+                    append("  • Tab")
+                }
+            }
+            Text(
+                text = ghostAnnotated,
+                style = bodyLargeStyle,
+                maxLines = 1,
+                overflow = TextOverflow.Clip,
+            )
+        }
+
+        BasicTextField(
+            value = query,
+            onValueChange = {
+                onQueryEdited()
+                queryState.value = it
+            },
+            singleLine = true,
+            textStyle = bodyLargeStyle.copy(color = onSurfaceColor),
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            keyboardOptions = KeyboardOptions(
+                imeAction = ImeAction.Search,
+            ),
+            keyboardActions = KeyboardActions(
+                onSearch = { onExecuteTopResult() },
+                onDone = { onExecuteTopResult() },
+                onGo = { onExecuteTopResult() },
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focusRequester)
+                .onPreviewKeyEvent { keyEvent ->
+                    if (keyEvent.type == KeyEventType.KeyDown) {
+                        when {
+                            keyEvent.key == Key.Enter || keyEvent.key == Key.NumPadEnter -> {
+                                onExecuteTopResult()
+                                true
+                            }
+                            (keyEvent.key == Key.Tab || keyEvent.key == Key.Spacebar) &&
+                                activeScope == null &&
+                                prefixSuggestion != null -> {
+                                onEnterScope(prefixSuggestion.provider)
+                                true
+                            }
+                            keyEvent.key == Key.Backspace && activeScope != null && queryState.value.isEmpty() -> {
+                                onExitScope()
+                                true
+                            }
+                            else -> false
+                        }
+                    } else {
+                        false
+                    }
+                },
+        )
+    }
+}
+
+@Composable
+private fun PixelSearchTrailingAction(
+    isSearching: Boolean,
+    queryState: androidx.compose.runtime.MutableState<String>,
+    hasActiveScope: Boolean,
+    onClearQuery: () -> Unit,
+    onExitScope: () -> Unit,
+) {
+    val hasQuery = queryState.value.isNotEmpty()
+    when {
+        isSearching -> Box(modifier = Modifier.padding(end = 6.dp)) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                strokeWidth = 2.dp,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        hasQuery -> IconButton(
+            onClick = onClearQuery,
+            modifier = Modifier.size(36.dp),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.rounded_close_24),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        hasActiveScope -> IconButton(
+            onClick = onExitScope,
+            modifier = Modifier.size(36.dp),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.rounded_close_24),
+                contentDescription = "Exit scope",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }
 
 private fun launchWebSearch(

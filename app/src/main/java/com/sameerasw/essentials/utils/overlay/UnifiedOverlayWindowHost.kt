@@ -134,13 +134,16 @@ class UnifiedOverlayWindowHost(
 
     companion object {
         fun createThemedOverlayContext(base: Context, windowType: Int): Context {
-            val windowContext = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val isAccessibilityOverlay =
+                windowType == WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
+            val windowContext = if (!isAccessibilityOverlay && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 runCatching { base.createWindowContext(windowType, null) }.getOrNull()
             } else {
                 null
             }
             val themed = ContextThemeWrapper(windowContext ?: base, R.style.Theme_Komorebi)
-            return OverlayContext(themed, windowType)
+            val hostWindowManager = base.getSystemService(WindowManager::class.java)
+            return OverlayContext(themed, windowType, hostWindowManager)
         }
 
         fun buildFullScreenParams(
@@ -185,9 +188,13 @@ class UnifiedOverlayWindowHost(
     private class OverlayContext(
         base: Context,
         private val windowType: Int,
+        hostWindowManager: WindowManager? = null,
     ) : ContextWrapper(base) {
         private val overlayWindowManager =
-            OverlayWindowManager(base.getSystemService(WindowManager::class.java), windowType)
+            OverlayWindowManager(
+                hostWindowManager ?: base.getSystemService(WindowManager::class.java),
+                windowType,
+            )
 
         override fun getSystemService(name: String): Any? =
             if (name == Context.WINDOW_SERVICE) overlayWindowManager else super.getSystemService(name)

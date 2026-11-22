@@ -12,6 +12,7 @@ package com.sameerasw.essentials.domain.model
 import android.content.Intent
 import androidx.annotation.DrawableRes
 import androidx.compose.ui.graphics.ImageBitmap
+import com.sameerasw.essentials.search.InteractiveSettingControl
 
 sealed class PixelSearchResultItem {
     data class AppItem(
@@ -34,6 +35,9 @@ sealed class PixelSearchResultItem {
         val subtitle: String,
         @DrawableRes val iconRes: Int,
         val intent: Intent,
+        val id: String = title,
+        val keywords: List<String> = emptyList(),
+        val control: InteractiveSettingControl? = null,
     ) : PixelSearchResultItem()
 
     data class SettingItem(

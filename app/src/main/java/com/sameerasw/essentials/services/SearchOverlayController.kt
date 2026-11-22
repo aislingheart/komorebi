@@ -29,11 +29,14 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -44,11 +47,15 @@ import androidx.compose.ui.unit.dp
 import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.ui.activities.PixelSearchResultsScreen
 import com.sameerasw.essentials.ui.modifiers.GestureRippleWaveOverlay
+import com.sameerasw.essentials.ui.modifiers.LocalGestureRippleController
 import com.sameerasw.essentials.ui.modifiers.gestureRippleRefraction
+import com.sameerasw.essentials.ui.modifiers.interactiveGestureRipple
 import com.sameerasw.essentials.ui.modifiers.isGestureRippleEnabled
+import com.sameerasw.essentials.ui.modifiers.rememberGestureRippleController
 import com.sameerasw.essentials.ui.theme.EssentialsTheme
 import com.sameerasw.essentials.utils.overlay.OverlayVisibilityCoordinator
 import com.sameerasw.essentials.utils.overlay.UnifiedOverlayWindowHost
+import java.util.concurrent.atomic.AtomicLong
 
 object SearchOverlayController {
     private const val TAG = "SearchOverlayController"
@@ -60,24 +67,56 @@ object SearchOverlayController {
     private val backdropState = mutableStateOf<Bitmap?>(null)
     private val gestureRippleTriggerState = mutableStateOf(0)
     private var pendingHideRunnable: Runnable? = null
+    private val sessionGeneration = AtomicLong(0L)
 
     @Volatile
     var isShowing: Boolean = false
         private set
+
+    fun isActivelyVisible(): Boolean {
+        if (!isShowing || pendingHideRunnable != null) return false
+        val view = windowView ?: return false
+        return view.isAttachedToWindow
+    }
+
+    fun currentGeneration(): Long = sessionGeneration.get()
 
     fun show(
         context: Context,
         backdrop: Bitmap? = null,
         openedViaGesture: Boolean = false,
     ): Boolean {
-        cancelPendingHide()
-        if (isShowing) {
-            if (backdrop != null) backdropState.value = backdrop
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            Log.w(TAG, "show() called off main thread; posting to main")
+            mainHandler.post { show(context, backdrop, openedViaGesture) }
             return true
         }
+
+        // If a deferred hide was queued, flush it cleanly so we re-open without racing teardown.
+        if (pendingHideRunnable != null) {
+            hideInternal()
+        }
+
+        // Guard against a stale window that Android detached externally without calling hide().
+        if (isShowing && windowView?.isAttachedToWindow != true) {
+            Log.w(TAG, "Detected stale detached search overlay; resetting before show")
+            hideInternal()
+        }
+
+        if (isShowing) {
+            if (backdrop != null) backdropState.value = backdrop
+            if (openedViaGesture) {
+                gestureRippleTriggerState.value += 1
+            }
+            runCatching { windowView?.requestFocus() }
+            return true
+        }
+
+        sessionGeneration.incrementAndGet()
         backdropState.value = backdrop
         gestureRippleTriggerState.value =
             if (openedViaGesture) gestureRippleTriggerState.value + 1 else 0
+
         val wm = context.getSystemService(WindowManager::class.java) ?: return false
         val canDrawOverlays = Settings.canDrawOverlays(context)
         val isAccessibilityService = context is AccessibilityService
@@ -95,12 +134,15 @@ object SearchOverlayController {
                 showWithWindowType(context, wm, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY))
     }
 
-    fun updateBackdrop(backdrop: Bitmap?) {
-        if (!isShowing || backdrop == null) return
+    fun updateBackdrop(
+        backdrop: Bitmap?,
+        expectedGeneration: Long? = null,
+    ) {
+        if (backdrop == null) return
         mainHandler.post {
-            if (isShowing) {
-                backdropState.value = backdrop
-            }
+            if (!isActivelyVisible()) return@post
+            if (expectedGeneration != null && sessionGeneration.get() != expectedGeneration) return@post
+            backdropState.value = backdrop
         }
     }
 
@@ -115,44 +157,119 @@ object SearchOverlayController {
 
         val content = ComposeView(overlayContext).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+            isFocusable = true
+            isFocusableInTouchMode = true
             overlayHost.attachToView(this)
             setContent {
                 val repository = remember { SettingsRepository(appContext) }
                 val isPitchBlack by repository.isPitchBlackThemeEnabled.collectAsState(initial = false)
+                var ripplePrefEnabled by remember { mutableStateOf(isGestureRippleEnabled(appContext)) }
+                var blurPrefEnabled by remember {
+                    mutableStateOf(
+                        repository.getBoolean(
+                            SettingsRepository.KEY_USE_BLUR,
+                            !com.sameerasw.essentials.utils.DeviceUtils.isBlurProblematicDevice(),
+                        ),
+                    )
+                }
+
+                LaunchedEffect(repository) {
+                    repository.observeKeyChanges().collect { key ->
+                        when (key) {
+                            SettingsRepository.KEY_USE_RIPPLE, null -> {
+                                ripplePrefEnabled = isGestureRippleEnabled(appContext)
+                            }
+                            SettingsRepository.KEY_USE_BLUR -> {
+                                blurPrefEnabled = repository.getBoolean(
+                                    SettingsRepository.KEY_USE_BLUR,
+                                    !com.sameerasw.essentials.utils.DeviceUtils.isBlurProblematicDevice(),
+                                )
+                            }
+                        }
+                    }
+                }
+
                 val currentBackdrop by backdropState
                 val rippleTrigger by gestureRippleTriggerState
-                val rippleEnabled = remember(rippleTrigger) {
-                    rippleTrigger > 0 && isGestureRippleEnabled(appContext)
+                val rippleController = rememberGestureRippleController()
+
+                LaunchedEffect(rippleTrigger, ripplePrefEnabled) {
+                    if (rippleTrigger > 0 && ripplePrefEnabled) {
+                        rippleController.spawnLaunch()
+                    }
                 }
+
+                val isScreenReaderActive = remember(overlayContext) {
+                    val am = overlayContext.getSystemService(Context.ACCESSIBILITY_SERVICE)
+                        as? android.view.accessibility.AccessibilityManager
+                    am?.isTouchExplorationEnabled == true
+                }
+
                 CompositionLocalProvider(
                     LocalContext provides overlayContext,
                     LocalOnBackPressedDispatcherOwner provides overlayHost,
                     LocalActivityResultRegistryOwner provides overlayHost,
+                    LocalGestureRippleController provides rippleController,
                 ) {
                     EssentialsTheme(pitchBlackTheme = isPitchBlack) {
-                        Box(modifier = Modifier.fillMaxSize()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .then(
+                                    if (!isScreenReaderActive) {
+                                        // Komorebi's own SearchGestureAccessibilityService sets AccessibilityManager.isEnabled=true,
+                                        // causing Compose's AndroidComposeViewAccessibilityDelegateCompat to run O(N^2) geometry
+                                        // sorting on every keystroke/ripple frame even when no screen reader is active.
+                                        Modifier.clearAndSetSemantics {}
+                                    } else {
+                                        Modifier
+                                    },
+                                )
+                                .interactiveGestureRipple(
+                                    controller = rippleController,
+                                    enabled = ripplePrefEnabled,
+                                ),
+                        ) {
                             AnimatedVisibility(
                                 visible = currentBackdrop != null,
                                 enter = fadeIn(),
                             ) {
                                 currentBackdrop?.let { image ->
+                                    val imageBitmap = remember(image, blurPrefEnabled) {
+                                        val source = if (blurPrefEnabled && image.width > 360 && image.height > 360) {
+                                            val targetW = (image.width / 4).coerceAtLeast(1)
+                                            val targetH = (image.height / 4).coerceAtLeast(1)
+                                            runCatching {
+                                                Bitmap.createScaledBitmap(image, targetW, targetH, true)
+                                            }.getOrDefault(image)
+                                        } else {
+                                            image
+                                        }
+                                        source.asImageBitmap()
+                                    }
                                     Image(
-                                        bitmap = image.asImageBitmap(),
+                                        bitmap = imageBitmap,
                                         contentDescription = null,
                                         contentScale = ContentScale.Crop,
                                         modifier = Modifier
                                             .fillMaxSize()
-                                            .blur(24.dp)
+                                            .then(
+                                                if (blurPrefEnabled) {
+                                                    Modifier.blur(10.dp)
+                                                } else {
+                                                    Modifier
+                                                },
+                                            )
                                             .gestureRippleRefraction(
-                                                triggerKey = rippleTrigger,
-                                                enabled = rippleEnabled,
+                                                enabled = ripplePrefEnabled,
+                                                controller = rippleController,
                                             ),
                                     )
                                 }
                             }
                             GestureRippleWaveOverlay(
-                                triggerKey = rippleTrigger,
-                                enabled = rippleEnabled,
+                                enabled = ripplePrefEnabled,
+                                controller = rippleController,
                             )
                             PixelSearchResultsScreen(
                                 initialQuery = "",
@@ -181,14 +298,40 @@ object SearchOverlayController {
             }
         }.apply {
             overlayHost.attachToView(this)
-            isFocusable = true
-            isFocusableInTouchMode = true
+            descendantFocusability = android.view.ViewGroup.FOCUS_AFTER_DESCENDANTS
             addView(
                 content,
                 FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT,
                 ),
+            )
+            addOnAttachStateChangeListener(
+                object : View.OnAttachStateChangeListener {
+                    override fun onViewAttachedToWindow(v: View) {
+                        content.post {
+                            runCatching { content.requestFocus() }
+                        }
+                    }
+
+                    override fun onViewDetachedFromWindow(v: View) {
+                        // Clean up if Android detached the window externally (service restart, display change).
+                        if (windowView === v) {
+                            Log.d(TAG, "Search overlay detached externally; cleaning up state")
+                            cancelPendingHide()
+                            windowView = null
+                            windowManager = null
+                            val staleHost = host
+                            host = null
+                            isShowing = false
+                            backdropState.value = null
+                            sessionGeneration.incrementAndGet()
+                            OverlayVisibilityCoordinator.markHidden(OVERLAY_ID)
+                            runCatching { content.disposeComposition() }
+                            runCatching { staleHost?.onDestroy() }
+                        }
+                    }
+                },
             )
         }
 
@@ -211,7 +354,7 @@ object SearchOverlayController {
         windowManager = wm
         isShowing = true
         OverlayVisibilityCoordinator.markVisible(OVERLAY_ID)
-        runCatching { view.requestFocus() }
+        runCatching { content.requestFocus() }
             .onFailure { error -> Log.w(TAG, "Search overlay focus request failed", error) }
         return true
     }
@@ -222,6 +365,10 @@ object SearchOverlayController {
      * cleanly before window teardown.
      */
     fun hideDeferred(delayMs: Long = 48L) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            mainHandler.post { hideDeferred(delayMs) }
+            return
+        }
         val view = windowView
         if (view != null) {
             runCatching {
@@ -232,14 +379,23 @@ object SearchOverlayController {
         cancelPendingHide()
         val runnable = Runnable {
             pendingHideRunnable = null
-            hide()
+            hideInternal()
         }
         pendingHideRunnable = runnable
         mainHandler.postDelayed(runnable, delayMs)
     }
 
     fun hide() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            mainHandler.post { hideInternal() }
+            return
+        }
+        hideInternal()
+    }
+
+    private fun hideInternal() {
         cancelPendingHide()
+        sessionGeneration.incrementAndGet()
         val view = windowView
         val wm = windowManager
         val overlayHost = host
@@ -254,13 +410,20 @@ object SearchOverlayController {
                 val imm = view.context.getSystemService(InputMethodManager::class.java)
                 imm?.hideSoftInputFromWindow(view.windowToken, 0)
             }
+            runCatching {
+                ((view as? android.view.ViewGroup)?.getChildAt(0) as? ComposeView)?.disposeComposition()
+            }
         }
         if (view != null && wm != null) {
-            runCatching { wm.removeViewImmediate(view) }
-                .onFailure { error -> Log.w(TAG, "Failed to remove search overlay window", error) }
+            runCatching {
+                if (view.isAttachedToWindow) {
+                    wm.removeViewImmediate(view)
+                }
+            }.onFailure { error ->
+                Log.w(TAG, "Failed to remove search overlay window", error)
+            }
         }
         runCatching { overlayHost?.onDestroy() }
-            .onFailure { error -> Log.w(TAG, "Failed to destroy search overlay host", error) }
     }
 
     private fun cancelPendingHide() {

@@ -10,6 +10,7 @@
 package com.sameerasw.essentials.domain.model
 
 import androidx.annotation.DrawableRes
+import com.sameerasw.essentials.search.InteractiveSettingControl
 
 data class SearchableItem(
     val title: String,
@@ -25,4 +26,5 @@ data class SearchableItem(
     val isBeta: Boolean = false,
     val isLegacy: Boolean = false,
     val isUnsupported: Boolean = false,
+    val control: InteractiveSettingControl? = null,
 )

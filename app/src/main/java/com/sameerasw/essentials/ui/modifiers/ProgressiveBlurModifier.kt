@@ -46,12 +46,19 @@ fun Modifier.progressiveBlur(
         val overlayColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.65f)
         val context = LocalContext.current
         val density = LocalDensity.current
-        val isPowerSave = remember(context) { DeviceUtils.isPowerSaveMode(context) }
+        val allowBlur = remember(context) {
+            val repo = com.sameerasw.essentials.data.repository.SettingsRepository(context.applicationContext)
+            !DeviceUtils.isPowerSaveMode(context) &&
+                repo.getBoolean(
+                    com.sameerasw.essentials.data.repository.SettingsRepository.KEY_USE_BLUR,
+                    !DeviceUtils.isBlurProblematicDevice(),
+                )
+        }
 
         val blurRadiusDp = with(density) { blurRadius.toDp() }
 
         val blurModifier =
-            if (blurRadius > 0f && !isPowerSave) {
+            if (blurRadius > 0f && allowBlur) {
                 Modifier.blur {
                     this.edgeTreatment = edgeTreatment
                     val sizeHeightPx = size.height.toPx()

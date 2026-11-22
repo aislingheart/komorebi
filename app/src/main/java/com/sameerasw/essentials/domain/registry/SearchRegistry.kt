@@ -64,7 +64,8 @@ object SearchRegistry {
                     tertiary = listOfNotNull(item.parentFeature, item.category, item.description),
                 )
                 if (baseScore > 0) {
-                    val score = baseScore + SearchUsageTracker.boost(
+                    val interactiveBonus = if (item.control != null) 4 else 0
+                    val score = baseScore + interactiveBonus + SearchUsageTracker.boost(
                         context,
                         SearchUsageTracker.settingKey(item.featureKey, item.title),
                     )
@@ -82,6 +83,15 @@ object SearchRegistry {
         includeLegacyFeatures: Boolean = true,
     ): List<SearchableItem> {
         val allItems = mutableListOf<SearchableItem>()
+        val seenKeys = LinkedHashSet<String>()
+
+        // --- Index all interactive Komorebi internal toggles, choices & settings screens ---
+        com.sameerasw.essentials.search.InternalSettingsCatalog.all(context).forEach { item ->
+            val dedupeKey = "${item.featureKey}:${item.targetSettingHighlightKey ?: item.title.lowercase()}"
+            if (seenKeys.add(dedupeKey)) {
+                allItems.add(item)
+            }
+        }
 
         // --- Index Features and Sub-settings ---
         FeatureRegistry
@@ -92,51 +102,58 @@ object SearchRegistry {
                 val isUnsupported = !feature.isDeviceSupported(context)
 
                 // Index the feature itself
-                allItems.add(
-                    SearchableItem(
-                        title = featureTitle,
-                        description = context.getString(feature.description),
-                        category = featureCategory,
-                        icon = feature.iconRes,
-                        featureKey = feature.id,
-                        keywords =
-                            listOf(
-                                context.getString(R.string.keyword_feature),
-                                context.getString(R.string.keyword_settings),
-                            ),
-                        isBeta = feature.isBeta,
-                        isLegacy = feature.isLegacy,
-                        isUnsupported = isUnsupported,
-                    ),
-                )
-
-                // Index sub-settings
-                feature.searchableSettings.forEach { setting ->
+                val featureDedupe = "${feature.id}:${featureTitle.lowercase()}"
+                if (seenKeys.add(featureDedupe)) {
                     allItems.add(
                         SearchableItem(
-                            title = context.getString(setting.title),
-                            description = context.getString(setting.description),
-                            category =
-                                setting.category?.let { context.getString(it) }
-                                    ?: featureCategory,
+                            title = featureTitle,
+                            description = context.getString(feature.description),
+                            category = featureCategory,
                             icon = feature.iconRes,
                             featureKey = feature.id,
-                            parentFeature = featureTitle,
-                            targetSettingHighlightKey = setting.targetSettingHighlightKey,
                             keywords =
-                                if (setting.keywordRes != 0) {
-                                    context.resources
-                                        .getStringArray(
-                                            setting.keywordRes,
-                                        ).toList()
-                                } else {
-                                    emptyList()
-                                },
+                                listOf(
+                                    context.getString(R.string.keyword_feature),
+                                    context.getString(R.string.keyword_settings),
+                                ),
                             isBeta = feature.isBeta,
                             isLegacy = feature.isLegacy,
                             isUnsupported = isUnsupported,
                         ),
                     )
+                }
+
+                // Index sub-settings
+                feature.searchableSettings.forEach { setting ->
+                    val settingTitle = context.getString(setting.title)
+                    val settingDedupe = "${feature.id}:${setting.targetSettingHighlightKey ?: settingTitle.lowercase()}"
+                    if (seenKeys.add(settingDedupe)) {
+                        allItems.add(
+                            SearchableItem(
+                                title = settingTitle,
+                                description = context.getString(setting.description),
+                                category =
+                                    setting.category?.let { context.getString(it) }
+                                        ?: featureCategory,
+                                icon = feature.iconRes,
+                                featureKey = feature.id,
+                                parentFeature = featureTitle,
+                                targetSettingHighlightKey = setting.targetSettingHighlightKey,
+                                keywords =
+                                    if (setting.keywordRes != 0) {
+                                        context.resources
+                                            .getStringArray(
+                                                setting.keywordRes,
+                                            ).toList()
+                                    } else {
+                                        emptyList()
+                                    },
+                                isBeta = feature.isBeta,
+                                isLegacy = feature.isLegacy,
+                                isUnsupported = isUnsupported,
+                            ),
+                        )
+                    }
                 }
             }
 

@@ -12,6 +12,7 @@ package com.sameerasw.essentials.services
 import android.accessibilityservice.AccessibilityButtonController
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityService.ScreenshotResult
+import android.content.Intent
 import android.graphics.Bitmap
 import android.os.Build
 import android.os.Handler
@@ -28,15 +29,36 @@ import com.sameerasw.essentials.ui.activities.PixelSearchResultsActivity
 import com.sameerasw.essentials.utils.AppLaunchUtil
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 class SearchGestureAccessibilityService : AccessibilityService() {
     companion object {
         private const val TAG = "SearchGestureService"
         private const val DOUBLE_PRESS_WINDOW_MS = 550L
-        private const val TRIGGER_DEBOUNCE_MS = 220L
-        private const val SCREENSHOT_TIMEOUT_MS = 180L
+        private const val TRIGGER_DEBOUNCE_MS = 280L
+        private const val CROSS_PATH_DEDUPE_MS = 400L
+        private const val SCREENSHOT_COOLDOWN_MS = 1050L
+        private const val SCREENSHOT_TIMEOUT_MS = 240L
         private const val BACKDROP_MAX_WIDTH = 720
-        @Volatile internal var instance: SearchGestureAccessibilityService? = null
+
+        @Volatile
+        internal var instance: SearchGestureAccessibilityService? = null
+
+        private val lastGlobalLaunchAt = AtomicLong(0L)
+
+        /**
+         * Returns true if a launch was initiated within [CROSS_PATH_DEDUPE_MS] across any entry point
+         * (VoiceInteractionSession, ACTION_ASSIST trampoline, Accessibility button, hardware key).
+         */
+        internal fun isDuplicateLaunchBurst(): Boolean {
+            val prev = lastGlobalLaunchAt.get()
+            if (prev <= 0L) return false
+            return SystemClock.elapsedRealtime() - prev < CROSS_PATH_DEDUPE_MS
+        }
+
+        internal fun markGlobalLaunch() {
+            lastGlobalLaunchAt.set(SystemClock.elapsedRealtime())
+        }
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -45,18 +67,25 @@ class SearchGestureAccessibilityService : AccessibilityService() {
     private var buttonCallback: AccessibilityButtonController.AccessibilityButtonCallback? = null
     private var lastHardwareKeyPressAt = 0L
     private var lastTriggerAt = 0L
+    private var lastScreenshotAttemptAt = 0L
     private var consumeNextUp = false
     private val capturingScreenshot = AtomicBoolean(false)
+    private val launchGeneration = AtomicLong(0L)
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            accessibilityButtonController = getAccessibilityButtonController()
-            buttonCallback =
+            // Unregister any previously registered callback to prevent double-firing on service reconnect.
+            buttonCallback?.let { prev ->
+                runCatching { accessibilityButtonController?.unregisterAccessibilityButtonCallback(prev) }
+            }
+            val controller = getAccessibilityButtonController()
+            accessibilityButtonController = controller
+            val callback =
                 object : AccessibilityButtonController.AccessibilityButtonCallback() {
                     override fun onClicked(controller: AccessibilityButtonController) {
-                        openSearch()
+                        openSearch(toggleIfShowing = true, openedViaGesture = true)
                     }
 
                     override fun onAvailabilityChanged(
@@ -65,13 +94,17 @@ class SearchGestureAccessibilityService : AccessibilityService() {
                     ) {
                     }
                 }
-            accessibilityButtonController?.registerAccessibilityButtonCallback(buttonCallback!!)
+            buttonCallback = callback
+            runCatching { controller.registerAccessibilityButtonCallback(callback) }
+                .onFailure { error -> Log.w(TAG, "Failed to register accessibility button callback", error) }
         }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit
 
     override fun onInterrupt() {
+        launchGeneration.incrementAndGet()
+        capturingScreenshot.set(false)
         SearchOverlayController.hide()
     }
 
@@ -87,7 +120,7 @@ class SearchGestureAccessibilityService : AccessibilityService() {
             lastHardwareKeyPressAt = now
             if (isDoublePress) {
                 consumeNextUp = true
-                openSearch()
+                openSearch(toggleIfShowing = true, openedViaGesture = true)
                 return true
             }
         } else if (event.action == KeyEvent.ACTION_UP && consumeNextUp) {
@@ -107,19 +140,34 @@ class SearchGestureAccessibilityService : AccessibilityService() {
         }
 
         val now = SystemClock.elapsedRealtime()
-        if (now - lastTriggerAt < TRIGGER_DEBOUNCE_MS) return
+        if (now - lastTriggerAt < TRIGGER_DEBOUNCE_MS) {
+            Log.d(TAG, "Ignoring debounced search trigger (${now - lastTriggerAt}ms)")
+            return
+        }
         lastTriggerAt = now
 
-        if (SearchOverlayController.isShowing) {
+        if (SearchOverlayController.isActivelyVisible()) {
             if (toggleIfShowing) {
+                launchGeneration.incrementAndGet()
+                capturingScreenshot.set(false)
                 SearchOverlayController.hide()
             }
             return
         }
 
         if (toggleIfShowing && PixelSearchResultsActivity.dismissIfForeground()) {
+            launchGeneration.incrementAndGet()
+            capturingScreenshot.set(false)
             return
         }
+
+        // Prevent a stale/half-detached overlay from colliding with a fresh launch.
+        if (SearchOverlayController.isShowing) {
+            SearchOverlayController.hide()
+        }
+
+        markGlobalLaunch()
+        val generation = launchGeneration.incrementAndGet()
 
         runCatching {
             val activePkg = rootInActiveWindow?.packageName?.toString()
@@ -128,14 +176,28 @@ class SearchGestureAccessibilityService : AccessibilityService() {
             }
         }
 
-        if (!SettingsRepository(this).getPixelSearchOverlayEnabled()) {
+        val overlayEnabled = runCatching {
+            SettingsRepository(this).getPixelSearchOverlayEnabled()
+        }.getOrDefault(true)
+        if (!overlayEnabled) {
             launchSearchActivity(openedViaGesture)
             return
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && capturingScreenshot.compareAndSet(false, true)) {
+        val canAttemptScreenshot =
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+                !screenshotExecutor.isShutdown &&
+                (now - lastScreenshotAttemptAt >= SCREENSHOT_COOLDOWN_MS) &&
+                capturingScreenshot.compareAndSet(false, true)
+
+        if (canAttemptScreenshot) {
+            lastScreenshotAttemptAt = now
             val overlayOpened = AtomicBoolean(false)
             val watchdog = Runnable {
+                if (launchGeneration.get() != generation) {
+                    capturingScreenshot.set(false)
+                    return@Runnable
+                }
                 if (overlayOpened.compareAndSet(false, true)) {
                     capturingScreenshot.set(false)
                     showOverlay(null, openedViaGesture)
@@ -155,9 +217,13 @@ class SearchGestureAccessibilityService : AccessibilityService() {
                             mainHandler.post {
                                 mainHandler.removeCallbacks(watchdog)
                                 capturingScreenshot.set(false)
+                                if (launchGeneration.get() != generation) {
+                                    // Trigger was superseded or dismissed before screenshot returned.
+                                    return@post
+                                }
                                 if (overlayOpened.compareAndSet(false, true)) {
                                     showOverlay(backdrop, openedViaGesture)
-                                } else if (SearchOverlayController.isShowing && backdrop != null) {
+                                } else if (SearchOverlayController.isActivelyVisible() && backdrop != null) {
                                     SearchOverlayController.updateBackdrop(backdrop)
                                 }
                             }
@@ -168,6 +234,7 @@ class SearchGestureAccessibilityService : AccessibilityService() {
                             mainHandler.post {
                                 mainHandler.removeCallbacks(watchdog)
                                 capturingScreenshot.set(false)
+                                if (launchGeneration.get() != generation) return@post
                                 if (overlayOpened.compareAndSet(false, true)) {
                                     showOverlay(null, openedViaGesture)
                                 }
@@ -183,6 +250,7 @@ class SearchGestureAccessibilityService : AccessibilityService() {
             mainHandler.removeCallbacks(watchdog)
             capturingScreenshot.set(false)
         }
+
         showOverlay(null, openedViaGesture)
     }
 
@@ -226,16 +294,28 @@ class SearchGestureAccessibilityService : AccessibilityService() {
         return Bitmap.createScaledBitmap(source, BACKDROP_MAX_WIDTH, height, true)
     }
 
-    override fun onDestroy() {
+    private fun cleanupServiceResources() {
         if (instance === this) instance = null
+        launchGeneration.incrementAndGet()
         mainHandler.removeCallbacksAndMessages(null)
         capturingScreenshot.set(false)
         SearchOverlayController.hide()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && buttonCallback != null) {
-            accessibilityButtonController?.unregisterAccessibilityButtonCallback(buttonCallback!!)
+            runCatching {
+                accessibilityButtonController?.unregisterAccessibilityButtonCallback(buttonCallback!!)
+            }
         }
         buttonCallback = null
         accessibilityButtonController = null
+    }
+
+    override fun onUnbind(intent: Intent?): Boolean {
+        cleanupServiceResources()
+        return super.onUnbind(intent)
+    }
+
+    override fun onDestroy() {
+        cleanupServiceResources()
         screenshotExecutor.shutdownNow()
         super.onDestroy()
     }

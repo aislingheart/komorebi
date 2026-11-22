@@ -406,7 +406,25 @@ object RaycastCompatibilityAnalyzer {
     // 6. Public API — installed extension (full static-analysis engine).
     // =========================================================================
 
+    private val installedReportCache =
+        java.util.concurrent.ConcurrentHashMap<String, CompatibilityReport>()
+
+    private fun cacheKey(extension: InstalledRaycastExtension): String {
+        val dir = File(extension.dirPath)
+        val manifestFile = File(dir, "package.json")
+        return "${extension.id}|${dir.absolutePath}|${dir.lastModified()}|${manifestFile.lastModified()}"
+    }
+
+    fun getCachedInstalledReport(extension: InstalledRaycastExtension): CompatibilityReport? =
+        installedReportCache[cacheKey(extension)]
+
+    fun clearInstalledReportCache() {
+        installedReportCache.clear()
+    }
+
     fun analyzeInstalledExtension(extension: InstalledRaycastExtension): CompatibilityReport {
+        val key = cacheKey(extension)
+        installedReportCache[key]?.let { return it }
         val issues = linkedMapOf<String, CompatibilityIssue>()
         val detectedApis = linkedSetOf<String>()
         val manifest = extension.manifest
@@ -515,12 +533,14 @@ object RaycastCompatibilityAnalyzer {
         val commandCount = manifest.commands.size.takeIf { it > 0 }
             ?: maxOf(state.scannedCount, 1)
         val summary = buildInstalledSummary(level, finalIssues, commandCount, state)
-        return CompatibilityReport(
+        val report = CompatibilityReport(
             level = level,
             summary = summary,
             issues = finalIssues,
             detectedApis = detectedApis.toList(),
         )
+        installedReportCache[key] = report
+        return report
     }
 
     // =========================================================================

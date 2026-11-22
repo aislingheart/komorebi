@@ -12,6 +12,7 @@ package com.sameerasw.essentials
 import android.app.Activity
 import android.app.SearchManager
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import com.sameerasw.essentials.data.repository.SettingsRepository
@@ -52,7 +53,7 @@ class PixelSearchActivity : Activity() {
                     },
                 )
             }
-            finish()
+            finishSilently()
             return
         }
 
@@ -66,6 +67,13 @@ class PixelSearchActivity : Activity() {
                 action == Intent.ACTION_SEARCH_LONG_PRESS ||
                 action == Intent.ACTION_VOICE_COMMAND
 
+        // Suppress duplicate ACTION_ASSIST intents fired simultaneously with VoiceInteractionSession.
+        if (isAssistantAction && query.isEmpty() && SearchGestureAccessibilityService.isDuplicateLaunchBurst()) {
+            Log.d("PixelSearchActivity", "Suppressing duplicate assistant trampoline launch")
+            finishSilently()
+            return
+        }
+
         val accessibilityService = SearchGestureAccessibilityService.instance
         if (
             isAssistantAction &&
@@ -73,14 +81,24 @@ class PixelSearchActivity : Activity() {
             accessibilityService != null &&
             runCatching { SettingsRepository(this).getPixelSearchOverlayEnabled() }.getOrDefault(true)
         ) {
-            accessibilityService.openSearch(toggleIfShowing = true, openedViaGesture = true)
-            finish()
+            finishSilently()
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
+                {
+                    SearchGestureAccessibilityService.instance?.openSearch(
+                        toggleIfShowing = true,
+                        openedViaGesture = true,
+                    )
+                },
+                32L,
+            )
             return
         }
 
         if (SearchOverlayController.isShowing) {
             SearchOverlayController.hide()
         }
+
+        SearchGestureAccessibilityService.markGlobalLaunch()
 
         try {
             val intent = AppLaunchUtil.buildSearchResultsIntent(this, query, openedViaGesture = isAssistantAction)
@@ -96,6 +114,16 @@ class PixelSearchActivity : Activity() {
             }
         }
 
+        finishSilently()
+    }
+
+    private fun finishSilently() {
         finish()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            runCatching { overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0) }
+        } else {
+            @Suppress("DEPRECATION")
+            runCatching { overridePendingTransition(0, 0) }
+        }
     }
 }
