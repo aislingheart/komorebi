@@ -606,11 +606,43 @@ object SearchProviderDiscovery {
         onOpenExtensions: (() -> Unit)? = null,
         onOpenStore: (() -> Unit)? = null,
         onRunExtension: ((InstalledRaycastExtension, RaycastCommandManifest) -> Unit)? = null,
+        onOpenUpdates: (() -> Unit)? = null,
     ): List<InternalCommandItem> {
         val q = query.trim().lowercase(Locale.getDefault())
         if (q.length < 2) return emptyList()
 
+        val cachedUpdate = com.sameerasw.essentials.data.repository.AppUpdateState.updateInfo.value
+        val hasAvailableUpdate = cachedUpdate?.isUpdateAvailable == true
+
         val commands = listOf(
+            InternalCommandItem(
+                id = "cmd:updates",
+                title = if (hasAvailableUpdate) {
+                    "Update Komorebi to ${cachedUpdate.versionName}"
+                } else {
+                    "Check for Komorebi Updates"
+                },
+                description = if (hasAvailableUpdate) {
+                    "View release notes and install the latest Komorebi update inline"
+                } else {
+                    "Check GitHub for the latest Komorebi release and changelog"
+                },
+                keywords = listOf("update", "updates", "upgrade", "version", "changelog", "release", "check update"),
+                iconRes = R.drawable.rounded_mobile_arrow_down_24,
+                closesSearchUi = onOpenUpdates == null,
+                onExecute = { ctx ->
+                    if (onOpenUpdates != null) {
+                        onOpenUpdates()
+                    } else {
+                        ctx.startActivity(
+                            com.sameerasw.essentials.utils.AppLaunchUtil.buildSearchResultsIntent(
+                                context = ctx,
+                                showUpdateSheet = true,
+                            ),
+                        )
+                    }
+                },
+            ),
             InternalCommandItem(
                 id = "cmd:settings",
                 title = "App Settings & Configuration",

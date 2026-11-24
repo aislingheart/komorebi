@@ -154,6 +154,8 @@ object AppLaunchUtil {
         context: Context,
         query: String = "",
         openedViaGesture: Boolean = false,
+        launchOrigin: SearchLaunchOrigin? = null,
+        showUpdateSheet: Boolean = false,
     ): Intent =
         Intent(context.applicationContext, PixelSearchResultsActivity::class.java).apply {
             if (query.isNotEmpty()) {
@@ -162,6 +164,10 @@ object AppLaunchUtil {
             if (openedViaGesture) {
                 putExtra(PixelSearchResultsActivity.EXTRA_OPENED_VIA_GESTURE, true)
             }
+            if (showUpdateSheet) {
+                putExtra(UpdateNotificationHelper.EXTRA_SHOW_UPDATE_SHEET, true)
+            }
+            launchOrigin?.writeToIntent(this)
             addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK or
                     Intent.FLAG_ACTIVITY_CLEAR_TOP or

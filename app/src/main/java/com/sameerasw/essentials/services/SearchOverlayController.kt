@@ -52,8 +52,10 @@ import com.sameerasw.essentials.ui.modifiers.LocalGestureRippleController
 import com.sameerasw.essentials.ui.modifiers.gestureRippleRefraction
 import com.sameerasw.essentials.ui.modifiers.interactiveGestureRipple
 import com.sameerasw.essentials.ui.modifiers.isGestureRippleEnabled
+import com.sameerasw.essentials.ui.modifiers.originExpansionReveal
 import com.sameerasw.essentials.ui.modifiers.rememberGestureRippleController
 import com.sameerasw.essentials.ui.theme.EssentialsTheme
+import com.sameerasw.essentials.utils.SearchLaunchOrigin
 import com.sameerasw.essentials.utils.overlay.OverlayVisibilityCoordinator
 import com.sameerasw.essentials.utils.overlay.UnifiedOverlayWindowHost
 import java.util.concurrent.atomic.AtomicLong
@@ -67,6 +69,8 @@ object SearchOverlayController {
     private var windowManager: WindowManager? = null
     private val backdropState = mutableStateOf<Bitmap?>(null)
     private val gestureRippleTriggerState = mutableStateOf(0)
+    private val launchRevealTriggerState = mutableStateOf(0)
+    private val launchOriginState = mutableStateOf(SearchLaunchOrigin.accessibilityBottom())
     private var pendingHideRunnable: Runnable? = null
     private val sessionGeneration = AtomicLong(0L)
 
@@ -86,10 +90,11 @@ object SearchOverlayController {
         context: Context,
         backdrop: Bitmap? = null,
         openedViaGesture: Boolean = false,
+        launchOrigin: SearchLaunchOrigin = SearchLaunchOrigin.accessibilityBottom(),
     ): Boolean {
         if (Looper.myLooper() != Looper.getMainLooper()) {
             Log.w(TAG, "show() called off main thread; posting to main")
-            mainHandler.post { show(context, backdrop, openedViaGesture) }
+            mainHandler.post { show(context, backdrop, openedViaGesture, launchOrigin) }
             return true
         }
 
@@ -106,6 +111,8 @@ object SearchOverlayController {
 
         if (isShowing) {
             if (backdrop != null) backdropState.value = backdrop
+            launchOriginState.value = launchOrigin
+            launchRevealTriggerState.value += 1
             if (openedViaGesture) {
                 gestureRippleTriggerState.value += 1
             }
@@ -115,6 +122,8 @@ object SearchOverlayController {
 
         sessionGeneration.incrementAndGet()
         backdropState.value = backdrop
+        launchOriginState.value = launchOrigin
+        launchRevealTriggerState.value += 1
         gestureRippleTriggerState.value =
             if (openedViaGesture) gestureRippleTriggerState.value + 1 else 0
 
@@ -192,11 +201,16 @@ object SearchOverlayController {
 
                 val currentBackdrop by backdropState
                 val rippleTrigger by gestureRippleTriggerState
+                val revealTrigger by launchRevealTriggerState
+                val currentLaunchOrigin by launchOriginState
+                val resolvedOriginOffset = remember(currentLaunchOrigin, revealTrigger) {
+                    currentLaunchOrigin.resolveNormalizedOffset(overlayContext)
+                }
                 val rippleController = rememberGestureRippleController()
 
-                LaunchedEffect(rippleTrigger, ripplePrefEnabled) {
+                LaunchedEffect(rippleTrigger, ripplePrefEnabled, resolvedOriginOffset) {
                     if (rippleTrigger > 0 && ripplePrefEnabled) {
-                        rippleController.spawnLaunch()
+                        rippleController.spawnLaunch(resolvedOriginOffset)
                     }
                 }
 
@@ -225,6 +239,11 @@ object SearchOverlayController {
                                     } else {
                                         Modifier
                                     },
+                                )
+                                .originExpansionReveal(
+                                    triggerKey = revealTrigger,
+                                    originNormalized = resolvedOriginOffset,
+                                    enabled = true,
                                 )
                                 .interactiveGestureRipple(
                                     controller = rippleController,
@@ -268,14 +287,14 @@ object SearchOverlayController {
                                     )
                                 }
                             }
-                            GestureRippleWaveOverlay(
-                                enabled = ripplePrefEnabled,
-                                controller = rippleController,
-                            )
                             PixelSearchResultsScreen(
                                 initialQuery = "",
                                 asOverlay = true,
                                 onFinish = { hideDeferred() },
+                            )
+                            GestureRippleWaveOverlay(
+                                enabled = ripplePrefEnabled,
+                                controller = rippleController,
                             )
                         }
                     }

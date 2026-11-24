@@ -48,19 +48,16 @@ object UpdateNotificationHelper {
         }
     }
 
-    private fun buildSettingsUpdatePendingIntent(context: Context): PendingIntent {
-        val settingsIntent =
-            Intent(context, SettingsActivity::class.java).apply {
-                flags =
-                    Intent.FLAG_ACTIVITY_NEW_TASK or
-                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                        Intent.FLAG_ACTIVITY_SINGLE_TOP
-                putExtra(EXTRA_SHOW_UPDATE_SHEET, true)
-            }
+    private fun buildSearchUpdatePendingIntent(context: Context): PendingIntent {
+        val searchIntent =
+            AppLaunchUtil.buildSearchResultsIntent(
+                context = context,
+                showUpdateSheet = true,
+            )
         return PendingIntent.getActivity(
             context,
             0,
-            settingsIntent,
+            searchIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
     }
@@ -87,7 +84,7 @@ object UpdateNotificationHelper {
     ) {
         createNotificationChannel(context)
 
-        val contentPendingIntent = buildSettingsUpdatePendingIntent(context)
+        val contentPendingIntent = buildSearchUpdatePendingIntent(context)
 
         val downloadIntent =
             Intent(ACTION_DOWNLOAD_UPDATE).apply {
@@ -133,7 +130,7 @@ object UpdateNotificationHelper {
         }
         createNotificationChannel(context)
 
-        val contentPendingIntent = buildSettingsUpdatePendingIntent(context)
+        val contentPendingIntent = buildSearchUpdatePendingIntent(context)
 
         val builder =
             NotificationCompat
@@ -181,7 +178,7 @@ object UpdateNotificationHelper {
     fun showDownloadFailedNotification(context: Context) {
         createNotificationChannel(context)
 
-        val contentPendingIntent = buildSettingsUpdatePendingIntent(context)
+        val contentPendingIntent = buildSearchUpdatePendingIntent(context)
         val builder =
             NotificationCompat
                 .Builder(context, CHANNEL_ID)

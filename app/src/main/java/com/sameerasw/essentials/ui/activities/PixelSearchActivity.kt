@@ -33,24 +33,19 @@ class PixelSearchActivity : Activity() {
     }
 
     private fun launchSearch(incoming: Intent?) {
-        if (incoming?.getBooleanExtra(
+        val showUpdateSheet =
+            incoming?.getBooleanExtra(
                 com.sameerasw.essentials.utils.UpdateNotificationHelper.EXTRA_SHOW_UPDATE_SHEET,
                 false,
             ) == true
-        ) {
+        if (showUpdateSheet) {
             runCatching {
                 startActivity(
-                    Intent(this, SettingsActivity::class.java).apply {
-                        putExtra(
-                            com.sameerasw.essentials.utils.UpdateNotificationHelper.EXTRA_SHOW_UPDATE_SHEET,
-                            true,
-                        )
-                        addFlags(
-                            Intent.FLAG_ACTIVITY_NEW_TASK or
-                                Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                                Intent.FLAG_ACTIVITY_SINGLE_TOP,
-                        )
-                    },
+                    AppLaunchUtil.buildSearchResultsIntent(
+                        context = this,
+                        showUpdateSheet = true,
+                        launchOrigin = com.sameerasw.essentials.utils.SearchLaunchOrigin.fromIntent(this, incoming),
+                    ),
                 )
             }
             finishSilently()
@@ -66,6 +61,12 @@ class PixelSearchActivity : Activity() {
             action == Intent.ACTION_ASSIST ||
                 action == Intent.ACTION_SEARCH_LONG_PRESS ||
                 action == Intent.ACTION_VOICE_COMMAND
+
+        val resolvedOrigin = if (isAssistantAction) {
+            com.sameerasw.essentials.utils.SearchLaunchOrigin.powerButton()
+        } else {
+            com.sameerasw.essentials.utils.SearchLaunchOrigin.fromIntent(this, incoming)
+        }
 
         // Suppress duplicate ACTION_ASSIST intents fired simultaneously with VoiceInteractionSession.
         if (isAssistantAction && query.isEmpty() && SearchGestureAccessibilityService.isDuplicateLaunchBurst()) {
@@ -87,6 +88,7 @@ class PixelSearchActivity : Activity() {
                     SearchGestureAccessibilityService.instance?.openSearch(
                         toggleIfShowing = true,
                         openedViaGesture = true,
+                        launchOrigin = resolvedOrigin,
                     )
                 },
                 32L,
@@ -101,7 +103,12 @@ class PixelSearchActivity : Activity() {
         SearchGestureAccessibilityService.markGlobalLaunch()
 
         try {
-            val intent = AppLaunchUtil.buildSearchResultsIntent(this, query, openedViaGesture = isAssistantAction)
+            val intent = AppLaunchUtil.buildSearchResultsIntent(
+                context = this,
+                query = query,
+                openedViaGesture = true,
+                launchOrigin = resolvedOrigin,
+            )
             startActivity(intent)
         } catch (t: Throwable) {
             Log.e("PixelSearchActivity", "Failed to open search results", t)

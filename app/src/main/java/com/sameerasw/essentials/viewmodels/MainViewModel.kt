@@ -610,8 +610,7 @@ class MainViewModel : ViewModel() {
         // Enabling pre-releases automatically enables Developer Mode; disabling turns it off
         isDeveloperModeEnabled.value = enabled
         // Clear cached update state so the next check immediately queries the selected channel
-        cachedIsUpdateAvailable = false
-        cachedUpdateInfo = null
+        com.sameerasw.essentials.data.repository.AppUpdateState.clearCache()
         lastUpdateCheckTime = 0L
         // Commit all three synchronously so values persist before SettingsActivity calls exit(0)
         context.applicationContext
@@ -750,8 +749,7 @@ class MainViewModel : ViewModel() {
                 if (updateInfoResult != null) {
                     updateInfo.value = updateInfoResult
                     isUpdateAvailable.value = updateInfoResult.isUpdateAvailable
-                    cachedIsUpdateAvailable = updateInfoResult.isUpdateAvailable
-                    cachedUpdateInfo = updateInfoResult
+                    com.sameerasw.essentials.data.repository.AppUpdateState.publish(updateInfoResult)
                     updateCheckError.value = null
 
                     if (updateInfoResult.isUpdateAvailable && updateInfoResult.downloadUrl.isNotEmpty()) {

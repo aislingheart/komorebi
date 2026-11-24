@@ -186,15 +186,21 @@ import com.google.zxing.qrcode.QRCodeWriter
 import com.sameerasw.essentials.FeatureSettingsActivity
 import com.sameerasw.essentials.R
 import com.sameerasw.essentials.SettingsActivity
+import com.sameerasw.essentials.data.repository.AppUpdateState
 import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.services.SearchOverlayController
 import com.sameerasw.essentials.search.InteractiveSearchSettingCard
 import com.sameerasw.essentials.search.InternalSettingsCatalog
 import com.sameerasw.essentials.search.triggerInteractiveSettingPrimaryAction
+import com.sameerasw.essentials.ui.components.search.InSearchUpdateBannerCard
+import com.sameerasw.essentials.ui.components.search.InSearchUpdateOverlay
 import com.sameerasw.essentials.ui.modifiers.LocalGestureRippleController
 import com.sameerasw.essentials.ui.modifiers.interactiveGestureRipple
 import com.sameerasw.essentials.ui.modifiers.isGestureRippleEnabled
+import com.sameerasw.essentials.ui.modifiers.originExpansionReveal
 import com.sameerasw.essentials.ui.modifiers.rememberGestureRippleController
+import com.sameerasw.essentials.utils.SearchLaunchOrigin
+import com.sameerasw.essentials.utils.UpdateNotificationHelper
 import com.sameerasw.essentials.domain.model.PixelSearchResultItem
 import com.sameerasw.essentials.domain.registry.FeatureRegistry
 import com.sameerasw.essentials.domain.registry.SearchRegistry
@@ -306,6 +312,9 @@ class PixelSearchResultsActivity : ComponentActivity() {
     private var incomingToolModal by mutableStateOf<LauncherToolModal?>(null)
     private var toolNonce = 0
     private var gestureRippleTrigger by mutableIntStateOf(0)
+    private var launchRevealTrigger by mutableIntStateOf(1)
+    private var launchOrigin by mutableStateOf(SearchLaunchOrigin())
+    private var incomingShowUpdateSheetNonce by mutableIntStateOf(0)
 
     private fun extractQuery(intent: Intent?): String =
         intent?.getStringExtra(SearchManager.QUERY)
@@ -355,7 +364,11 @@ class PixelSearchResultsActivity : ComponentActivity() {
 
         val initialQuery = extractQuery(intent)
         val initialTool = extractTool(intent)
-        if (intent?.getBooleanExtra(EXTRA_OPENED_VIA_GESTURE, false) == true) {
+        val initialShowUpdateSheet =
+            intent?.getBooleanExtra(UpdateNotificationHelper.EXTRA_SHOW_UPDATE_SHEET, false) == true
+        launchOrigin = SearchLaunchOrigin.fromIntent(this, intent)
+        launchRevealTrigger = 1
+        if (intent?.getBooleanExtra(EXTRA_OPENED_VIA_GESTURE, false) == true || intent?.sourceBounds != null) {
             gestureRippleTrigger = 1
         }
 
@@ -377,10 +390,15 @@ class PixelSearchResultsActivity : ComponentActivity() {
             }
 
             val rippleTrigger = gestureRippleTrigger
+            val revealTrigger = launchRevealTrigger
+            val currentOrigin = launchOrigin
+            val resolvedOriginOffset = remember(currentOrigin, revealTrigger) {
+                currentOrigin.resolveNormalizedOffset(this@PixelSearchResultsActivity)
+            }
             val rippleController = rememberGestureRippleController()
-            LaunchedEffect(rippleTrigger, ripplePrefEnabled) {
+            LaunchedEffect(rippleTrigger, ripplePrefEnabled, resolvedOriginOffset) {
                 if (rippleTrigger > 0 && ripplePrefEnabled) {
-                    rippleController.spawnLaunch()
+                    rippleController.spawnLaunch(resolvedOriginOffset)
                 }
             }
 
@@ -391,22 +409,29 @@ class PixelSearchResultsActivity : ComponentActivity() {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
+                            .originExpansionReveal(
+                                triggerKey = revealTrigger,
+                                originNormalized = resolvedOriginOffset,
+                                enabled = true,
+                            )
                             .interactiveGestureRipple(
                                 controller = rippleController,
                                 enabled = ripplePrefEnabled,
                             ),
                     ) {
-                        com.sameerasw.essentials.ui.modifiers.GestureRippleWaveOverlay(
-                            enabled = ripplePrefEnabled,
-                            controller = rippleController,
-                        )
                         PixelSearchResultsScreen(
                             initialQuery = initialQuery,
                             incomingIntentQuery = incomingIntentQuery,
                             initialToolModal = initialTool,
                             incomingToolModal = incomingToolModal,
                             incomingToolNonce = toolNonce,
+                            initialShowUpdateSheet = initialShowUpdateSheet,
+                            incomingShowUpdateSheetNonce = incomingShowUpdateSheetNonce,
                             onFinish = { finish() },
+                        )
+                        com.sameerasw.essentials.ui.modifiers.GestureRippleWaveOverlay(
+                            enabled = ripplePrefEnabled,
+                            controller = rippleController,
                         )
                     }
                 }
@@ -446,7 +471,12 @@ class PixelSearchResultsActivity : ComponentActivity() {
         incomingIntentQuery = extractQuery(intent) to intentNonce
         incomingToolModal = extractTool(intent)
         toolNonce += 1
-        if (intent.getBooleanExtra(EXTRA_OPENED_VIA_GESTURE, false)) {
+        launchOrigin = SearchLaunchOrigin.fromIntent(this, intent)
+        launchRevealTrigger += 1
+        if (intent.getBooleanExtra(UpdateNotificationHelper.EXTRA_SHOW_UPDATE_SHEET, false)) {
+            incomingShowUpdateSheetNonce += 1
+        }
+        if (intent.getBooleanExtra(EXTRA_OPENED_VIA_GESTURE, false) || intent.sourceBounds != null) {
             gestureRippleTrigger += 1
         }
     }
@@ -470,6 +500,8 @@ fun PixelSearchResultsScreen(
     initialToolModal: LauncherToolModal? = null,
     incomingToolModal: LauncherToolModal? = null,
     incomingToolNonce: Int = 0,
+    initialShowUpdateSheet: Boolean = false,
+    incomingShowUpdateSheetNonce: Int = 0,
     asOverlay: Boolean = false,
     onFinish: () -> Unit,
 ) {
@@ -484,9 +516,42 @@ fun PixelSearchResultsScreen(
     var settledQuery by remember { mutableStateOf(initialQuery) }
     val focusRequester = remember { FocusRequester() }
     var activeToolModal by remember { mutableStateOf(initialToolModal) }
+    var showInlineUpdateSheet by remember { mutableStateOf(initialShowUpdateSheet) }
     var launcherDataVersion by remember { mutableIntStateOf(0) }
     var settingsRefreshNonce by remember { mutableIntStateOf(0) }
     val rippleController = LocalGestureRippleController.current
+
+    val updateInfo by AppUpdateState.updateInfo.collectAsState()
+    val isCheckingUpdate by AppUpdateState.isChecking.collectAsState()
+    val updateCheckError by AppUpdateState.lastError.collectAsState()
+    val updateCheckCompleted by AppUpdateState.checkCompleted.collectAsState()
+    val dismissedUpdateVersion by AppUpdateState.dismissedVersion.collectAsState()
+
+    val availableUpdate = updateInfo?.takeIf { it.isUpdateAvailable }
+    val showUpdateBanner =
+        availableUpdate != null && dismissedUpdateVersion != availableUpdate.versionName
+
+    val openInlineUpdates: () -> Unit = remember(context) {
+        {
+            keyboardController?.hide()
+            showInlineUpdateSheet = true
+            if (AppUpdateState.updateInfo.value == null) {
+                AppUpdateState.checkForUpdates(context, manual = true)
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        AppUpdateState.checkForUpdates(context, manual = initialShowUpdateSheet)
+    }
+
+    LaunchedEffect(incomingShowUpdateSheetNonce) {
+        if (incomingShowUpdateSheetNonce > 0) {
+            keyboardController?.hide()
+            showInlineUpdateSheet = true
+            AppUpdateState.checkForUpdates(context, manual = AppUpdateState.updateInfo.value == null)
+        }
+    }
 
     LaunchedEffect(repository) {
         repository.observeKeyChanges().collect { key ->
@@ -1360,6 +1425,7 @@ fun PixelSearchResultsScreen(
                             onOpenExtensions = { openExtensionsHub(initialTab = 0) },
                             onOpenStore = { openExtensionsHub(initialTab = 1) },
                             onRunExtension = { ext, cmd -> openInlineExtension(ext, cmd, returnToHub = false) },
+                            onOpenUpdates = openInlineUpdates,
                         )
                         withContext(Dispatchers.Main) {
                             appResults = emptyList()
@@ -1481,6 +1547,7 @@ fun PixelSearchResultsScreen(
                     onOpenExtensions = { openExtensionsHub(initialTab = 0) },
                     onOpenStore = { openExtensionsHub(initialTab = 1) },
                     onRunExtension = { ext, cmd -> openInlineExtension(ext, cmd, returnToHub = false) },
+                    onOpenUpdates = openInlineUpdates,
                 )
                 val fastSystemSettings = if (isSettingsEnabled) {
                     val allSys = cachedIndex?.systemSettings ?: SystemSettingsSearchUtil.all(context)
@@ -2235,6 +2302,17 @@ fun PixelSearchResultsScreen(
                                 }
                             }
                         }
+                    }
+                }
+
+                if (showUpdateBanner && availableUpdate != null && settledQuery.isBlank() && activeScope == null) {
+                    item(key = "in_search_update_banner") {
+                        InSearchUpdateBannerCard(
+                            updateInfo = availableUpdate,
+                            onOpenUpdateSheet = openInlineUpdates,
+                            onDismiss = { AppUpdateState.dismissBannerForVersion(availableUpdate.versionName) },
+                            modifier = Modifier.animateItem(),
+                        )
                     }
                 }
 
@@ -3749,7 +3827,7 @@ fun PixelSearchResultsScreen(
             }
         }
 
-            Box(
+            Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
@@ -3769,7 +3847,15 @@ fun PixelSearchResultsScreen(
                         Modifier
                     },
                 ),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            if (initialResultsHidden && showUpdateBanner && availableUpdate != null) {
+                InSearchUpdateBannerCard(
+                    updateInfo = availableUpdate,
+                    onOpenUpdateSheet = openInlineUpdates,
+                    onDismiss = { AppUpdateState.dismissBannerForVersion(availableUpdate.versionName) },
+                )
+            }
             Card(
                 shape = RoundedCornerShape(28.dp),
                 elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
@@ -4004,6 +4090,22 @@ fun PixelSearchResultsScreen(
                         Text("Cancel")
                     }
                 },
+            )
+        }
+
+        if (showInlineUpdateSheet) {
+            InSearchUpdateOverlay(
+                updateInfo = updateInfo,
+                isChecking = isCheckingUpdate,
+                errorMessage = updateCheckError,
+                checkCompleted = updateCheckCompleted,
+                onRetry = { AppUpdateState.checkForUpdates(context, manual = true) },
+                onDismiss = { showInlineUpdateSheet = false },
+                onDismissSearchForInstall = {
+                    showInlineUpdateSheet = false
+                    onFinish()
+                },
+                modifier = Modifier.zIndex(40f),
             )
         }
     }

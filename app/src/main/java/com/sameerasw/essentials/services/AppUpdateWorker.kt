@@ -56,8 +56,7 @@ class AppUpdateWorker(
                 .getOrNull()
 
             if (updateInfo != null) {
-                MainViewModel.cachedIsUpdateAvailable = updateInfo.isUpdateAvailable
-                MainViewModel.cachedUpdateInfo = updateInfo
+                com.sameerasw.essentials.data.repository.AppUpdateState.publish(updateInfo)
 
                 if (updateInfo.isUpdateAvailable && updateInfo.downloadUrl.isNotEmpty()) {
                     val isNotifEnabled =

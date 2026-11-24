@@ -19,6 +19,7 @@ import android.util.Log
 import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.ui.activities.PixelSearchResultsActivity
 import com.sameerasw.essentials.utils.AppLaunchUtil
+import com.sameerasw.essentials.utils.SearchLaunchOrigin
 
 class EssentialsVoiceInteractionSessionService : VoiceInteractionSessionService() {
     override fun onNewSession(args: Bundle?): VoiceInteractionSession {
@@ -52,11 +53,16 @@ class EssentialsVoiceInteractionSession(context: Context) : VoiceInteractionSess
         val overlayEnabled = runCatching {
             SettingsRepository(context).getPixelSearchOverlayEnabled()
         }.getOrDefault(true)
+        val assistantOrigin = SearchLaunchOrigin.powerButton()
 
         if (query.isEmpty() && accessibilityService != null && overlayEnabled) {
             runCatching { hide() }
             mainHandler.post {
-                accessibilityService.openSearch(toggleIfShowing = true, openedViaGesture = true)
+                accessibilityService.openSearch(
+                    toggleIfShowing = true,
+                    openedViaGesture = true,
+                    launchOrigin = assistantOrigin,
+                )
             }
             return
         }
@@ -76,7 +82,12 @@ class EssentialsVoiceInteractionSession(context: Context) : VoiceInteractionSess
 
         SearchGestureAccessibilityService.markGlobalLaunch()
 
-        val intent = AppLaunchUtil.buildSearchResultsIntent(context, query, openedViaGesture = true)
+        val intent = AppLaunchUtil.buildSearchResultsIntent(
+            context = context,
+            query = query,
+            openedViaGesture = true,
+            launchOrigin = assistantOrigin,
+        )
         val launchedViaAssistant =
             runCatching {
                 startAssistantActivity(intent)

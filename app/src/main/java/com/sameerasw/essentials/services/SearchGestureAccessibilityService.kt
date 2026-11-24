@@ -85,7 +85,11 @@ class SearchGestureAccessibilityService : AccessibilityService() {
             val callback =
                 object : AccessibilityButtonController.AccessibilityButtonCallback() {
                     override fun onClicked(controller: AccessibilityButtonController) {
-                        openSearch(toggleIfShowing = true, openedViaGesture = true)
+                        openSearch(
+                            toggleIfShowing = true,
+                            openedViaGesture = true,
+                            launchOrigin = com.sameerasw.essentials.utils.SearchLaunchOrigin.accessibilityBottom(),
+                        )
                     }
 
                     override fun onAvailabilityChanged(
@@ -120,7 +124,11 @@ class SearchGestureAccessibilityService : AccessibilityService() {
             lastHardwareKeyPressAt = now
             if (isDoublePress) {
                 consumeNextUp = true
-                openSearch(toggleIfShowing = true, openedViaGesture = true)
+                openSearch(
+                    toggleIfShowing = true,
+                    openedViaGesture = true,
+                    launchOrigin = com.sameerasw.essentials.utils.SearchLaunchOrigin.accessibilityBottom(),
+                )
                 return true
             }
         } else if (event.action == KeyEvent.ACTION_UP && consumeNextUp) {
@@ -133,9 +141,11 @@ class SearchGestureAccessibilityService : AccessibilityService() {
     internal fun openSearch(
         toggleIfShowing: Boolean = true,
         openedViaGesture: Boolean = true,
+        launchOrigin: com.sameerasw.essentials.utils.SearchLaunchOrigin =
+            com.sameerasw.essentials.utils.SearchLaunchOrigin.accessibilityBottom(),
     ) {
         if (Looper.myLooper() != Looper.getMainLooper()) {
-            mainHandler.post { openSearch(toggleIfShowing, openedViaGesture) }
+            mainHandler.post { openSearch(toggleIfShowing, openedViaGesture, launchOrigin) }
             return
         }
 
@@ -180,7 +190,7 @@ class SearchGestureAccessibilityService : AccessibilityService() {
             SettingsRepository(this).getPixelSearchOverlayEnabled()
         }.getOrDefault(true)
         if (!overlayEnabled) {
-            launchSearchActivity(openedViaGesture)
+            launchSearchActivity(openedViaGesture, launchOrigin)
             return
         }
 
@@ -200,7 +210,7 @@ class SearchGestureAccessibilityService : AccessibilityService() {
                 }
                 if (overlayOpened.compareAndSet(false, true)) {
                     capturingScreenshot.set(false)
-                    showOverlay(null, openedViaGesture)
+                    showOverlay(null, openedViaGesture, launchOrigin)
                 }
             }
             mainHandler.postDelayed(watchdog, SCREENSHOT_TIMEOUT_MS)
@@ -222,7 +232,7 @@ class SearchGestureAccessibilityService : AccessibilityService() {
                                     return@post
                                 }
                                 if (overlayOpened.compareAndSet(false, true)) {
-                                    showOverlay(backdrop, openedViaGesture)
+                                    showOverlay(backdrop, openedViaGesture, launchOrigin)
                                 } else if (SearchOverlayController.isActivelyVisible() && backdrop != null) {
                                     SearchOverlayController.updateBackdrop(backdrop)
                                 }
@@ -236,7 +246,7 @@ class SearchGestureAccessibilityService : AccessibilityService() {
                                 capturingScreenshot.set(false)
                                 if (launchGeneration.get() != generation) return@post
                                 if (overlayOpened.compareAndSet(false, true)) {
-                                    showOverlay(null, openedViaGesture)
+                                    showOverlay(null, openedViaGesture, launchOrigin)
                                 }
                             }
                         }
@@ -251,24 +261,32 @@ class SearchGestureAccessibilityService : AccessibilityService() {
             capturingScreenshot.set(false)
         }
 
-        showOverlay(null, openedViaGesture)
+        showOverlay(null, openedViaGesture, launchOrigin)
     }
 
     private fun showOverlay(
         backdrop: Bitmap?,
         openedViaGesture: Boolean,
+        launchOrigin: com.sameerasw.essentials.utils.SearchLaunchOrigin,
     ) {
-        val shown = runCatching { SearchOverlayController.show(this, backdrop, openedViaGesture) }
+        val shown = runCatching { SearchOverlayController.show(this, backdrop, openedViaGesture, launchOrigin) }
             .onFailure { error ->
                 Log.e(TAG, "Unable to show search overlay", error)
             }
             .getOrDefault(false)
         if (shown) return
-        launchSearchActivity(openedViaGesture)
+        launchSearchActivity(openedViaGesture, launchOrigin)
     }
 
-    private fun launchSearchActivity(openedViaGesture: Boolean) {
-        val intent = AppLaunchUtil.buildSearchResultsIntent(this, openedViaGesture = openedViaGesture)
+    private fun launchSearchActivity(
+        openedViaGesture: Boolean,
+        launchOrigin: com.sameerasw.essentials.utils.SearchLaunchOrigin,
+    ) {
+        val intent = AppLaunchUtil.buildSearchResultsIntent(
+            context = this,
+            openedViaGesture = openedViaGesture,
+            launchOrigin = launchOrigin,
+        )
         AppLaunchUtil.startActivityReliably(this, intent)
     }
 
