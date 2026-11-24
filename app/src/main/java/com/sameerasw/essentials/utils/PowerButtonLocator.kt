@@ -13,9 +13,12 @@ package com.sameerasw.essentials.utils
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Point
 import android.graphics.Rect
+import android.hardware.display.DisplayManager
 import android.os.Build
 import android.util.Log
+import android.view.Display
 import android.view.Surface
 import android.view.WindowManager
 import androidx.compose.ui.geometry.Offset
@@ -657,19 +660,50 @@ object PowerButtonLocator {
     fun getCurrentDisplaySizePx(context: Context): Pair<Int, Int> {
         val wm = context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
         if (wm != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val bounds = wm.currentWindowMetrics.bounds
-            if (bounds.width() > 0 && bounds.height() > 0) {
+            // WindowManager.getCurrentWindowMetrics / getMaximumWindowMetrics throw
+            // UnsupportedOperationException on non-visual contexts (e.g., AccessibilityService,
+            // Application, or ContextThemeWrapper without a display/window context).
+            val bounds =
+                runCatching { wm.maximumWindowMetrics.bounds }.getOrNull()
+                    ?: runCatching { wm.currentWindowMetrics.bounds }.getOrNull()
+            if (bounds != null && bounds.width() > 0 && bounds.height() > 0) {
                 return bounds.width() to bounds.height()
             }
         }
+        val display =
+            runCatching {
+                val dm = context.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager
+                dm?.getDisplay(Display.DEFAULT_DISPLAY)
+            }.getOrNull()
+        if (display != null) {
+            val realSize = Point()
+            @Suppress("DEPRECATION")
+            val gotReal = runCatching { display.getRealSize(realSize) }.isSuccess
+            if (gotReal && realSize.x > 0 && realSize.y > 0) {
+                return realSize.x to realSize.y
+            }
+            val mode = runCatching { display.mode }.getOrNull()
+            if (mode != null && mode.physicalWidth > 0 && mode.physicalHeight > 0) {
+                val rot = runCatching { display.rotation }.getOrDefault(Surface.ROTATION_0)
+                return if (rot == Surface.ROTATION_90 || rot == Surface.ROTATION_270) {
+                    mode.physicalHeight to mode.physicalWidth
+                } else {
+                    mode.physicalWidth to mode.physicalHeight
+                }
+            }
+        }
         val dm = context.resources.displayMetrics
-        return dm.widthPixels to dm.heightPixels
+        return dm.widthPixels.coerceAtLeast(1) to dm.heightPixels.coerceAtLeast(1)
     }
 
     fun getCurrentDisplayRotation(context: Context): Int {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             runCatching { context.display.rotation }.getOrNull()?.let { return it }
         }
+        runCatching {
+            val dm = context.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager
+            dm?.getDisplay(Display.DEFAULT_DISPLAY)?.rotation
+        }.getOrNull()?.let { return it }
         val wm = context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
         @Suppress("DEPRECATION")
         return runCatching { wm?.defaultDisplay?.rotation ?: Surface.ROTATION_0 }
