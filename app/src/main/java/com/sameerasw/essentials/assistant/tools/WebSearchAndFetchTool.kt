@@ -15,10 +15,16 @@ import android.net.Uri
 import android.text.Html
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.Dns
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
+import org.json.JSONArray
 import org.json.JSONObject
+import java.net.InetAddress
 import java.net.URLEncoder
+import java.net.UnknownHostException
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
@@ -46,6 +52,8 @@ object WebSearchAndFetchTool {
     private const val USER_AGENT = "Komorebi-Assistant/1.0"
     private const val MAX_SEARCH_CHARS = 4000
     private const val MAX_FETCH_CHARS = 6000
+    private const val MAX_RESPONSE_BYTES = 512 * 1024
+    private const val MAX_REDIRECTS = 5
 
     private const val WEB_SEARCH_SCHEMA =
         """{"type":"object","properties":{"query":{"type":"string","description":"Search query"}},"required":["query"]}"""
@@ -55,12 +63,25 @@ object WebSearchAndFetchTool {
 
     private const val DDG_ENDPOINT = "https://api.duckduckgo.com/"
 
+    private val safeDns = Dns { hostname ->
+        if (isPrivateOrLocalHostname(hostname)) {
+            throw UnknownHostException("Blocked private or local host: $hostname")
+        }
+        val addresses = Dns.SYSTEM.lookup(hostname)
+        if (addresses.isEmpty() || addresses.any { isPrivateOrLocalAddress(it) }) {
+            throw UnknownHostException("Blocked private or local address for host: $hostname")
+        }
+        addresses
+    }
+
     private val httpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             .callTimeout(15, TimeUnit.SECONDS)
-            .followRedirects(true)
+            .followRedirects(false)
+            .followSslRedirects(false)
+            .dns(safeDns)
             .build()
     }
 
@@ -119,11 +140,12 @@ object WebSearchAndFetchTool {
                 .header("Accept", "application/json")
                 .header("User-Agent", USER_AGENT)
                 .build()
-            httpClient.newCall(request).execute().use { response ->
+            executeWithValidatedRedirects(request).use { response ->
                 if (!response.isSuccessful) {
                     return ToolResult(false, "Search request failed with HTTP ${response.code}.")
                 }
-                val root = runCatching { JSONObject(response.body.string()) }.getOrNull()
+                val rawBody = readCappedUtf8(response.body.byteStream(), maxBytes = MAX_RESPONSE_BYTES)
+                val root = runCatching { JSONObject(rawBody) }.getOrNull()
                     ?: return ToolResult(false, "The search response was not valid JSON.")
                 val results = root.optJSONArray("results")
                     ?: return ToolResult(false, "No web results found for \"$query\".")
@@ -166,11 +188,12 @@ object WebSearchAndFetchTool {
                 .header("Accept", "application/json")
                 .header("User-Agent", USER_AGENT)
                 .build()
-            httpClient.newCall(request).execute().use { response ->
+            executeWithValidatedRedirects(request).use { response ->
                 if (!response.isSuccessful) {
                     return ToolResult(false, "Search request failed with HTTP ${response.code}.")
                 }
-                val root = runCatching { JSONObject(response.body.string()) }.getOrNull()
+                val rawBody = readCappedUtf8(response.body.byteStream(), maxBytes = MAX_RESPONSE_BYTES)
+                val root = runCatching { JSONObject(rawBody) }.getOrNull()
                     ?: return ToolResult(false, "The search response was not valid JSON.")
 
                 val builder = StringBuilder()
@@ -181,15 +204,7 @@ object WebSearchAndFetchTool {
 
                 val related = root.optJSONArray("RelatedTopics")
                 if (related != null) {
-                    for (index in 0 until related.length()) {
-                        if (builder.length >= MAX_SEARCH_CHARS) break
-                        val entry = related.optJSONObject(index) ?: continue
-                        val text = entry.optString("Text").trim()
-                        val firstUrl = entry.optString("FirstURL").trim()
-                        if (text.isBlank() && firstUrl.isBlank()) continue
-                        if (text.isNotBlank()) builder.append("- ").append(text).append('\n')
-                        if (firstUrl.isNotBlank()) builder.append(firstUrl).append('\n')
-                    }
+                    appendDuckDuckGoTopics(related, builder)
                 }
 
                 val text = builder.toString().trim().take(MAX_SEARCH_CHARS)
@@ -204,6 +219,27 @@ object WebSearchAndFetchTool {
             }
         }.getOrElse { error ->
             ToolResult(false, "Search failed: ${error.message ?: error.javaClass.simpleName}")
+        }
+    }
+
+    private fun appendDuckDuckGoTopics(topics: JSONArray, builder: StringBuilder) {
+        for (index in 0 until topics.length()) {
+            if (builder.length >= MAX_SEARCH_CHARS) break
+            val entry = topics.optJSONObject(index) ?: continue
+            val nestedTopics = entry.optJSONArray("Topics")
+            if (nestedTopics != null) {
+                val groupName = entry.optString("Name").trim()
+                if (groupName.isNotBlank() && builder.length < MAX_SEARCH_CHARS) {
+                    builder.append(groupName).append(":\n")
+                }
+                appendDuckDuckGoTopics(nestedTopics, builder)
+                continue
+            }
+            val text = entry.optString("Text").trim()
+            val firstUrl = entry.optString("FirstURL").trim()
+            if (text.isBlank() && firstUrl.isBlank()) continue
+            if (text.isNotBlank()) builder.append("- ").append(text).append('\n')
+            if (firstUrl.isNotBlank()) builder.append(firstUrl).append('\n')
         }
     }
 
@@ -228,7 +264,7 @@ object WebSearchAndFetchTool {
                 .header("User-Agent", USER_AGENT)
                 .header("Accept", "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8")
                 .build()
-            httpClient.newCall(request).execute().use { response ->
+            executeWithValidatedRedirects(request).use { response ->
                 if (!response.isSuccessful) {
                     return@withContext ToolResult(false, "Fetch failed with HTTP ${response.code}.")
                 }
@@ -245,7 +281,7 @@ object WebSearchAndFetchTool {
                 ) {
                     return@withContext ToolResult(false, "Unsupported content type: $contentType")
                 }
-                val rawBody = readCappedUtf8(response.body.byteStream(), maxBytes = 512 * 1024)
+                val rawBody = readCappedUtf8(response.body.byteStream(), maxBytes = MAX_RESPONSE_BYTES)
                 val text = htmlToText(rawBody).take(MAX_FETCH_CHARS)
                 if (text.isBlank()) {
                     ToolResult(false, "No readable text was found on the page.")
@@ -258,24 +294,103 @@ object WebSearchAndFetchTool {
         }
     }
 
-    private fun isPrivateOrLocalHost(host: String): Boolean {
-        val lower = host.lowercase(Locale.US)
-        if (lower == "localhost" || lower.endsWith(".local") || lower.endsWith(".internal")) return true
-        val addresses = runCatching { java.net.InetAddress.getAllByName(host) }.getOrNull() ?: return true
-        return addresses.any { addr ->
-            if (addr.isAnyLocalAddress ||
-                addr.isLoopbackAddress ||
-                addr.isLinkLocalAddress ||
-                addr.isSiteLocalAddress ||
-                addr.isMulticastAddress
-            ) {
-                return@any true
+    private fun executeWithValidatedRedirects(initialRequest: Request): Response {
+        var currentRequest = initialRequest
+        validateUrl(currentRequest.url.toString())
+
+        var redirects = 0
+        while (true) {
+            val response = httpClient.newCall(currentRequest).execute()
+            if (response.code !in setOf(301, 302, 303, 307, 308)) {
+                return response
             }
-            val bytes = addr.address
-            // IPv6 unique local (fc00::/7)
-            if (bytes.size == 16 && (bytes[0].toInt() and 0xFE) == 0xFC) return@any true
-            false
+            val location = response.header("Location")?.trim()
+            if (location.isNullOrEmpty()) {
+                return response
+            }
+            if (redirects >= MAX_REDIRECTS) {
+                response.close()
+                throw IllegalStateException("Too many redirects (max $MAX_REDIRECTS).")
+            }
+            val resolvedUrl = currentRequest.url.resolve(location)
+                ?: location.toHttpUrlOrNull()
+                ?: run {
+                    response.close()
+                    throw IllegalArgumentException("Invalid redirect target.")
+                }
+            response.close()
+            validateUrl(resolvedUrl.toString())
+            redirects++
+            currentRequest = currentRequest.newBuilder()
+                .url(resolvedUrl)
+                .build()
         }
+    }
+
+    private fun validateUrl(rawUrl: String) {
+        val parsed = rawUrl.toHttpUrlOrNull()
+            ?: throw IllegalArgumentException("Only valid http and https URLs are supported.")
+        val scheme = parsed.scheme.lowercase(Locale.US)
+        if (scheme != "http" && scheme != "https") {
+            throw IllegalArgumentException("Redirect to unsupported URL scheme '$scheme' was blocked.")
+        }
+        if (parsed.host.isBlank() || isPrivateOrLocalHost(parsed.host)) {
+            throw SecurityException("Redirect to a local or private network address was blocked.")
+        }
+    }
+
+    private fun isPrivateOrLocalHostname(host: String): Boolean {
+        val lower = host.lowercase(Locale.US).trimEnd('.')
+        return lower == "localhost" ||
+            lower.endsWith(".localhost") ||
+            lower.endsWith(".local") ||
+            lower.endsWith(".internal")
+    }
+
+    private fun isPrivateOrLocalHost(host: String): Boolean {
+        if (isPrivateOrLocalHostname(host)) return true
+        val addresses = runCatching { InetAddress.getAllByName(host) }.getOrNull() ?: return true
+        if (addresses.isEmpty()) return true
+        return addresses.any { isPrivateOrLocalAddress(it) }
+    }
+
+    private fun isPrivateOrLocalAddress(addr: InetAddress): Boolean {
+        if (addr.isAnyLocalAddress ||
+            addr.isLoopbackAddress ||
+            addr.isLinkLocalAddress ||
+            addr.isSiteLocalAddress ||
+            addr.isMulticastAddress
+        ) {
+            return true
+        }
+        val bytes = addr.address
+        if (bytes.size == 4) {
+            val b0 = bytes[0].toInt() and 0xFF
+            val b1 = bytes[1].toInt() and 0xFF
+            // 0.0.0.0/8 ("this" network)
+            if (b0 == 0) return true
+            // 100.64.0.0/10 (Carrier-grade NAT / shared address space)
+            if (b0 == 100 && (b1 and 0xC0) == 64) return true
+            // 192.0.0.0/24, 198.18.0.0/15 (benchmarking), 240.0.0.0/4 (reserved)
+            if (b0 == 198 && (b1 == 18 || b1 == 19)) return true
+            if (b0 >= 240) return true
+            return false
+        }
+        if (bytes.size == 16) {
+            // IPv6 unique local (fc00::/7)
+            if ((bytes[0].toInt() and 0xFE) == 0xFC) return true
+            // IPv4-mapped IPv6 (::ffff:0:0/96)
+            val isV4Mapped = (0..9).all { bytes[it] == 0.toByte() } &&
+                bytes[10] == 0xFF.toByte() &&
+                bytes[11] == 0xFF.toByte()
+            if (isV4Mapped) {
+                val mappedV4 = runCatching {
+                    InetAddress.getByAddress(bytes.copyOfRange(12, 16))
+                }.getOrNull()
+                if (mappedV4 == null || isPrivateOrLocalAddress(mappedV4)) return true
+            }
+        }
+        return false
     }
 
     private fun readCappedUtf8(stream: java.io.InputStream, maxBytes: Int): String {

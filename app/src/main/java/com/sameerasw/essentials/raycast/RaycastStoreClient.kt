@@ -6,14 +6,15 @@ import com.google.gson.JsonElement
 import com.google.gson.annotations.SerializedName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.ResponseBody
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import java.io.BufferedInputStream
-import java.io.ByteArrayInputStream
 import java.io.File
+import java.io.FileInputStream
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 import java.util.zip.ZipInputStream
@@ -172,11 +173,13 @@ object RaycastStoreClient {
     private const val VICINAE_BASE_URL = "https://api.vicinae.com/v1"
     private const val KOMOREBI_INDEX_URL =
         "https://raw.githubusercontent.com/aislingheart/komorebi-extensions/main/index.json"
+    private const val MAX_ARCHIVE_DOWNLOAD_BYTES = 25L * 1024L * 1024L
     private val gson = Gson()
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .followRedirects(true)
+        .followSslRedirects(false)
         .build()
 
     suspend fun fetchRaycastListings(
@@ -470,71 +473,109 @@ object RaycastStoreClient {
         listing: StoreExtensionListing,
     ): Result<InstalledRaycastExtension> = withContext(Dispatchers.IO) {
         runCatching {
-            val url = listing.downloadUrl?.takeIf { it.isNotBlank() }
+            val url = listing.downloadUrl?.trim()?.takeIf { it.isNotBlank() }
                 ?: error("No download URL provided for ${listing.title}")
+            val parsedUrl = url.toHttpUrlOrNull()
+                ?: error("Invalid download URL for ${listing.title}")
+            require(parsedUrl.scheme.equals("https", ignoreCase = true)) {
+                "Refusing insecure non-HTTPS extension download URL: ${parsedUrl.scheme}"
+            }
+
             val req = Request.Builder()
-                .url(url)
+                .url(parsedUrl)
                 .header("User-Agent", "Komorebi-RaycastCompat/1.0")
                 .build()
-            val bytes = httpClient.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) {
-                    val errBody = readErrorBodySnippet(resp.body)
-                    error(
-                        if (errBody.isNotBlank()) "Download failed (HTTP ${resp.code}): $errBody"
-                        else "Download failed (HTTP ${resp.code})",
-                    )
-                }
-                resp.body.bytes()
-            }
 
-            val safeFolder = sanitizeExtensionFolder(listing.id.ifBlank { listing.name })
-            val extensionsRoot = RaycastExtensionRepository.extensionsRootDir(context).canonicalFile
-            val targetDir = File(extensionsRoot, safeFolder).canonicalFile
-            require(targetDir.parentFile == extensionsRoot) {
-                "Invalid extension target folder: $safeFolder"
-            }
-
-            val stagingDir = File(extensionsRoot, ".staging_${safeFolder}_${System.nanoTime()}")
-            stagingDir.mkdirs()
+            val cacheDir = context.applicationContext.cacheDir.apply { mkdirs() }
+            val tempArchive = File.createTempFile("raycast_ext_", ".pkg", cacheDir)
             try {
-                extractArchiveSafely(bytes, stagingDir)
-                flattenSingleNestedDirIfNeeded(stagingDir)
-
-                val pkgFile = File(stagingDir, "package.json")
-                if (!pkgFile.exists()) {
-                    val fallbackManifest = RaycastPackageManifest(
-                        name = listing.name,
-                        title = listing.title.ifBlank { listing.name },
-                        description = listing.description,
-                        author = listing.author.name.ifBlank { listing.author.handle },
-                        categories = listing.categories.takeIf { it.isNotEmpty() },
-                        platforms = listing.platforms.takeIf { it.isNotEmpty() },
-                        commands = listing.commands.map {
-                            RaycastCommandManifest(
-                                name = it.name,
-                                title = it.title.ifBlank { it.name },
-                                subtitle = it.subtitle,
-                                description = it.description,
-                                mode = it.mode.ifBlank { "view" },
-                                keywords = it.keywords.takeIf { k -> k.isNotEmpty() },
-                                disabledByDefault = it.disabledByDefault.takeIf { d -> d },
-                            )
-                        },
-                    )
-                    pkgFile.writeText(gson.toJson(fallbackManifest))
+                httpClient.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) {
+                        val errBody = readErrorBodySnippet(resp.body)
+                        error(
+                            if (errBody.isNotBlank()) "Download failed (HTTP ${resp.code}): $errBody"
+                            else "Download failed (HTTP ${resp.code})",
+                        )
+                    }
+                    require(resp.request.url.isHttps) {
+                        "Refusing insecure non-HTTPS extension download redirect."
+                    }
+                    val contentLength = resp.body.contentLength()
+                    if (contentLength > MAX_ARCHIVE_DOWNLOAD_BYTES) {
+                        error(
+                            "Extension archive exceeds maximum download size (${MAX_ARCHIVE_DOWNLOAD_BYTES / (1024 * 1024)} MB).",
+                        )
+                    }
+                    resp.body.byteStream().use { input ->
+                        tempArchive.outputStream().use { output ->
+                            val buffer = ByteArray(8192)
+                            var downloadedBytes = 0L
+                            while (true) {
+                                val read = input.read(buffer)
+                                if (read <= 0) break
+                                downloadedBytes += read
+                                if (downloadedBytes > MAX_ARCHIVE_DOWNLOAD_BYTES) {
+                                    error(
+                                        "Extension archive exceeds maximum download size (${MAX_ARCHIVE_DOWNLOAD_BYTES / (1024 * 1024)} MB).",
+                                    )
+                                }
+                                output.write(buffer, 0, read)
+                            }
+                        }
+                    }
                 }
 
-                if (targetDir.exists()) targetDir.deleteRecursively()
-                if (!stagingDir.renameTo(targetDir)) {
-                    stagingDir.copyRecursively(targetDir, overwrite = true)
-                    stagingDir.deleteRecursively()
+                val safeFolder = sanitizeExtensionFolder(listing.id.ifBlank { listing.name })
+                val extensionsRoot = RaycastExtensionRepository.extensionsRootDir(context).canonicalFile
+                val targetDir = File(extensionsRoot, safeFolder).canonicalFile
+                require(targetDir.parentFile == extensionsRoot) {
+                    "Invalid extension target folder: $safeFolder"
                 }
+
+                val stagingDir = File(extensionsRoot, ".staging_${safeFolder}_${System.nanoTime()}")
+                stagingDir.mkdirs()
+                try {
+                    extractArchiveSafely(tempArchive, stagingDir)
+                    flattenSingleNestedDirIfNeeded(stagingDir)
+
+                    val pkgFile = File(stagingDir, "package.json")
+                    if (!pkgFile.exists()) {
+                        val fallbackManifest = RaycastPackageManifest(
+                            name = listing.name,
+                            title = listing.title.ifBlank { listing.name },
+                            description = listing.description,
+                            author = listing.author.name.ifBlank { listing.author.handle },
+                            categories = listing.categories.takeIf { it.isNotEmpty() },
+                            platforms = listing.platforms.takeIf { it.isNotEmpty() },
+                            commands = listing.commands.map {
+                                RaycastCommandManifest(
+                                    name = it.name,
+                                    title = it.title.ifBlank { it.name },
+                                    subtitle = it.subtitle,
+                                    description = it.description,
+                                    mode = it.mode.ifBlank { "view" },
+                                    keywords = it.keywords.takeIf { k -> k.isNotEmpty() },
+                                    disabledByDefault = it.disabledByDefault.takeIf { d -> d },
+                                )
+                            },
+                        )
+                        pkgFile.writeText(gson.toJson(fallbackManifest))
+                    }
+
+                    if (targetDir.exists()) targetDir.deleteRecursively()
+                    if (!stagingDir.renameTo(targetDir)) {
+                        stagingDir.copyRecursively(targetDir, overwrite = true)
+                        stagingDir.deleteRecursively()
+                    }
+                } finally {
+                    if (stagingDir.exists()) stagingDir.deleteRecursively()
+                }
+
+                RaycastExtensionRepository.findExtension(context, safeFolder)
+                    ?: error("Installed extension manifest could not be parsed.")
             } finally {
-                if (stagingDir.exists()) stagingDir.deleteRecursively()
+                runCatching { tempArchive.delete() }
             }
-
-            RaycastExtensionRepository.findExtension(context, safeFolder)
-                ?: error("Installed extension manifest could not be parsed.")
         }
     }
 
@@ -546,7 +587,7 @@ object RaycastStoreClient {
         return cleaned.ifBlank { "extension_${System.currentTimeMillis()}" }
     }
 
-    private fun extractArchiveSafely(bytes: ByteArray, destDir: File) {
+    private fun extractArchiveSafely(archiveFile: File, destDir: File) {
         val maxEntries = 10_000
         val maxTotalBytes = 100L * 1024L * 1024L
         var entryCount = 0
@@ -565,9 +606,11 @@ object RaycastStoreClient {
             }
         }
 
-        val isZip = bytes.size >= 2 && bytes[0] == 0x50.toByte() && bytes[1] == 0x4B.toByte()
+        val magic = ByteArray(2)
+        val magicRead = FileInputStream(archiveFile).use { it.read(magic) }
+        val isZip = magicRead == 2 && magic[0] == 0x50.toByte() && magic[1] == 0x4B.toByte()
         if (isZip) {
-            ZipInputStream(BufferedInputStream(ByteArrayInputStream(bytes))).use { zis ->
+            ZipInputStream(BufferedInputStream(FileInputStream(archiveFile))).use { zis ->
                 var entry = zis.nextEntry
                 while (entry != null) {
                     if (++entryCount > maxEntries) {
@@ -586,8 +629,8 @@ object RaycastStoreClient {
             return
         }
 
-        val isGzip = bytes.size >= 2 && bytes[0] == 0x1F.toByte() && bytes[1] == 0x8B.toByte()
-        val rawStream = BufferedInputStream(ByteArrayInputStream(bytes))
+        val isGzip = magicRead == 2 && magic[0] == 0x1F.toByte() && magic[1] == 0x8B.toByte()
+        val rawStream = BufferedInputStream(FileInputStream(archiveFile))
         val tarStream = if (isGzip) {
             TarArchiveInputStream(GzipCompressorInputStream(rawStream))
         } else {

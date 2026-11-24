@@ -22,6 +22,7 @@ import com.google.gson.JsonObject
 import com.sameerasw.essentials.assistant.ScreenContextExtractor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -33,12 +34,23 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.Dns
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.IOException
+import java.net.InetAddress
+import java.net.UnknownHostException
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.time.Instant
@@ -48,8 +60,12 @@ import java.time.format.TextStyle
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 data class RaycastToastEvent(
     val id: String,
@@ -69,21 +85,122 @@ data class RaycastAlertRequest(
 )
 
 class RaycastRuntimeEngine(
-    private val context: Context,
+    context: Context,
     private val extension: InstalledRaycastExtension,
     private val command: RaycastCommandManifest,
 ) {
+    private val context: Context = context.applicationContext
+
     companion object {
+        private const val MAX_HTTP_REDIRECTS = 5
+        private const val MAX_HTTP_BODY_BYTES = 4 * 1024 * 1024
+        private const val MAX_FS_READ_BYTES = 2 * 1024 * 1024
+        private val ALLOWED_OPEN_URI_SCHEMES = setOf("https", "http", "mailto", "geo")
+
+        internal fun isDisallowedAddress(addr: InetAddress): Boolean {
+            if (
+                addr.isAnyLocalAddress ||
+                addr.isLoopbackAddress ||
+                addr.isLinkLocalAddress ||
+                addr.isSiteLocalAddress ||
+                addr.isMulticastAddress
+            ) {
+                return true
+            }
+            val raw = addr.address
+            if (raw.size == 4) {
+                return isDisallowedIpv4Bytes(
+                    raw[0].toInt() and 0xFF,
+                    raw[1].toInt() and 0xFF,
+                    raw[2].toInt() and 0xFF,
+                    raw[3].toInt() and 0xFF,
+                )
+            }
+            if (raw.size == 16) {
+                val b0 = raw[0].toInt() and 0xFF
+                val b1 = raw[1].toInt() and 0xFF
+                // IPv6 Unique Local Addresses (fc00::/7)
+                if ((b0 and 0xFE) == 0xFC) return true
+                // IPv6 Link-Local (fe80::/10) and deprecated Site-Local (fec0::/10)
+                if (b0 == 0xFE && ((b1 and 0xC0) == 0x80 || (b1 and 0xC0) == 0xC0)) return true
+                // IPv6 Multicast (ff00::/8)
+                if (b0 == 0xFF) return true
+
+                // IPv4-mapped IPv6 (::ffff:0:0/96)
+                val isIpv4Mapped = (0 until 10).all { raw[it] == 0.toByte() } &&
+                    raw[10] == 0xFF.toByte() && raw[11] == 0xFF.toByte()
+                // IPv4-compatible IPv6 (::w.x.y.z)
+                val isIpv4Compatible = (0 until 12).all { raw[it] == 0.toByte() }
+                // NAT64 well-known prefix (64:ff9b::/96)
+                val isNat64 = b0 == 0x00 && b1 == 0x64 &&
+                    (raw[2].toInt() and 0xFF) == 0xFF &&
+                    (raw[3].toInt() and 0xFF) == 0x9B &&
+                    (4 until 12).all { raw[it] == 0.toByte() }
+
+                if (isIpv4Mapped || isIpv4Compatible || isNat64) {
+                    return isDisallowedIpv4Bytes(
+                        raw[12].toInt() and 0xFF,
+                        raw[13].toInt() and 0xFF,
+                        raw[14].toInt() and 0xFF,
+                        raw[15].toInt() and 0xFF,
+                    )
+                }
+            }
+            return false
+        }
+
+        private fun isDisallowedIpv4Bytes(b0: Int, b1: Int, b2: Int, b3: Int): Boolean {
+            if (b0 == 0) return true // 0.0.0.0/8
+            if (b0 == 10) return true // 10.0.0.0/8 (RFC1918)
+            if (b0 == 100 && (b1 and 0xC0) == 64) return true // 100.64.0.0/10 (CGNAT)
+            if (b0 == 127) return true // 127.0.0.0/8 (loopback)
+            if (b0 == 169 && b1 == 254) return true // 169.254.0.0/16 (link-local / metadata)
+            if (b0 == 172 && (b1 and 0xF0) == 16) return true // 172.16.0.0/12 (RFC1918)
+            if (b0 == 192 && b1 == 0 && b2 == 0) return true // 192.0.0.0/24
+            if (b0 == 192 && b1 == 168) return true // 192.168.0.0/16 (RFC1918)
+            if (b0 == 198 && (b1 == 18 || b1 == 19)) return true // 198.18.0.0/15
+            if (b0 >= 224) return true // 224.0.0.0/4 multicast + 240.0.0.0/4 reserved
+            return false
+        }
+
+        private val safeDns = Dns { hostname ->
+            val addresses = Dns.SYSTEM.lookup(hostname)
+            if (addresses.isEmpty()) {
+                throw UnknownHostException("Unable to resolve host: $hostname")
+            }
+            for (addr in addresses) {
+                if (isDisallowedAddress(addr)) {
+                    throw SecurityException("Blocked network request to restricted address for host: $hostname")
+                }
+            }
+            addresses
+        }
+
+        internal fun validateOutboundHttpUrl(httpUrl: HttpUrl) {
+            val scheme = httpUrl.scheme.lowercase(Locale.ROOT)
+            if (scheme != "http" && scheme != "https") {
+                throw IllegalArgumentException("Only http and https URLs are allowed")
+            }
+            val host = httpUrl.host.lowercase(Locale.ROOT)
+            if (host.isBlank() || host == "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) {
+                throw SecurityException("Blocked network request to restricted host: $host")
+            }
+            safeDns.lookup(httpUrl.host)
+        }
+
         private val sharedHttpClient: OkHttpClient by lazy {
             OkHttpClient.Builder()
                 .connectTimeout(15, TimeUnit.SECONDS)
                 .readTimeout(25, TimeUnit.SECONDS)
                 .writeTimeout(25, TimeUnit.SECONDS)
-                .followRedirects(true)
+                .followRedirects(false)
+                .followSslRedirects(false)
+                .dns(safeDns)
                 .build()
         }
 
-        private val warmPoolScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        private val warmDispatcher: CoroutineDispatcher = Dispatchers.IO.limitedParallelism(1)
+        private val warmPoolScope = CoroutineScope(SupervisorJob() + warmDispatcher)
         private val warmLock = Any()
 
         @Volatile
@@ -91,7 +208,7 @@ class RaycastRuntimeEngine(
 
         private data class WarmIsolate(
             val quickJs: QuickJs,
-            val engineRef: java.util.concurrent.atomic.AtomicReference<RaycastRuntimeEngine?>,
+            val engineRef: AtomicReference<RaycastRuntimeEngine?>,
         )
 
         @Volatile
@@ -128,6 +245,7 @@ class RaycastRuntimeEngine(
                         if (standbyIsolate == null) {
                             standbyIsolate = created
                         } else {
+                            created.engineRef.set(null)
                             runCatching { created.quickJs.close() }
                         }
                     }
@@ -136,7 +254,7 @@ class RaycastRuntimeEngine(
         }
 
         private suspend fun buildWarmIsolate(appContext: Context): WarmIsolate {
-            val engineRef = java.util.concurrent.atomic.AtomicReference<RaycastRuntimeEngine?>(null)
+            val engineRef = AtomicReference<RaycastRuntimeEngine?>(null)
             val qjs = QuickJs.create(Dispatchers.IO)
             qjs.memoryLimit = 64L * 1024L * 1024L
             qjs.maxStackSize = 1024L * 1024L
@@ -146,19 +264,19 @@ class RaycastRuntimeEngine(
             return WarmIsolate(qjs, engineRef)
         }
 
-        private fun claimStandby(engine: RaycastRuntimeEngine): QuickJs? {
+        private fun claimStandby(engine: RaycastRuntimeEngine): WarmIsolate? {
             val claimed = synchronized(warmLock) {
                 val iso = standbyIsolate
                 standbyIsolate = null
                 iso
             } ?: return null
             claimed.engineRef.set(engine)
-            return claimed.quickJs
+            return claimed
         }
 
         private fun registerDelegatingBindings(
             qjs: QuickJs,
-            engineRef: java.util.concurrent.atomic.AtomicReference<RaycastRuntimeEngine?>,
+            engineRef: AtomicReference<RaycastRuntimeEngine?>,
         ) {
             qjs.function("__nativeLog") { args ->
                 val level = args.getOrNull(0)?.toString() ?: "LOG"
@@ -205,11 +323,15 @@ class RaycastRuntimeEngine(
 
     private val tag = "RaycastRuntime"
     private val gson = Gson()
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val jsDispatcher: CoroutineDispatcher = Dispatchers.IO.limitedParallelism(1)
+    private val evalJob = SupervisorJob()
+    private val scope = CoroutineScope(evalJob + jsDispatcher)
+    private val cleanupScope = CoroutineScope(SupervisorJob() + jsDispatcher)
     @Volatile
     private var quickJs: QuickJs? = null
     @Volatile
-    private var closed = false
+    private var activeEngineRef: AtomicReference<RaycastRuntimeEngine?>? = null
+    private val closed = AtomicBoolean(false)
     private val secureRandom = SecureRandom()
 
     private val httpClient: OkHttpClient
@@ -237,6 +359,7 @@ class RaycastRuntimeEngine(
     val openPreferencesRequests = _openPreferencesRequests.asSharedFlow()
 
     internal fun onEmitRender(treeJson: String) {
+        if (closed.get()) return
         val screens = RaycastTreeParser.parseViewStack(treeJson)
         _viewStack.value = screens
     }
@@ -246,32 +369,45 @@ class RaycastRuntimeEngine(
         isDarkTheme: Boolean = true,
         launchType: String? = null,
     ) {
+        if (closed.get()) return
         scope.launch {
+            var unpublishedQjs: QuickJs? = null
+            var unpublishedRef: AtomicReference<RaycastRuntimeEngine?>? = null
             try {
+                if (closed.get()) return@launch
                 val entryFile = extension.entryFileForCommand(command.name)
                 if (entryFile == null) {
                     _errorState.value = buildMissingEntryDiagnostic(extension, command)
                     return@launch
                 }
 
-                val warmQjs = claimStandby(this@RaycastRuntimeEngine)
-                val qjs = if (warmQjs != null) {
-                    warmQjs
+                val warm = claimStandby(this@RaycastRuntimeEngine)
+                val (qjs, engineRef) = if (warm != null) {
+                    unpublishedQjs = warm.quickJs
+                    unpublishedRef = warm.engineRef
+                    warm.quickJs to warm.engineRef
                 } else {
+                    val freshRef = AtomicReference<RaycastRuntimeEngine?>(this@RaycastRuntimeEngine)
                     val fresh = QuickJs.create(Dispatchers.IO)
+                    unpublishedQjs = fresh
+                    unpublishedRef = freshRef
                     fresh.memoryLimit = 64L * 1024L * 1024L
                     fresh.maxStackSize = 1024L * 1024L
-                    registerBindings(fresh)
+                    registerDelegatingBindings(fresh, freshRef)
                     val runtimeJs = loadRuntimeJs(context)
                     fresh.evaluate<Any?>(runtimeJs, "runtime.js", false)
-                    fresh
+                    fresh to freshRef
                 }
-                if (closed) {
+                if (closed.get()) {
+                    engineRef.set(null)
                     runCatching { qjs.close() }
                     return@launch
                 }
+                activeEngineRef = engineRef
                 quickJs = qjs
-                prewarm(context.applicationContext)
+                unpublishedQjs = null
+                unpublishedRef = null
+                prewarm(context)
 
                 val supportDir = RaycastExtensionRepository.supportDir(context, extension.id)
                 val assetsDir = File(extension.dirPath, "assets")
@@ -296,6 +432,8 @@ class RaycastRuntimeEngine(
                 val invokeCode = "globalThis.__launchCommand(${gson.toJson(configJson)}, ${gson.toJson(entryCode)});"
                 qjs.evaluate<Any?>(invokeCode, entryFile.name, false)
             } catch (e: Throwable) {
+                unpublishedRef?.set(null)
+                unpublishedQjs?.let { runCatching { it.close() } }
                 if (e is CancellationException) throw e
                 Log.e(tag, "Extension launch failed", e)
                 _errorState.value = e.message ?: e.javaClass.simpleName
@@ -303,15 +441,14 @@ class RaycastRuntimeEngine(
         }
     }
 
-    private fun registerBindings(qjs: QuickJs) {
-        registerDelegatingBindings(qjs, java.util.concurrent.atomic.AtomicReference(this))
-    }
-
     fun invokeCallback(callbackId: String, vararg callbackArgs: Any?) {
-        val qjs = quickJs ?: return
+        if (closed.get()) return
+        val argsCopy = callbackArgs.toList()
         scope.launch {
+            if (closed.get()) return@launch
+            val qjs = quickJs ?: return@launch
             runCatching {
-                val argsJson = gson.toJson(callbackArgs.toList())
+                val argsJson = gson.toJson(argsCopy)
                 qjs.evaluate<Any?>(
                     "globalThis.__invokeCallback(${gson.toJson(callbackId)}, ${gson.toJson(argsJson)});",
                     "callback.js",
@@ -326,8 +463,10 @@ class RaycastRuntimeEngine(
     }
 
     fun notifyViewPopped() {
-        val qjs = quickJs ?: return
+        if (closed.get()) return
         scope.launch {
+            if (closed.get()) return@launch
+            val qjs = quickJs ?: return@launch
             runCatching {
                 qjs.evaluate<Any?>(
                     "globalThis.__dispatchHostEvent('ui.viewPopped', '{}');",
@@ -363,69 +502,206 @@ class RaycastRuntimeEngine(
         }
     }
 
-    private fun executeHttpFetch(reqJson: String): String {
+    private suspend fun OkHttpClient.awaitCall(request: Request): Response =
+        suspendCancellableCoroutine { cont ->
+            val call = newCall(request)
+            cont.invokeOnCancellation { call.cancel() }
+            call.enqueue(
+                object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {
+                        if (cont.isActive) cont.resumeWithException(e)
+                    }
+
+                    override fun onResponse(call: Call, response: Response) {
+                        if (cont.isActive) {
+                            cont.resume(response)
+                        } else {
+                            runCatching { response.close() }
+                        }
+                    }
+                },
+            )
+        }
+
+    private fun readResponseBodyBounded(resp: Response, maxBytes: Int = MAX_HTTP_BODY_BYTES): ByteArray {
+        val contentLength = resp.body.contentLength()
+        if (contentLength > maxBytes) {
+            throw IOException("Response body exceeds maximum allowed size of ${maxBytes / (1024 * 1024)} MB")
+        }
+        val out = ByteArrayOutputStream()
+        val buffer = ByteArray(8192)
+        var totalRead = 0
+        resp.body.byteStream().use { input ->
+            while (true) {
+                val read = input.read(buffer)
+                if (read <= 0) break
+                totalRead += read
+                if (totalRead > maxBytes) {
+                    throw IOException("Response body exceeds maximum allowed size of ${maxBytes / (1024 * 1024)} MB")
+                }
+                out.write(buffer, 0, read)
+            }
+        }
+        return out.toByteArray()
+    }
+
+    private fun readFileBytesBounded(file: File, maxBytes: Int = MAX_FS_READ_BYTES): ByteArray? {
+        if (!file.exists() || !file.isFile) return null
+        if (file.length() > maxBytes) {
+            Log.w(tag, "Blocked reading file exceeding ${maxBytes / (1024 * 1024)} MB cap: ${file.name}")
+            return null
+        }
+        val out = ByteArrayOutputStream()
+        val buffer = ByteArray(8192)
+        var totalRead = 0
+        file.inputStream().use { input ->
+            while (true) {
+                val read = input.read(buffer)
+                if (read <= 0) break
+                totalRead += read
+                if (totalRead > maxBytes) {
+                    Log.w(tag, "Blocked reading file exceeding ${maxBytes / (1024 * 1024)} MB cap: ${file.name}")
+                    return null
+                }
+                out.write(buffer, 0, read)
+            }
+        }
+        return out.toByteArray()
+    }
+
+    private suspend fun executeHttpFetch(reqJson: String): String {
         if (!ExtensionPermissionManager.isAllowed(context, extension.id, ExtensionCapability.NETWORK)) {
             return gson.toJson(mapOf("error" to "Network access is disabled for ${extension.manifest.title}. Enable it in Extensions permissions."))
         }
         return try {
-            val obj = gson.fromJson(reqJson, JsonObject::class.java)
-            val url = obj.get("url")?.asString ?: throw IllegalArgumentException("Missing URL")
-            val method = (obj.get("method")?.asString ?: "GET").uppercase()
-            val bodyBase64 = if (obj.has("bodyBase64") && !obj.get("bodyBase64").isJsonNull) obj.get("bodyBase64").asString else null
-            val bodyStr = if (obj.has("body") && !obj.get("body").isJsonNull) obj.get("body").asString else null
+            withContext<String>(Dispatchers.IO) {
+                val obj = gson.fromJson(reqJson, JsonObject::class.java)
+                val rawUrl = obj.get("url")?.asString?.trim() ?: throw IllegalArgumentException("Missing URL")
+                var currentUrl = rawUrl.toHttpUrlOrNull()
+                    ?: throw IllegalArgumentException("Invalid URL")
+                validateOutboundHttpUrl(currentUrl)
 
-            val builder = Request.Builder().url(url)
-            var contentType = "application/json"
-            val headersObj = obj.getAsJsonObject("headers")
-            headersObj?.entrySet()?.forEach { (k, v) ->
-                if (!v.isJsonNull) {
-                    if (k.equals("content-type", ignoreCase = true)) contentType = v.asString
-                    builder.header(k, v.asString)
-                }
-            }
-            if (method == "POST" || method == "PUT" || method == "PATCH" || method == "DELETE") {
-                val mediaType = contentType.toMediaTypeOrNull()
-                val reqBytes = when {
-                    bodyBase64 != null -> Base64.decode(bodyBase64, Base64.DEFAULT)
-                    bodyStr != null -> bodyStr.toByteArray(Charsets.UTF_8)
-                    else -> null
-                }
-                if (method == "DELETE" && reqBytes == null) {
-                    builder.method(method, null)
-                } else {
-                    builder.method(method, (reqBytes ?: ByteArray(0)).toRequestBody(mediaType))
-                }
-            } else {
-                builder.method(method, null)
-            }
+                var currentMethod = (obj.get("method")?.asString ?: "GET").uppercase(Locale.ROOT)
+                val bodyBase64 = if (obj.has("bodyBase64") && !obj.get("bodyBase64").isJsonNull) obj.get("bodyBase64").asString else null
+                val bodyStr = if (obj.has("body") && !obj.get("body").isJsonNull) obj.get("body").asString else null
 
-            httpClient.newCall(builder.build()).execute().use { resp ->
-                val respHeaders = linkedMapOf<String, String>()
-                for (name in resp.headers.names()) {
-                    respHeaders[name] = resp.headers[name] ?: ""
+                var contentType = "application/json"
+                val currentHeaders = linkedMapOf<String, String>()
+                val headersObj = obj.getAsJsonObject("headers")
+                headersObj?.entrySet()?.forEach { (k, v) ->
+                    if (!v.isJsonNull) {
+                        if (k.equals("content-type", ignoreCase = true)) contentType = v.asString
+                        currentHeaders[k] = v.asString
+                    }
                 }
-                val bytes = resp.body.bytes()
-                val encodedB64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
-                val respContentType = (resp.header("Content-Type") ?: "").lowercase()
-                val isLikelyBinary = respContentType.startsWith("image/") ||
-                    respContentType.startsWith("audio/") ||
-                    respContentType.startsWith("video/") ||
-                    respContentType.contains("octet-stream") ||
-                    respContentType.contains("application/pdf") ||
-                    respContentType.contains("application/zip") ||
-                    respContentType.contains("font/")
-                val bodyText = if (isLikelyBinary) "" else String(bytes, Charsets.UTF_8)
-                gson.toJson(
-                    mapOf(
-                        "status" to resp.code,
-                        "statusText" to resp.message,
-                        "url" to resp.request.url.toString(),
-                        "headers" to respHeaders,
-                        "body" to bodyText,
-                        "bodyBase64" to encodedB64,
-                    ),
-                )
+                var currentBodyBytes: ByteArray? =
+                    if (currentMethod == "POST" || currentMethod == "PUT" || currentMethod == "PATCH" || currentMethod == "DELETE") {
+                        when {
+                            bodyBase64 != null -> Base64.decode(bodyBase64, Base64.DEFAULT)
+                            bodyStr != null -> bodyStr.toByteArray(Charsets.UTF_8)
+                            else -> null
+                        }
+                    } else {
+                        null
+                    }
+
+                fun buildRequestForCurrentHop(): Request {
+                    val builder = Request.Builder().url(currentUrl)
+                    currentHeaders.forEach { (k, v) -> builder.header(k, v) }
+                    if (currentMethod == "POST" || currentMethod == "PUT" || currentMethod == "PATCH" || currentMethod == "DELETE") {
+                        if (currentMethod == "DELETE" && currentBodyBytes == null) {
+                            builder.method(currentMethod, null)
+                        } else {
+                            val mediaType = contentType.toMediaTypeOrNull()
+                            builder.method(currentMethod, (currentBodyBytes ?: ByteArray(0)).toRequestBody(mediaType))
+                        }
+                    } else {
+                        builder.method(currentMethod, null)
+                    }
+                    return builder.build()
+                }
+
+                var redirectCount = 0
+                while (redirectCount <= MAX_HTTP_REDIRECTS) {
+                    val req = buildRequestForCurrentHop()
+                    var nextRedirectUrl: HttpUrl? = null
+                    var finalResult: String? = null
+
+                    httpClient.awaitCall(req).use { resp ->
+                        val isRedirectCode = resp.code == 301 || resp.code == 302 || resp.code == 303 ||
+                            resp.code == 307 || resp.code == 308
+                        val location = if (isRedirectCode) resp.header("Location") else null
+
+                        if (location != null) {
+                            if (redirectCount >= MAX_HTTP_REDIRECTS) {
+                                throw IOException("Too many redirects (max $MAX_HTTP_REDIRECTS)")
+                            }
+                            val resolved = resp.request.url.resolve(location)
+                                ?: throw IllegalArgumentException("Invalid redirect URL")
+                            validateOutboundHttpUrl(resolved)
+
+                            val sameOrigin = currentUrl.scheme.equals(resolved.scheme, ignoreCase = true) &&
+                                currentUrl.host.equals(resolved.host, ignoreCase = true) &&
+                                currentUrl.port == resolved.port
+                            if (!sameOrigin) {
+                                val keysToDrop = currentHeaders.keys.filter { key ->
+                                    key.equals("authorization", ignoreCase = true) ||
+                                        key.equals("proxy-authorization", ignoreCase = true) ||
+                                        key.equals("cookie", ignoreCase = true)
+                                }
+                                keysToDrop.forEach { currentHeaders.remove(it) }
+                            }
+
+                            if (resp.code == 303 || ((resp.code == 301 || resp.code == 302) && currentMethod == "POST")) {
+                                currentMethod = "GET"
+                                currentBodyBytes = null
+                                val bodyHeaderKeys = currentHeaders.keys.filter { key ->
+                                    key.equals("content-type", ignoreCase = true) ||
+                                        key.equals("content-length", ignoreCase = true)
+                                }
+                                bodyHeaderKeys.forEach { currentHeaders.remove(it) }
+                            }
+
+                            nextRedirectUrl = resolved
+                        } else {
+                            val respHeaders = linkedMapOf<String, String>()
+                            for (name in resp.headers.names()) {
+                                respHeaders[name] = resp.headers[name] ?: ""
+                            }
+                            val bytes = readResponseBodyBounded(resp, MAX_HTTP_BODY_BYTES)
+                            val encodedB64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                            val respContentType = (resp.header("Content-Type") ?: "").lowercase(Locale.ROOT)
+                            val isLikelyBinary = respContentType.startsWith("image/") ||
+                                respContentType.startsWith("audio/") ||
+                                respContentType.startsWith("video/") ||
+                                respContentType.contains("octet-stream") ||
+                                respContentType.contains("application/pdf") ||
+                                respContentType.contains("application/zip") ||
+                                respContentType.contains("font/")
+                            val bodyText = if (isLikelyBinary) "" else String(bytes, Charsets.UTF_8)
+                            finalResult = gson.toJson(
+                                mapOf(
+                                    "status" to resp.code,
+                                    "statusText" to resp.message,
+                                    "url" to resp.request.url.toString(),
+                                    "headers" to respHeaders,
+                                    "body" to bodyText,
+                                    "bodyBase64" to encodedB64,
+                                ),
+                            )
+                        }
+                    }
+
+                    if (finalResult != null) {
+                        return@withContext finalResult!!
+                    }
+                    currentUrl = nextRedirectUrl!!
+                    redirectCount++
+                }
+                throw IOException("Too many redirects (max $MAX_HTTP_REDIRECTS)")
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Throwable) {
             gson.toJson(mapOf("error" to (e.message ?: "Network error")))
         }
@@ -451,6 +727,7 @@ class RaycastRuntimeEngine(
                     command = command,
                     cwd = cwd,
                     timeoutMs = timeout,
+                    extensionId = extension.id,
                 )
                 gson.toJson(result)
             }
@@ -586,10 +863,11 @@ class RaycastRuntimeEngine(
                 val rel = obj.get("path")?.asString ?: return@runCatching null
                 val extRoot = File(extension.dirPath).canonicalFile
                 val candidate = File(extRoot, rel.trimStart('/')).canonicalFile
-                if (!isWithinRoot(candidate, extRoot) || !candidate.exists() || !candidate.isFile) {
+                if (!isWithinRoot(candidate, extRoot)) {
                     null
                 } else {
-                    gson.toJson(candidate.readText())
+                    val bytes = readFileBytesBounded(candidate, MAX_FS_READ_BYTES) ?: return@runCatching null
+                    gson.toJson(String(bytes, Charsets.UTF_8))
                 }
             }.getOrNull()
             "fs.exists" -> runCatching {
@@ -597,16 +875,14 @@ class RaycastRuntimeEngine(
                 (f != null && f.exists()).toString()
             }.getOrDefault("false")
             "fs.read" -> runCatching {
-                val f = resolveSandboxedFile(obj.get("path")?.asString)
-                if (f != null && f.exists() && f.isFile) gson.toJson(f.readText()) else null
+                val f = resolveSandboxedFile(obj.get("path")?.asString) ?: return@runCatching null
+                val bytes = readFileBytesBounded(f, MAX_FS_READ_BYTES) ?: return@runCatching null
+                gson.toJson(String(bytes, Charsets.UTF_8))
             }.getOrNull()
             "fs.readBase64" -> runCatching {
-                val f = resolveSandboxedFile(obj.get("path")?.asString)
-                if (f != null && f.exists() && f.isFile) {
-                    gson.toJson(Base64.encodeToString(f.readBytes(), Base64.NO_WRAP))
-                } else {
-                    null
-                }
+                val f = resolveSandboxedFile(obj.get("path")?.asString) ?: return@runCatching null
+                val bytes = readFileBytesBounded(f, MAX_FS_READ_BYTES) ?: return@runCatching null
+                gson.toJson(Base64.encodeToString(bytes, Base64.NO_WRAP))
             }.getOrNull()
             "fs.write" -> runCatching {
                 val f = resolveWritableSandboxedFile(obj.get("path")?.asString) ?: return@runCatching "false"
@@ -956,6 +1232,7 @@ class RaycastRuntimeEngine(
                         command = command,
                         cwd = cwd,
                         timeoutMs = timeout,
+                        extensionId = extension.id,
                     )
                 }
                 gson.toJson(result)
@@ -1009,7 +1286,11 @@ class RaycastRuntimeEngine(
                     }
                     cm.setPrimaryClip(clip)
                 }
-                if (method == "clipboard.paste" && com.sameerasw.essentials.utils.ShellUtils.hasPermission(context)) {
+                if (
+                    method == "clipboard.paste" &&
+                    ExtensionPermissionManager.isAllowed(context, extension.id, ExtensionCapability.CLI_BRIDGE) &&
+                    com.sameerasw.essentials.utils.ShellUtils.hasPermission(context)
+                ) {
                     withContext(Dispatchers.IO) {
                         com.sameerasw.essentials.utils.ShellUtils.runCommandWithOutput(
                             context,
@@ -1099,6 +1380,14 @@ class RaycastRuntimeEngine(
                 )
             }
             "health.summary", "health.sleep", "health.steps" -> {
+                if (!ExtensionPermissionManager.isAllowed(context, extension.id, ExtensionCapability.HEALTH_DATA)) {
+                    return gson.toJson(
+                        mapOf(
+                            "error" to "Health data access is disabled for ${extension.manifest.title}. " +
+                                "Enable it in Extensions permissions.",
+                        ),
+                    )
+                }
                 val manager = com.sameerasw.essentials.assistant.HealthConnectManager
                 when (manager.availability(context)) {
                     "available" -> Unit
@@ -1151,6 +1440,9 @@ class RaycastRuntimeEngine(
                 gson.toJson(payload)
             }
             "system.getSelectedText" -> {
+                if (!ExtensionPermissionManager.isAllowed(context, extension.id, ExtensionCapability.SCREEN_CONTEXT)) {
+                    return gson.toJson("")
+                }
                 val contextSnapshot = ScreenContextExtractor.current()
                 val fresh = contextSnapshot != null &&
                     System.currentTimeMillis() - contextSnapshot.capturedAt < 15_000L
@@ -1160,10 +1452,10 @@ class RaycastRuntimeEngine(
             "system.open" -> {
                 val target = obj.get("target")?.asString ?: return "false"
                 val app = if (obj.has("application") && !obj.get("application").isJsonNull) obj.get("application").asString else null
-                withContext(Dispatchers.Main) {
+                val opened = withContext(Dispatchers.Main) {
                     openTargetExternally(target, app)
                 }
-                "true"
+                opened.toString()
             }
             "system.getApplications" -> {
                 val pm = context.packageManager
@@ -1180,7 +1472,7 @@ class RaycastRuntimeEngine(
             "system.getDefaultApplication" -> {
                 val target = obj.get("target")?.asString ?: return null
                 val pm = context.packageManager
-                val intent = buildViewIntent(target, null)
+                val intent = buildViewIntent(target, null) ?: return null
                 val ri = pm.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY) ?: return null
                 val pkg = ri.activityInfo?.packageName ?: return null
                 gson.toJson(
@@ -1289,56 +1581,94 @@ class RaycastRuntimeEngine(
         }
     }
 
-    private fun buildViewIntent(target: String, appPackage: String?): Intent {
-        val localFile = when {
-            target.startsWith("file://") -> runCatching { Uri.parse(target).path }.getOrNull()
-                ?.let { resolveSandboxedFile(it) }
-            target.startsWith("/") -> resolveSandboxedFile(target)
-            else -> null
+    private fun resolveOpenableExtensionFile(rawPath: String?): File? {
+        if (!ExtensionPermissionManager.isAllowed(context, extension.id, ExtensionCapability.FILES)) return null
+        if (rawPath.isNullOrBlank()) return null
+        val supportRoot = RaycastExtensionRepository.supportDir(context, extension.id).canonicalFile
+        val extRoot = File(extension.dirPath).canonicalFile
+        val cacheBase = File(context.cacheDir, "raycast_cache").canonicalFile
+        val extCacheRoot = File(cacheBase, extension.id).canonicalFile
+        val candidate = File(rawPath).canonicalFile
+        val inExtCache = isWithinRoot(extCacheRoot, cacheBase) &&
+            extCacheRoot.path != cacheBase.path &&
+            isWithinRoot(candidate, extCacheRoot)
+        return if (isWithinRoot(candidate, supportRoot) || isWithinRoot(candidate, extRoot) || inExtCache) {
+            candidate
+        } else {
+            null
         }
-        return if (localFile != null && localFile.exists()) {
+    }
+
+    private fun buildViewIntent(target: String, appPackage: String?): Intent? {
+        val trimmed = target.trim()
+        if (trimmed.isEmpty()) return null
+
+        if (trimmed.startsWith("/")) {
+            val localFile = resolveOpenableExtensionFile(trimmed) ?: return null
+            if (!localFile.exists() || !localFile.isFile) return null
             val contentUri = runCatching {
                 FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", localFile)
-            }.getOrElse { Uri.fromFile(localFile) }
-            val ext = MimeTypeMap.getFileExtensionFromUrl(localFile.name).lowercase()
+            }.getOrNull() ?: return null
+            val ext = MimeTypeMap.getFileExtensionFromUrl(localFile.name).lowercase(Locale.ROOT)
             val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: "*/*"
-            Intent(Intent.ACTION_VIEW).apply {
+            return Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(contentUri, mime)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 if (!appPackage.isNullOrBlank()) setPackage(appPackage)
             }
-        } else {
-            Intent(Intent.ACTION_VIEW, Uri.parse(target)).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                if (!appPackage.isNullOrBlank()) setPackage(appPackage)
-            }
+        }
+
+        val parsed = runCatching { Uri.parse(trimmed) }.getOrNull() ?: return null
+        val scheme = parsed.scheme?.lowercase(Locale.ROOT) ?: return null
+        if (scheme !in ALLOWED_OPEN_URI_SCHEMES) {
+            Log.w(tag, "Blocked system.open for disallowed URI scheme: $scheme")
+            return null
+        }
+        if ((scheme == "http" || scheme == "https") && parsed.host.isNullOrBlank()) {
+            return null
+        }
+        return Intent(Intent.ACTION_VIEW, parsed).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (!appPackage.isNullOrBlank()) setPackage(appPackage)
         }
     }
 
-    private fun openTargetExternally(target: String, appPackage: String?) {
-        runCatching {
-            val intent = buildViewIntent(target, appPackage)
+    private fun openTargetExternally(target: String, appPackage: String?): Boolean {
+        val intent = buildViewIntent(target, appPackage) ?: return false
+        return runCatching {
             context.startActivity(intent)
-        }.onFailure {
+            true
+        }.getOrElse {
             if (!appPackage.isNullOrBlank()) {
                 val launch = context.packageManager.getLaunchIntentForPackage(appPackage)
                 if (launch != null) {
                     launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    context.startActivity(launch)
+                    return runCatching {
+                        context.startActivity(launch)
+                        true
+                    }.getOrDefault(false)
                 }
             }
+            false
         }
     }
 
     fun close() {
-        closed = true
-        runCatching {
-            scope.launch {
-                runCatching { quickJs?.evaluate<Any?>("globalThis.__unmountExtension();", "unmount.js", false) }
-                runCatching { quickJs?.close() }
-                quickJs = null
-                scope.cancel()
+        if (!closed.compareAndSet(false, true)) return
+        activeEngineRef?.set(null)
+        evalJob.cancel()
+        cleanupScope.launch {
+            runCatching { evalJob.join() }
+            val qjs = quickJs
+            quickJs = null
+            activeEngineRef?.set(null)
+            activeEngineRef = null
+            if (qjs != null) {
+                runCatching { qjs.evaluate<Any?>("globalThis.__unmountExtension();", "unmount.js", false) }
+                runCatching { qjs.close() }
             }
+            scope.cancel()
+            cleanupScope.cancel()
         }
     }
 }

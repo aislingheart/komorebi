@@ -1111,9 +1111,10 @@ object SearchProviderDiscovery {
 
         // 2. Contacts Postal Addresses + Me Profile
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) {
+            val profileDataUri = Uri.withAppendedPath(ContactsContract.Profile.CONTENT_URI, "data")
             val urisToQuery = listOf(
                 ContactsContract.CommonDataKinds.StructuredPostal.CONTENT_URI to "Contacts",
-                Uri.withAppendedPath(ContactsContract.Profile.CONTENT_URI, "data") to "My Profile",
+                profileDataUri to "My Profile",
             )
             for ((uri, source) in urisToQuery) {
                 runCatching {
@@ -1123,7 +1124,17 @@ object SearchProviderDiscovery {
                         ContactsContract.CommonDataKinds.StructuredPostal.TYPE,
                         ContactsContract.CommonDataKinds.StructuredPostal.LABEL,
                     )
-                    context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+                    val selection = if (uri == profileDataUri) {
+                        "${ContactsContract.Data.MIMETYPE} = ?"
+                    } else {
+                        null
+                    }
+                    val selectionArgs = if (uri == profileDataUri) {
+                        arrayOf(ContactsContract.CommonDataKinds.StructuredPostal.CONTENT_ITEM_TYPE)
+                    } else {
+                        null
+                    }
+                    context.contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
                         val nameIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.StructuredPostal.DISPLAY_NAME)
                         val addrIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.StructuredPostal.FORMATTED_ADDRESS)
                         val typeIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.StructuredPostal.TYPE)

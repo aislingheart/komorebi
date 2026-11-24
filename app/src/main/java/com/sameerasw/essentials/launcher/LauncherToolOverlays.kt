@@ -1,16 +1,20 @@
 package com.sameerasw.essentials.launcher
 
 import android.content.ClipData
+import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.os.PersistableBundle
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -34,6 +38,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -75,6 +80,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
@@ -87,6 +93,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontFamily
@@ -106,14 +113,25 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.Call
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import okio.BufferedSink
+import java.io.IOException
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.abs
+
+private val speedTestHttpClient: OkHttpClient by lazy {
+    OkHttpClient.Builder()
+        .connectTimeout(8, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
+        .writeTimeout(15, TimeUnit.SECONDS)
+        .build()
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -182,8 +200,10 @@ private fun ClipboardHistoryOverlay(
     var entries by remember { mutableStateOf<List<ClipboardEntry>>(emptyList()) }
 
     LaunchedEffect(query, refreshTick) {
-        ClipboardHistoryManager.captureCurrent(context)
-        entries = ClipboardHistoryManager.search(context, query)
+        entries = withContext(Dispatchers.IO) {
+            ClipboardHistoryManager.captureCurrent(context)
+            ClipboardHistoryManager.search(context, query)
+        }
     }
 
     Column(
@@ -251,6 +271,11 @@ private fun ClipboardHistoryOverlay(
                 reverseLayout = reachabilityLayout,
             ) {
                 items(entries, key = { it.id }) { entry ->
+                    val colorSwatch = if (entry.contentType == "color") {
+                        remember(entry.text) { parseClipboardColor(entry.text) }
+                    } else {
+                        null
+                    }
                     OutlinedCard(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -278,6 +303,19 @@ private fun ClipboardHistoryOverlay(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 ) {
+                                    if (colorSwatch != null) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(18.dp)
+                                                .clip(CircleShape)
+                                                .background(colorSwatch)
+                                                .border(
+                                                    width = 1.dp,
+                                                    color = MaterialTheme.colorScheme.outlineVariant,
+                                                    shape = CircleShape,
+                                                ),
+                                        )
+                                    }
                                     Surface(
                                         color = MaterialTheme.colorScheme.secondaryContainer,
                                         shape = RoundedCornerShape(8.dp),
@@ -321,6 +359,34 @@ private fun ClipboardHistoryOverlay(
                                 )
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (entry.contentType == "url") {
+                                    IconButton(
+                                        onClick = {
+                                            HapticUtil.performConfirmHaptic(view)
+                                            val trimmed = entry.text.trim()
+                                            val resolvedUrl = if (trimmed.contains("://")) trimmed else "https://$trimmed"
+                                            val opened = runCatching {
+                                                context.startActivity(
+                                                    Intent(Intent.ACTION_VIEW, Uri.parse(resolvedUrl)).apply {
+                                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                    },
+                                                )
+                                                true
+                                            }.getOrDefault(false)
+                                            if (opened) {
+                                                onCopiedAndClose()
+                                            } else {
+                                                Toast.makeText(context, "Unable to open URL", Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.OpenInNew,
+                                            contentDescription = "Open",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                        )
+                                    }
+                                }
                                 IconButton(
                                     onClick = {
                                         HapticUtil.performVirtualKeyHaptic(view)
@@ -580,7 +646,7 @@ private fun QuicklinksOverlay(
                 reverseLayout = reachabilityLayout,
             ) {
                 items(links, key = { it.id }) { link ->
-                    val previewUrl = QuicklinksRepository.resolveUrl(link.urlTemplate, argumentText)
+                    val previewUrl = QuicklinksRepository.resolveUrl(link.urlTemplate, argumentText, context)
                     OutlinedCard(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -771,6 +837,14 @@ private fun BusTimesOverlay(reachabilityLayout: Boolean) {
     var departuresLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var refreshKey by remember { mutableIntStateOf(0) }
+    var departuresJob by remember { mutableStateOf<Job?>(null) }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            departuresJob?.cancel()
+            departuresJob = null
+        }
+    }
 
     val registryOwner = LocalActivityResultRegistryOwner.current
     val requestLocationPermissions: () -> Unit = if (registryOwner != null) {
@@ -805,6 +879,9 @@ private fun BusTimesOverlay(reachabilityLayout: Boolean) {
 
     LaunchedEffect(hasPermission, refreshKey) {
         if (!hasPermission) return@LaunchedEffect
+        departuresJob?.cancel()
+        departuresJob = null
+        departuresLoading = false
         loading = true
         error = null
         selectedStop = null
@@ -818,6 +895,7 @@ private fun BusTimesOverlay(reachabilityLayout: Boolean) {
         stops = runCatching {
             BusTimesRepository.findNearbyStops(location.latitude, location.longitude)
         }.getOrElse {
+            if (it is CancellationException) throw it
             error = "Could not load nearby stops. Check your connection."
             emptyList()
         }
@@ -842,6 +920,9 @@ private fun BusTimesOverlay(reachabilityLayout: Boolean) {
             if (selectedStop != null) {
                 TextButton(
                     onClick = {
+                        departuresJob?.cancel()
+                        departuresJob = null
+                        departuresLoading = false
                         selectedStop = null
                         departures = emptyList()
                         error = null
@@ -849,7 +930,12 @@ private fun BusTimesOverlay(reachabilityLayout: Boolean) {
                 ) { Text("Back") }
             }
             IconButton(
-                onClick = { refreshKey++ },
+                onClick = {
+                    departuresJob?.cancel()
+                    departuresJob = null
+                    departuresLoading = false
+                    refreshKey++
+                },
                 enabled = hasPermission && !loading,
             ) {
                 Icon(Icons.Rounded.Refresh, contentDescription = "Refresh")
@@ -896,7 +982,10 @@ private fun BusTimesOverlay(reachabilityLayout: Boolean) {
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         reverseLayout = reachabilityLayout,
                     ) {
-                        items(departures, key = { "${it.route}:${it.scheduled}:${it.destination}" }) { departure ->
+                        itemsIndexed(
+                            items = departures,
+                            key = { index, dep -> "$index:${dep.route}:${dep.scheduled}:${dep.destination}" },
+                        ) { _, departure ->
                             OutlinedCard(shape = RoundedCornerShape(18.dp)) {
                                 Row(
                                     modifier = Modifier
@@ -988,21 +1077,30 @@ private fun BusTimesOverlay(reachabilityLayout: Boolean) {
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(18.dp))
                                 .clickable {
+                                    departuresJob?.cancel()
+                                    departuresJob = null
                                     selectedStop = stop
                                     departures = emptyList()
                                     error = null
                                     val stopCode = stop.stopCode
                                     if (stopCode != null) {
                                         departuresLoading = true
-                                        scope.launch {
-                                            departures = runCatching {
-                                                BusTimesRepository.departures(stopCode)
-                                            }.getOrElse {
+                                        departuresJob = scope.launch {
+                                            try {
+                                                departures = BusTimesRepository.departures(stopCode)
+                                            } catch (e: CancellationException) {
+                                                throw e
+                                            } catch (_: Throwable) {
                                                 error = "Could not load live departures."
-                                                emptyList()
+                                                departures = emptyList()
+                                            } finally {
+                                                if (selectedStop?.id == stop.id) {
+                                                    departuresLoading = false
+                                                }
                                             }
-                                            departuresLoading = false
                                         }
+                                    } else {
+                                        departuresLoading = false
                                     }
                                 },
                             shape = RoundedCornerShape(18.dp),
@@ -1331,9 +1429,22 @@ private fun SpeedTestOverlay(
     var running by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var activeJob by remember { mutableStateOf<Job?>(null) }
+    val activeCallRef = remember { AtomicReference<Call?>(null) }
+
+    fun cancelActiveTest() {
+        activeCallRef.getAndSet(null)?.cancel()
+        activeJob?.cancel()
+        activeJob = null
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            cancelActiveTest()
+        }
+    }
 
     fun startTest() {
-        activeJob?.cancel()
+        cancelActiveTest()
         activeJob = scope.launch {
             running = true
             errorMessage = null
@@ -1345,11 +1456,7 @@ private fun SpeedTestOverlay(
             hasDownload = false
             hasUpload = false
 
-            val client = OkHttpClient.Builder()
-                .connectTimeout(8, TimeUnit.SECONDS)
-                .readTimeout(15, TimeUnit.SECONDS)
-                .writeTimeout(15, TimeUnit.SECONDS)
-                .build()
+            val client = speedTestHttpClient
 
             try {
                 // 1. Latency & Jitter
@@ -1364,9 +1471,15 @@ private fun SpeedTestOverlay(
                             .get()
                             .build()
                         val startNs = System.nanoTime()
-                        client.newCall(req).execute().use { resp ->
-                            if (!resp.isSuccessful) error("Ping HTTP ${resp.code}")
-                            resp.body?.close()
+                        val call = client.newCall(req)
+                        activeCallRef.set(call)
+                        try {
+                            call.execute().use { resp ->
+                                if (!resp.isSuccessful) error("Ping HTTP ${resp.code}")
+                                resp.body?.close()
+                            }
+                        } finally {
+                            activeCallRef.compareAndSet(call, null)
                         }
                         val elapsedMs = (System.nanoTime() - startNs) / 1_000_000.0
                         if (idx > 0) pings.add(elapsedMs) // skip TLS cold start on first ping
@@ -1390,51 +1503,60 @@ private fun SpeedTestOverlay(
                 // 2. Download
                 phase = "Testing download..."
                 withContext(Dispatchers.IO) {
+                    if (!isActive) throw CancellationException()
                     val targetBytes = 10_000_000L
                     val req = Request.Builder()
                         .url("https://speed.cloudflare.com/__down?bytes=$targetBytes&cb=${System.nanoTime()}")
                         .header("Cache-Control", "no-cache")
                         .get()
                         .build()
-                    client.newCall(req).execute().use { resp ->
-                        if (!resp.isSuccessful) error("Download HTTP ${resp.code}")
-                        val body = resp.body ?: error("Empty download body")
-                        val stream = body.byteStream()
-                        val buf = ByteArray(32 * 1024)
-                        var totalRead = 0L
-                        val startNs = System.nanoTime()
-                        var lastUiNs = startNs
-                        while (isActive) {
-                            val read = stream.read(buf)
-                            if (read <= 0) break
-                            totalRead += read
-                            val nowNs = System.nanoTime()
-                            val elapsedSec = ((nowNs - startNs) / 1_000_000_000.0).coerceAtLeast(0.01)
-                            if (nowNs - lastUiNs > 120_000_000L || totalRead >= targetBytes) {
-                                lastUiNs = nowNs
-                                val mbps = (totalRead * 8.0) / (elapsedSec * 1_000_000.0)
-                                val dlFrac = (totalRead.toFloat() / targetBytes.toFloat()).coerceIn(0f, 1f)
-                                withContext(Dispatchers.Main) {
-                                    hasDownload = true
-                                    downloadMbps = mbps
-                                    progress = 0.28f + dlFrac * 0.36f
+                    val call = client.newCall(req)
+                    activeCallRef.set(call)
+                    try {
+                        call.execute().use { resp ->
+                            if (!resp.isSuccessful) error("Download HTTP ${resp.code}")
+                            val body = resp.body ?: error("Empty download body")
+                            val stream = body.byteStream()
+                            val buf = ByteArray(32 * 1024)
+                            var totalRead = 0L
+                            val startNs = System.nanoTime()
+                            var lastUiNs = startNs
+                            while (isActive) {
+                                val read = stream.read(buf)
+                                if (read <= 0) break
+                                totalRead += read
+                                val nowNs = System.nanoTime()
+                                val elapsedSec = ((nowNs - startNs) / 1_000_000_000.0).coerceAtLeast(0.01)
+                                if (nowNs - lastUiNs > 120_000_000L || totalRead >= targetBytes) {
+                                    lastUiNs = nowNs
+                                    val mbps = (totalRead * 8.0) / (elapsedSec * 1_000_000.0)
+                                    val dlFrac = (totalRead.toFloat() / targetBytes.toFloat()).coerceIn(0f, 1f)
+                                    withContext(Dispatchers.Main) {
+                                        hasDownload = true
+                                        downloadMbps = mbps
+                                        progress = 0.28f + dlFrac * 0.36f
+                                    }
                                 }
+                                if (elapsedSec > 6.5) break
                             }
-                            if (elapsedSec > 6.5) break
+                            if (!isActive) throw CancellationException()
+                            val totalSec = ((System.nanoTime() - startNs) / 1_000_000_000.0).coerceAtLeast(0.01)
+                            val finalMbps = (totalRead * 8.0) / (totalSec * 1_000_000.0)
+                            withContext(Dispatchers.Main) {
+                                hasDownload = true
+                                downloadMbps = finalMbps
+                                progress = 0.64f
+                            }
                         }
-                        val totalSec = ((System.nanoTime() - startNs) / 1_000_000_000.0).coerceAtLeast(0.01)
-                        val finalMbps = (totalRead * 8.0) / (totalSec * 1_000_000.0)
-                        withContext(Dispatchers.Main) {
-                            hasDownload = true
-                            downloadMbps = finalMbps
-                            progress = 0.64f
-                        }
+                    } finally {
+                        activeCallRef.compareAndSet(call, null)
                     }
                 }
 
                 // 3. Upload
                 phase = "Testing upload..."
                 withContext(Dispatchers.IO) {
+                    if (!isActive) throw CancellationException()
                     val uploadTotalBytes = 2_000_000L
                     val chunk = ByteArray(32 * 1024) { 0x5A }
                     val startNs = System.nanoTime()
@@ -1444,7 +1566,8 @@ private fun SpeedTestOverlay(
                         override fun writeTo(sink: BufferedSink) {
                             var sent = 0L
                             var lastUiNs = startNs
-                            while (sent < uploadTotalBytes && isActive) {
+                            while (sent < uploadTotalBytes) {
+                                if (!isActive) throw IOException("Cancelled")
                                 val toWrite = minOf(chunk.size.toLong(), uploadTotalBytes - sent).toInt()
                                 sink.write(chunk, 0, toWrite)
                                 sent += toWrite
@@ -1467,9 +1590,16 @@ private fun SpeedTestOverlay(
                         .url("https://speed.cloudflare.com/__up")
                         .post(body)
                         .build()
-                    client.newCall(req).execute().use { resp ->
-                        if (!resp.isSuccessful) error("Upload HTTP ${resp.code}")
+                    val call = client.newCall(req)
+                    activeCallRef.set(call)
+                    try {
+                        call.execute().use { resp ->
+                            if (!resp.isSuccessful) error("Upload HTTP ${resp.code}")
+                        }
+                    } finally {
+                        activeCallRef.compareAndSet(call, null)
                     }
+                    if (!isActive) throw CancellationException()
                     val totalSec = ((System.nanoTime() - startNs) / 1_000_000_000.0).coerceAtLeast(0.01)
                     val finalMbps = (uploadTotalBytes * 8.0) / (totalSec * 1_000_000.0)
                     withContext(Dispatchers.Main) {
@@ -1481,11 +1611,18 @@ private fun SpeedTestOverlay(
 
                 phase = "Complete"
             } catch (_: CancellationException) {
+                errorMessage = null
                 phase = "Cancelled"
             } catch (t: Throwable) {
-                errorMessage = t.localizedMessage ?: "Network error while measuring speed"
-                phase = "Failed"
+                if (!isActive || (t is IOException && t.message == "Cancelled")) {
+                    errorMessage = null
+                    phase = "Cancelled"
+                } else {
+                    errorMessage = t.localizedMessage ?: "Network error while measuring speed"
+                    phase = "Failed"
+                }
             } finally {
+                activeCallRef.getAndSet(null)?.cancel()
                 running = false
             }
         }
@@ -1595,7 +1732,9 @@ private fun SpeedTestOverlay(
             if (running) {
                 OutlinedButton(
                     onClick = {
-                        activeJob?.cancel()
+                        cancelActiveTest()
+                        errorMessage = null
+                        phase = "Cancelled"
                         running = false
                     },
                     modifier = Modifier.weight(1f),
@@ -1638,7 +1777,7 @@ private fun SpeedTestOverlay(
             }
 
             TextButton(onClick = {
-                activeJob?.cancel()
+                cancelActiveTest()
                 onDismiss()
             }) {
                 Text("Close")
@@ -1943,9 +2082,46 @@ private fun EmptyToolState(
     }
 }
 
-private fun copyText(context: Context, label: String, text: String) {
+private fun copyText(
+    context: Context,
+    label: String,
+    text: String,
+    sensitive: Boolean = false,
+) {
     val cm = ContextCompat.getSystemService(context.applicationContext, ClipboardManager::class.java)
-    cm?.setPrimaryClip(ClipData.newPlainText(label, text))
+    val clip = ClipData.newPlainText(label, text).apply {
+        if (sensitive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            description.extras = PersistableBundle().apply {
+                putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
+            }
+        }
+    }
+    cm?.setPrimaryClip(clip)
+}
+
+private val CLIPBOARD_RGB_REGEX = Regex(
+    """^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*([0-9.]+))?\s*\)$""",
+    RegexOption.IGNORE_CASE,
+)
+
+private fun parseClipboardColor(text: String): Color? {
+    val trimmed = text.trim()
+    if (trimmed.startsWith("#")) {
+        val normalized = if (trimmed.length == 4) {
+            "#${trimmed[1]}${trimmed[1]}${trimmed[2]}${trimmed[2]}${trimmed[3]}${trimmed[3]}"
+        } else {
+            trimmed
+        }
+        return runCatching { Color(android.graphics.Color.parseColor(normalized)) }.getOrNull()
+    }
+    val rgbMatch = CLIPBOARD_RGB_REGEX.matchEntire(trimmed) ?: return null
+    val r = rgbMatch.groupValues[1].toIntOrNull() ?: return null
+    val g = rgbMatch.groupValues[2].toIntOrNull() ?: return null
+    val b = rgbMatch.groupValues[3].toIntOrNull() ?: return null
+    if (r !in 0..255 || g !in 0..255 || b !in 0..255) return null
+    val alphaFloat = rgbMatch.groupValues[4].takeIf { it.isNotEmpty() }?.toFloatOrNull()
+    val a = if (alphaFloat != null) (alphaFloat.coerceIn(0f, 1f) * 255f).toInt() else 255
+    return Color(android.graphics.Color.argb(a, r, g, b))
 }
 
 private fun formatRelativeTime(timestampMs: Long): String {

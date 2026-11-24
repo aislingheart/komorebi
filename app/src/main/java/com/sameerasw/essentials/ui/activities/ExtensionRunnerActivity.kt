@@ -91,6 +91,9 @@ class ExtensionRunnerActivity : ComponentActivity() {
         const val EXTRA_ARGUMENTS_JSON = "arguments_json"
         const val EXTRA_LAUNCH_TYPE = "launch_type"
 
+        private const val EXTRA_INTERNAL_TOKEN = "komorebi_internal_launch_token"
+        private val internalLaunchToken: String = java.util.UUID.randomUUID().toString()
+
         fun createIntent(
             context: Context,
             extensionId: String,
@@ -99,6 +102,7 @@ class ExtensionRunnerActivity : ComponentActivity() {
             launchType: String? = null,
         ): Intent {
             return Intent(context, ExtensionRunnerActivity::class.java).apply {
+                putExtra(EXTRA_INTERNAL_TOKEN, internalLaunchToken)
                 putExtra(EXTRA_EXTENSION_ID, extensionId)
                 putExtra(EXTRA_COMMAND_NAME, commandName)
                 if (arguments.isNotEmpty()) {
@@ -124,6 +128,21 @@ class ExtensionRunnerActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         if (RaycastOAuthManager.handleRedirectUri(intent?.data)) {
+            finish()
+            return
+        }
+
+        if (intent?.action == Intent.ACTION_VIEW && intent?.data != null) {
+            finish()
+            return
+        }
+
+        val suppliedToken = intent?.getStringExtra(EXTRA_INTERNAL_TOKEN)
+        if (suppliedToken == null || !java.security.MessageDigest.isEqual(
+                suppliedToken.toByteArray(Charsets.UTF_8),
+                internalLaunchToken.toByteArray(Charsets.UTF_8),
+            )
+        ) {
             finish()
             return
         }

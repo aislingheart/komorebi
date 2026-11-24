@@ -20,6 +20,11 @@ class NotificationListener : NotificationListenerService() {
         ActiveNotificationStore.refresh(this)
     }
 
+    override fun onListenerDisconnected() {
+        super.onListenerDisconnected()
+        ActiveNotificationStore.clear()
+    }
+
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         super.onNotificationPosted(sbn)
         ActiveNotificationStore.onPosted(this, sbn)

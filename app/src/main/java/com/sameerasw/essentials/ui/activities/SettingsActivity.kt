@@ -276,7 +276,7 @@ fun SettingsContent(
     val settingsRepo =
         remember {
             com.sameerasw.essentials.data.repository
-                .SettingsRepository(context)
+                .SettingsRepository(context.applicationContext)
         }
 
     val onImportConfig: (Boolean) -> Unit = { keepPrefs ->
@@ -1018,7 +1018,7 @@ fun SettingsContent(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 val view = LocalView.current
-                val externalSettings = remember { SettingsRepository(context) }
+                val externalSettings = remember { SettingsRepository(context.applicationContext) }
                 var externalToken by remember { mutableStateOf(externalSettings.getExternalControlToken().orEmpty()) }
                 var isExternalTokenVisible by remember { mutableStateOf(false) }
 

@@ -44,6 +44,7 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.unit.dp
+import com.sameerasw.essentials.assistant.ScreenCaptureStore
 import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.ui.activities.PixelSearchResultsScreen
 import com.sameerasw.essentials.ui.modifiers.GestureRippleWaveOverlay
@@ -94,13 +95,13 @@ object SearchOverlayController {
 
         // If a deferred hide was queued, flush it cleanly so we re-open without racing teardown.
         if (pendingHideRunnable != null) {
-            hideInternal()
+            hideInternal(clearCapture = false)
         }
 
         // Guard against a stale window that Android detached externally without calling hide().
         if (isShowing && windowView?.isAttachedToWindow != true) {
             Log.w(TAG, "Detected stale detached search overlay; resetting before show")
-            hideInternal()
+            hideInternal(clearCapture = false)
         }
 
         if (isShowing) {
@@ -325,6 +326,7 @@ object SearchOverlayController {
                             host = null
                             isShowing = false
                             backdropState.value = null
+                            ScreenCaptureStore.clear()
                             sessionGeneration.incrementAndGet()
                             OverlayVisibilityCoordinator.markHidden(OVERLAY_ID)
                             runCatching { content.disposeComposition() }
@@ -393,7 +395,7 @@ object SearchOverlayController {
         hideInternal()
     }
 
-    private fun hideInternal() {
+    private fun hideInternal(clearCapture: Boolean = true) {
         cancelPendingHide()
         sessionGeneration.incrementAndGet()
         val view = windowView
@@ -404,6 +406,9 @@ object SearchOverlayController {
         host = null
         isShowing = false
         backdropState.value = null
+        if (clearCapture) {
+            ScreenCaptureStore.clear()
+        }
         OverlayVisibilityCoordinator.markHidden(OVERLAY_ID)
         if (view != null) {
             runCatching {

@@ -18,6 +18,7 @@ import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.util.Log
+import android.util.LruCache
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.createBitmap
 import androidx.palette.graphics.Palette
@@ -25,6 +26,7 @@ import com.sameerasw.essentials.domain.model.AppSelection
 import com.sameerasw.essentials.domain.model.NotificationApp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 
 object AppUtil {
     fun hasSystemFlag(
@@ -39,11 +41,11 @@ object AppUtil {
 
     private const val TAG = "AppUtil"
 
-    // Cache for extracted brand colors
-    private val colorCache = mutableMapOf<String, Int>()
+    // Thread-safe cache for extracted brand colors
+    private val colorCache = ConcurrentHashMap<String, Int>()
 
-    // Cache for app icons to prevent repeated system calls
-    private val iconCache = mutableMapOf<String, Bitmap>()
+    // Bounded thread-safe cache for app icons to prevent repeated system calls and unbounded memory growth
+    private val iconCache = LruCache<String, Bitmap>(160)
 
     // Target size for app icons to balance quality and performance
     private const val ICON_SIZE = 64
@@ -90,10 +92,6 @@ object AppUtil {
                             null
                         }
                     }
-
-                // Log some examples
-                apps.filter { !it.isSystemApp }.take(5).map { it.appName }
-                apps.filter { it.isSystemApp }.take(5).map { it.appName }
 
                 apps.sortedBy { it.appName.lowercase() }
             } catch (e: Exception) {
@@ -203,7 +201,7 @@ object AppUtil {
         packageName: String,
     ): Bitmap {
         // Check cache first
-        iconCache[packageName]?.let { return it }
+        iconCache.get(packageName)?.let { return it }
 
         val drawable =
             try {
@@ -233,7 +231,7 @@ object AppUtil {
             }
 
         // Cache the result
-        iconCache[packageName] = bitmap
+        iconCache.put(packageName, bitmap)
         return bitmap
     }
 

@@ -17,7 +17,8 @@ import java.util.Locale
 import kotlinx.coroutines.CancellationException
 
 object AssistantToolRegistry {
-    fun all(): List<AssistantTool> =
+
+    private val allTools: List<AssistantTool> by lazy {
         SystemToggleTool.tools() +
             AudioDisplayTool.tools() +
             DeviceActionTool.tools() +
@@ -34,8 +35,15 @@ object AssistantToolRegistry {
             DeviceTools.tools() +
             QrTools.tools() +
             UtilityTools.tools()
+    }
 
-    fun find(id: String): AssistantTool? = all().firstOrNull { it.id == id }
+    private val toolsById: Map<String, AssistantTool> by lazy {
+        allTools.associateBy { it.id }
+    }
+
+    fun all(): List<AssistantTool> = allTools
+
+    fun find(id: String): AssistantTool? = toolsById[id]
 
     fun match(query: String): List<Pair<AssistantTool, Int>> {
         val trimmed = query.trim()

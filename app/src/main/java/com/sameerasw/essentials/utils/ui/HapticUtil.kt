@@ -18,6 +18,7 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import android.view.HapticFeedbackConstants
 import android.view.View
+import androidx.annotation.RequiresApi
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType as ComposeHapticFeedbackType
@@ -29,14 +30,22 @@ import com.sameerasw.essentials.domain.HapticFeedbackType
  */
 enum class AppHapticMode { DISABLED, ENABLED, STRONGER }
 
+@RequiresApi(Build.VERSION_CODES.R)
 fun VibrationEffect.Composition.composeBoosted(vibrator: Vibrator): VibrationEffect {
-    if (HapticUtil.hapticMode.value == AppHapticMode.STRONGER &&
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-        vibrator.areAllPrimitivesSupported(VibrationEffect.Composition.PRIMITIVE_THUD)
-    ) {
-        addPrimitive(VibrationEffect.Composition.PRIMITIVE_THUD, 0.6f, 0)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        if (HapticUtil.hapticMode.value == AppHapticMode.STRONGER &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            vibrator.areAllPrimitivesSupported(VibrationEffect.Composition.PRIMITIVE_THUD)
+        ) {
+            addPrimitive(VibrationEffect.Composition.PRIMITIVE_THUD, 0.6f, 0)
+        }
+        return compose()
     }
-    return compose()
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK)
+    } else {
+        VibrationEffect.createOneShot(15L, VibrationEffect.DEFAULT_AMPLITUDE)
+    }
 }
 
 object HapticUtil {

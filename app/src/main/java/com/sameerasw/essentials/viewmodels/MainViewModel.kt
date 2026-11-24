@@ -31,6 +31,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.ViewModel
@@ -157,6 +158,10 @@ class MainViewModel : ViewModel() {
     lateinit var settingsRepository: SettingsRepository
     private lateinit var updateRepository: UpdateRepository
     private var appContext: Context? = null
+    private var isContentObserversRegistered = false
+    private var isPreferenceListenerRegistered = false
+    private var rootCheckJob: Job? = null
+    private var mediaSessionJob: Job? = null
     private val contentObserver =
         object : ContentObserver(Handler(Looper.getMainLooper())) {
             override fun onChange(
@@ -262,9 +267,14 @@ class MainViewModel : ViewModel() {
         settingsRepository.setShizukuAuthToken(token)
     }
     fun check(context: Context) {
-        appContext = context.applicationContext
-        settingsRepository = SettingsRepository(context)
-        updateRepository = UpdateRepository()
+        val appCtx = context.applicationContext
+        appContext = appCtx
+        if (!::settingsRepository.isInitialized) {
+            settingsRepository = SettingsRepository(appCtx)
+        }
+        if (!::updateRepository.isInitialized) {
+            updateRepository = UpdateRepository()
+        }
 
         val currentLocales = AppCompatDelegate.getApplicationLocales()
         if (!currentLocales.isEmpty) {
@@ -281,11 +291,11 @@ class MainViewModel : ViewModel() {
             appLanguage.value = "en"
         }
 
-        isAccessibilityEnabled.value = PermissionUtils.isAccessibilityServiceEnabled(context)
-        isWriteSecureSettingsEnabled.value = PermissionUtils.canWriteSecureSettings(context)
-        isBubblePermissionGranted.value = PermissionUtils.hasBubblePermission(context)
-        isSensitiveNotificationsGranted.value = PermissionGrantUtil.hasSensitiveNotifications(context)
-        isLocalNetworkGranted.value = PermissionUtils.hasLocalNetworkPermission(context)
+        isAccessibilityEnabled.value = PermissionUtils.isAccessibilityServiceEnabled(appCtx)
+        isWriteSecureSettingsEnabled.value = PermissionUtils.canWriteSecureSettings(appCtx)
+        isBubblePermissionGranted.value = PermissionUtils.hasBubblePermission(appCtx)
+        isSensitiveNotificationsGranted.value = PermissionGrantUtil.hasSensitiveNotifications(appCtx)
+        isLocalNetworkGranted.value = PermissionUtils.hasLocalNetworkPermission(appCtx)
         isShizukuAvailable.value = ShizukuUtils.isShizukuAvailable()
         isShizukuPermissionGranted.value = ShizukuUtils.hasPermission()
         if (cachedUpdateInfo != null) {
@@ -293,7 +303,7 @@ class MainViewModel : ViewModel() {
             updateInfo.value = cachedUpdateInfo
         }
         if (settingsRepository.getBoolean(SettingsRepository.KEY_AUTO_UPDATE_ENABLED, true)) {
-            com.sameerasw.essentials.utils.ServiceUtils.schedulePeriodicAppUpdateCheck(context)
+            com.sameerasw.essentials.utils.ServiceUtils.schedulePeriodicAppUpdateCheck(appCtx)
         }
         isHideGestureBarEnabled.value =
             settingsRepository.getBoolean(SettingsRepository.KEY_HIDE_GESTURE_BAR_ENABLED, false)
@@ -328,69 +338,77 @@ class MainViewModel : ViewModel() {
         pixelSearchbarMusicArtist.value = settingsRepository.getPixelSearchbarMusicArtist()
         pixelSearchbarMusicPackage.value = settingsRepository.getPixelSearchbarMusicPackage()
         if (pixelSearchbarType.value == "music") {
-            updateMediaFromActiveSession(context)
+            updateMediaFromActiveSession(appCtx)
         }
         lockScreenClockId.value = null
         recentSearches.value = settingsRepository.getRecentSearches()
 
-        isReadPhoneStateEnabled.value = PermissionUtils.hasReadPhoneStatePermission(context)
+        isReadPhoneStateEnabled.value = PermissionUtils.hasReadPhoneStatePermission(appCtx)
         isPostNotificationsEnabled.value =
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS,
-            ) == PackageManager.PERMISSION_GRANTED
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ContextCompat.checkSelfPermission(
+                    appCtx,
+                    Manifest.permission.POST_NOTIFICATIONS,
+                ) == PackageManager.PERMISSION_GRANTED
+            } else {
+                NotificationManagerCompat.from(appCtx).areNotificationsEnabled()
+            }
         isNotificationListenerEnabled.value =
-            PermissionUtils.hasNotificationListenerPermission(context)
-        isOverlayPermissionGranted.value = PermissionUtils.canDrawOverlays(context)
-        isDefaultBrowserSet.value = PermissionUtils.isDefaultBrowser(context)
-        isLocationPermissionGranted.value = PermissionUtils.hasLocationPermission(context)
+            PermissionUtils.hasNotificationListenerPermission(appCtx)
+        isOverlayPermissionGranted.value = PermissionUtils.canDrawOverlays(appCtx)
+        isDefaultBrowserSet.value = PermissionUtils.isDefaultBrowser(appCtx)
+        isLocationPermissionGranted.value = PermissionUtils.hasLocationPermission(appCtx)
         isBackgroundLocationPermissionGranted.value =
-            PermissionUtils.hasBackgroundLocationPermission(context)
-        isKeyboardEnabled.value = PermissionUtils.isKeyboardEnabled(context)
-        isKeyboardSelected.value = PermissionUtils.isKeyboardSelected(context)
-        isWriteSettingsEnabled.value = PermissionUtils.canWriteSystemSettings(context)
+            PermissionUtils.hasBackgroundLocationPermission(appCtx)
+        isKeyboardEnabled.value = PermissionUtils.isKeyboardEnabled(appCtx)
+        isKeyboardSelected.value = PermissionUtils.isKeyboardSelected(appCtx)
+        isWriteSettingsEnabled.value = PermissionUtils.canWriteSystemSettings(appCtx)
         isNotificationPolicyAccessGranted.value =
-            PermissionUtils.hasNotificationPolicyAccess(context)
-        isCalendarPermissionGranted.value = PermissionUtils.hasReadCalendarPermission(context)
-        isUsageStatsPermissionGranted.value = PermissionUtils.hasUsageStatsPermission(context)
-        isBluetoothPermissionGranted.value = PermissionUtils.hasBluetoothPermission(context)
-        isStoragePermissionGranted.value = PermissionUtils.hasStoragePermission(context)
+            PermissionUtils.hasNotificationPolicyAccess(appCtx)
+        isCalendarPermissionGranted.value = PermissionUtils.hasReadCalendarPermission(appCtx)
+        isUsageStatsPermissionGranted.value = PermissionUtils.hasUsageStatsPermission(appCtx)
+        isBluetoothPermissionGranted.value = PermissionUtils.hasBluetoothPermission(appCtx)
+        isStoragePermissionGranted.value = PermissionUtils.hasStoragePermission(appCtx)
 
-        context.contentResolver.registerContentObserver(
-            Settings.System.getUriFor(Settings.System.FONT_SCALE),
-            false,
-            contentObserver,
-        )
-        context.contentResolver.registerContentObserver(
-            Settings.Secure.getUriFor("font_weight_adjustment"),
-            false,
-            contentObserver,
-        )
-        context.contentResolver.registerContentObserver(
-            Settings.Global.getUriFor(Settings.Global.ANIMATOR_DURATION_SCALE),
-            false,
-            contentObserver,
-        )
-        context.contentResolver.registerContentObserver(
-            Settings.Global.getUriFor(Settings.Global.TRANSITION_ANIMATION_SCALE),
-            false,
-            contentObserver,
-        )
-        context.contentResolver.registerContentObserver(
-            Settings.Global.getUriFor(Settings.Global.WINDOW_ANIMATION_SCALE),
-            false,
-            contentObserver,
-        )
-        context.contentResolver.registerContentObserver(
-            Settings.Secure.getUriFor("display_density_forced"),
-            false,
-            contentObserver,
-        )
+        if (!isContentObserversRegistered) {
+            val resolver = appCtx.contentResolver
+            resolver.registerContentObserver(
+                Settings.System.getUriFor(Settings.System.FONT_SCALE),
+                false,
+                contentObserver,
+            )
+            resolver.registerContentObserver(
+                Settings.Secure.getUriFor("font_weight_adjustment"),
+                false,
+                contentObserver,
+            )
+            resolver.registerContentObserver(
+                Settings.Global.getUriFor(Settings.Global.ANIMATOR_DURATION_SCALE),
+                false,
+                contentObserver,
+            )
+            resolver.registerContentObserver(
+                Settings.Global.getUriFor(Settings.Global.TRANSITION_ANIMATION_SCALE),
+                false,
+                contentObserver,
+            )
+            resolver.registerContentObserver(
+                Settings.Global.getUriFor(Settings.Global.WINDOW_ANIMATION_SCALE),
+                false,
+                contentObserver,
+            )
+            resolver.registerContentObserver(
+                Settings.Secure.getUriFor("display_density_forced"),
+                false,
+                contentObserver,
+            )
+            isContentObserversRegistered = true
+        }
 
-        isPowerSaveModeEnabled.value = DeviceUtils.isPowerSaveMode(context)
-        updateBlurState(context)
-        updateRippleState(context)
-        refreshHealthConnectStatus(context)
+        isPowerSaveModeEnabled.value = DeviceUtils.isPowerSaveMode(appCtx)
+        updateBlurState(appCtx)
+        updateRippleState(appCtx)
+        refreshHealthConnectStatus(appCtx)
 
         if (powerSaveReceiver == null) {
             powerSaveReceiver =
@@ -408,13 +426,16 @@ class MainViewModel : ViewModel() {
                         }
                     }
                 }
-            context.applicationContext.registerReceiver(
+            appCtx.registerReceiver(
                 powerSaveReceiver,
                 IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
             )
         }
 
-        settingsRepository.registerOnSharedPreferenceChangeListener(preferenceChangeListener)
+        if (!isPreferenceListenerRegistered) {
+            settingsRepository.registerOnSharedPreferenceChangeListener(preferenceChangeListener)
+            isPreferenceListenerRegistered = true
+        }
 
         isStatusBarIconControlEnabled.value =
             settingsRepository.getBoolean(SettingsRepository.KEY_STATUS_BAR_ICON_CONTROL_ENABLED)
@@ -435,9 +456,17 @@ class MainViewModel : ViewModel() {
 
         refreshPrivilegedMode()
 
+        rootCheckJob?.cancel()
         if (isRootEnabled.value) {
-            isRootAvailable.value = RootUtils.isRootAvailable()
-            isRootPermissionGranted.value = RootUtils.isRootPermissionGranted()
+            rootCheckJob =
+                viewModelScope.launch(Dispatchers.IO) {
+                    val available = RootUtils.isRootAvailable()
+                    val granted = RootUtils.isRootPermissionGranted()
+                    withContext(Dispatchers.Main) {
+                        isRootAvailable.value = available
+                        isRootPermissionGranted.value = granted
+                    }
+                }
         } else {
             isRootAvailable.value = false
             isRootPermissionGranted.value = false
@@ -578,15 +607,20 @@ class MainViewModel : ViewModel() {
         context: Context,
     ) {
         isPreReleaseCheckEnabled.value = enabled
-        settingsRepository.putBooleanSync(SettingsRepository.KEY_CHECK_PRE_RELEASES_ENABLED, enabled)
         // Enabling pre-releases automatically enables Developer Mode; disabling turns it off
         isDeveloperModeEnabled.value = enabled
-        settingsRepository.putBooleanSync(SettingsRepository.KEY_DEVELOPER_MODE_ENABLED, enabled)
         // Clear cached update state so the next check immediately queries the selected channel
         cachedIsUpdateAvailable = false
         cachedUpdateInfo = null
         lastUpdateCheckTime = 0L
-        settingsRepository.putLong(SettingsRepository.KEY_LAST_UPDATE_CHECK_TIME, 0L)
+        // Commit all three synchronously so values persist before SettingsActivity calls exit(0)
+        context.applicationContext
+            .getSharedPreferences(SettingsRepository.PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(SettingsRepository.KEY_CHECK_PRE_RELEASES_ENABLED, enabled)
+            .putBoolean(SettingsRepository.KEY_DEVELOPER_MODE_ENABLED, enabled)
+            .putLong(SettingsRepository.KEY_LAST_UPDATE_CHECK_TIME, 0L)
+            .commit()
     }
     fun setDeveloperModeEnabled(
         enabled: Boolean,
@@ -946,6 +980,7 @@ class MainViewModel : ViewModel() {
     fun setPixelSearchTypoToleranceEnabled(enabled: Boolean) {
         pixelSearchTypoTolerance.value = enabled
         settingsRepository.setPixelSearchTypoToleranceEnabled(enabled)
+        com.sameerasw.essentials.utils.FuzzySearchUtil.setTypoToleranceEnabled(enabled)
     }
     fun setPixelSearchMaxResults(limit: Int) {
         val safe = limit.coerceIn(0, 50)
@@ -969,64 +1004,73 @@ class MainViewModel : ViewModel() {
         updatePixelSearchbarWidget(context)
     }
     fun updateMediaFromActiveSession(context: Context) {
-        try {
-            val manager =
-                context.getSystemService(Context.MEDIA_SESSION_SERVICE) as? android.media.session.MediaSessionManager
-                    ?: return
-            val componentName =
-                android.content.ComponentName(
-                    context,
-                    "com.sameerasw.essentials.services.NotificationListener",
-                )
-            val sessions = manager.getActiveSessions(componentName)
-            val activeSession =
-                sessions
-                    .sortedWith(
-                        compareByDescending<android.media.session.MediaController> {
-                            val state = it.playbackState?.state
-                            state == android.media.session.PlaybackState.STATE_PLAYING ||
-                                state == android.media.session.PlaybackState.STATE_BUFFERING
-                        }.thenByDescending {
-                            val state = it.playbackState?.state
-                            state == android.media.session.PlaybackState.STATE_PAUSED
-                        },
-                    ).firstOrNull()
+        val appCtx = context.applicationContext
+        mediaSessionJob?.cancel()
+        mediaSessionJob =
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    val manager =
+                        appCtx.getSystemService(Context.MEDIA_SESSION_SERVICE) as? android.media.session.MediaSessionManager
+                            ?: return@launch
+                    val componentName =
+                        android.content.ComponentName(
+                            appCtx,
+                            "com.sameerasw.essentials.services.NotificationListener",
+                        )
+                    val sessions = manager.getActiveSessions(componentName)
+                    val activeSession =
+                        sessions
+                            .sortedWith(
+                                compareByDescending<android.media.session.MediaController> {
+                                    val state = it.playbackState?.state
+                                    state == android.media.session.PlaybackState.STATE_PLAYING ||
+                                        state == android.media.session.PlaybackState.STATE_BUFFERING
+                                }.thenByDescending {
+                                    val state = it.playbackState?.state
+                                    state == android.media.session.PlaybackState.STATE_PAUSED
+                                },
+                            ).firstOrNull()
 
-            if (activeSession != null) {
-                val metadata = activeSession.metadata
-                val title =
-                    metadata?.getString(android.media.MediaMetadata.METADATA_KEY_TITLE) ?: ""
-                val artist =
-                    metadata?.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST) ?: ""
-                val packageName = activeSession.packageName
+                    if (activeSession != null) {
+                        val metadata = activeSession.metadata
+                        val title =
+                            metadata?.getString(android.media.MediaMetadata.METADATA_KEY_TITLE) ?: ""
+                        val artist =
+                            metadata?.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST) ?: ""
+                        val packageName = activeSession.packageName
 
-                val artwork =
-                    metadata?.getBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART)
-                        ?: metadata?.getBitmap(android.media.MediaMetadata.METADATA_KEY_ART)
-                        ?: metadata?.getBitmap(android.media.MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+                        val artwork =
+                            metadata?.getBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART)
+                                ?: metadata?.getBitmap(android.media.MediaMetadata.METADATA_KEY_ART)
+                                ?: metadata?.getBitmap(android.media.MediaMetadata.METADATA_KEY_DISPLAY_ICON)
 
-                val filesDirFile = File(context.filesDir, "music_artwork.png")
-                if (artwork != null) {
-                    try {
-                        FileOutputStream(filesDirFile).use { out ->
-                            artwork.compress(Bitmap.CompressFormat.PNG, 100, out)
+                        val filesDirFile = File(appCtx.filesDir, "music_artwork.png")
+                        if (artwork != null) {
+                            try {
+                                FileOutputStream(filesDirFile).use { out ->
+                                    artwork.compress(Bitmap.CompressFormat.PNG, 100, out)
+                                }
+                            } catch (_: Exception) {
+                            }
+                        } else {
+                            if (filesDirFile.exists()) filesDirFile.delete()
                         }
-                    } catch (_: Exception) {
-                    }
-                } else {
-                    if (filesDirFile.exists()) filesDirFile.delete()
-                }
 
-                pixelSearchbarMusicTitle.value = title
-                pixelSearchbarMusicArtist.value = artist
-                pixelSearchbarMusicPackage.value = packageName
-                settingsRepository.setPixelSearchbarMusicTitle(title)
-                settingsRepository.setPixelSearchbarMusicArtist(artist)
-                settingsRepository.setPixelSearchbarMusicPackage(packageName)
-                settingsRepository.incrementPixelSearchbarWidgetRevision()
+                        if (::settingsRepository.isInitialized) {
+                            settingsRepository.setPixelSearchbarMusicTitle(title)
+                            settingsRepository.setPixelSearchbarMusicArtist(artist)
+                            settingsRepository.setPixelSearchbarMusicPackage(packageName)
+                            settingsRepository.incrementPixelSearchbarWidgetRevision()
+                        }
+                        withContext(Dispatchers.Main) {
+                            pixelSearchbarMusicTitle.value = title
+                            pixelSearchbarMusicArtist.value = artist
+                            pixelSearchbarMusicPackage.value = packageName
+                        }
+                    }
+                } catch (_: Exception) {
+                }
             }
-        } catch (_: Exception) {
-        }
     }
     fun updatePixelSearchbarWidget(context: Context) {
         // Widget support removed in search-core build
@@ -1153,19 +1197,25 @@ class MainViewModel : ViewModel() {
         isFaceUnlockBrightnessEnabled.value = enabled
     }
     override fun onCleared() {
-        super.onCleared()
+        rootCheckJob?.cancel()
+        mediaSessionJob?.cancel()
         appContext?.let { context ->
-            try {
-                context.contentResolver.unregisterContentObserver(contentObserver)
-            } catch (_: Exception) {
+            if (isContentObserversRegistered) {
+                try {
+                    context.contentResolver.unregisterContentObserver(contentObserver)
+                } catch (_: Exception) {
+                }
+                isContentObserversRegistered = false
             }
             try {
                 powerSaveReceiver?.let { context.unregisterReceiver(it) }
             } catch (_: Exception) {
             }
+            powerSaveReceiver = null
         }
-        if (::settingsRepository.isInitialized) {
+        if (isPreferenceListenerRegistered && ::settingsRepository.isInitialized) {
             settingsRepository.unregisterOnSharedPreferenceChangeListener(preferenceChangeListener)
+            isPreferenceListenerRegistered = false
         }
     }
     fun setOnboardingCompleted(

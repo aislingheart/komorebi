@@ -9,6 +9,8 @@
 
 package com.sameerasw.essentials.assistant.tools
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -44,6 +46,7 @@ object ChatReplyTool {
             description = "Send a reply to the newest repliable notification, optionally filtered by app",
             keywords = listOf("reply", "reply to last", "answer message", "respond", "reply notification"),
             parametersJson = REPLY_LAST_SCHEMA,
+            requiresConfirmation = true,
             execute = { context, args -> replyLast(context, args) },
         ),
         AssistantTool(
@@ -79,13 +82,13 @@ object ChatReplyTool {
         val candidates = ActiveNotificationStore.all().let { items ->
             if (app.isBlank()) items else items.filter { matchesApp(it, app) }
         }
-        val item = candidates.firstOrNull { hasReplyAction(it) } ?: candidates.firstOrNull()
+        val item = candidates.firstOrNull { hasReplyAction(it) }
             ?: return ToolResult(
                 false,
                 if (app.isBlank()) {
-                    "No active notification is available to reply to."
+                    "No repliable notification is available right now."
                 } else {
-                    "No active notification from '$app' is available to reply to."
+                    "No repliable notification from '$app' is available right now."
                 },
             )
         val sent = ActiveNotificationStore.reply(context, item.key, message)
@@ -115,6 +118,7 @@ object ChatReplyTool {
         }
 
         val phone = phoneDigits(contact)
+        var copiedForPaste = false
         val intent = when (app) {
             "whatsapp" -> {
                 if (phone != null) {
@@ -127,7 +131,7 @@ object ChatReplyTool {
             "telegram" -> {
                 val handle = contact.removePrefix("@").trim()
                 if (handle.isNotEmpty() && !WHITESPACE_REGEX.containsMatchIn(handle)) {
-                    viewIntent("https://t.me/${Uri.encode(handle)}")
+                    viewIntent("https://t.me/${Uri.encode(handle)}?text=${Uri.encode(message)}")
                 } else {
                     sendIntent("org.telegram.messenger", message)
                 }
@@ -135,6 +139,7 @@ object ChatReplyTool {
 
             "signal" -> {
                 if (phone != null) {
+                    copiedForPaste = copyToClipboard(context, "Signal message", message)
                     viewIntent("https://signal.me/#p/+$phone")
                 } else {
                     sendIntent("org.thoughtcrime.securesms", message)
@@ -150,13 +155,26 @@ object ChatReplyTool {
         }
 
         val appDisplayName = app.replaceFirstChar { it.uppercase(Locale.US) }
+        val successMessage = if (copiedForPaste) {
+            "Opened $appDisplayName for $contact. Your message was copied to the clipboard so you can paste and send it."
+        } else {
+            "Opened $appDisplayName for $contact."
+        }
         return launchOrShare(
             context = context,
             intent = intent,
             message = message,
-            successMessage = "Opened $appDisplayName for $contact.",
+            successMessage = successMessage,
         )
     }
+
+    private fun copyToClipboard(context: Context, label: String, text: String): Boolean =
+        runCatching {
+            val clipboard = context.applicationContext.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                ?: return@runCatching false
+            clipboard.setPrimaryClip(ClipData.newPlainText(label, text))
+            true
+        }.getOrDefault(false)
 
     private fun listChatNotifications(context: Context): ToolResult {
         if (!ActiveNotificationStore.hasAccess(context)) {

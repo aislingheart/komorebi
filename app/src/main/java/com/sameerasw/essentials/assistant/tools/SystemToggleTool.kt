@@ -20,6 +20,8 @@ import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.net.wifi.WifiManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
 import android.telephony.TelephonyManager
@@ -29,12 +31,20 @@ import com.sameerasw.essentials.domain.controller.HotspotController
 import com.sameerasw.essentials.utils.DeviceUtils
 import com.sameerasw.essentials.utils.ShizukuUtils
 import com.sameerasw.essentials.utils.ShellUtils
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 object SystemToggleTool {
     private const val STATE_SCHEMA =
         """{"type":"object","properties":{"state":{"type":"string","enum":["on","off","toggle"],"description":"Desired state; omit or use toggle to flip the current state"}}}"""
+
+    private const val SHELL_TIMEOUT_SECONDS = 5L
+    private const val TORCH_CALLBACK_TIMEOUT_MS = 250L
 
     fun tools(): List<AssistantTool> = listOf(
         AssistantTool(
@@ -127,12 +137,16 @@ object SystemToggleTool {
         ),
     )
 
-    private fun setWifi(context: Context, args: Map<String, String>): ToolResult {
+    private suspend fun setWifi(context: Context, args: Map<String, String>): ToolResult {
         val desired = resolveDesiredState(wifiEnabled(context), args)
             ?: return ToolResult(false, "Current Wi-Fi state is unknown. Pass state=on or state=off.")
         if (shellReady(context)) {
-            ShellUtils.runCommand(context, "svc wifi ${if (desired) "enable" else "disable"}")
-            return ToolResult(true, "Wi-Fi ${onOff(desired)} requested", desired.toString())
+            val ok = executeShellCommand(context, "svc wifi ${if (desired) "enable" else "disable"}")
+            return if (ok) {
+                ToolResult(true, "Wi-Fi ${onOff(desired)} requested", desired.toString())
+            } else {
+                ToolResult(false, "Failed to turn Wi-Fi ${onOff(desired)} via Shizuku/root.")
+            }
         }
         val manager = context.getSystemService(Context.WIFI_SERVICE) as? WifiManager
             ?: return ToolResult(false, "Wi-Fi service unavailable.")
@@ -154,19 +168,33 @@ object SystemToggleTool {
         }
     }
 
-    private fun setBluetooth(context: Context, args: Map<String, String>): ToolResult {
+    private suspend fun setBluetooth(context: Context, args: Map<String, String>): ToolResult {
         val desired = resolveDesiredState(bluetoothEnabled(), args)
             ?: return ToolResult(false, "Current Bluetooth state is unknown. Pass state=on or state=off.")
         if (shellReady(context)) {
-            ShellUtils.runCommand(context, "svc bluetooth ${if (desired) "enable" else "disable"}")
-            return ToolResult(true, "Bluetooth ${onOff(desired)} requested", desired.toString())
+            val ok = executeShellCommand(context, "svc bluetooth ${if (desired) "enable" else "disable"}")
+            return if (ok) {
+                ToolResult(true, "Bluetooth ${onOff(desired)} requested", desired.toString())
+            } else {
+                ToolResult(false, "Failed to turn Bluetooth ${onOff(desired)} via Shizuku/root.")
+            }
         }
         val adapter = BluetoothAdapter.getDefaultAdapter()
             ?: return ToolResult(false, "Bluetooth is not available on this device.")
-        val allowed = ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) ==
-            PackageManager.PERMISSION_GRANTED
+        val allowed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) ==
+                PackageManager.PERMISSION_GRANTED
+        } else {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_ADMIN) ==
+                PackageManager.PERMISSION_GRANTED
+        }
         if (!allowed) {
-            return ToolResult(false, "Bluetooth ${onOff(desired)} needs Shizuku/root or the BLUETOOTH_CONNECT permission.")
+            val permName = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                "BLUETOOTH_CONNECT"
+            } else {
+                "BLUETOOTH_ADMIN"
+            }
+            return ToolResult(false, "Bluetooth ${onOff(desired)} needs Shizuku/root or the $permName permission.")
         }
         val changed = try {
             @Suppress("DEPRECATION")
@@ -181,17 +209,21 @@ object SystemToggleTool {
         }
     }
 
-    private fun setMobileData(context: Context, args: Map<String, String>): ToolResult {
+    private suspend fun setMobileData(context: Context, args: Map<String, String>): ToolResult {
         val desired = resolveDesiredState(mobileDataEnabled(context), args)
             ?: return ToolResult(false, "Current mobile data state is unknown. Pass state=on or state=off.")
         if (shellReady(context)) {
-            ShellUtils.runCommand(context, "svc data ${if (desired) "enable" else "disable"}")
-            return ToolResult(true, "Mobile data ${onOff(desired)} requested", desired.toString())
+            val ok = executeShellCommand(context, "svc data ${if (desired) "enable" else "disable"}")
+            return if (ok) {
+                ToolResult(true, "Mobile data ${onOff(desired)} requested", desired.toString())
+            } else {
+                ToolResult(false, "Failed to turn mobile data ${onOff(desired)} via Shizuku/root.")
+            }
         }
         return ToolResult(false, "Mobile data ${onOff(desired)} needs Shizuku/root.")
     }
 
-    private fun setAirplaneMode(context: Context, args: Map<String, String>): ToolResult {
+    private suspend fun setAirplaneMode(context: Context, args: Map<String, String>): ToolResult {
         val desired = resolveDesiredState(airplaneModeEnabled(context), args)
             ?: return ToolResult(false, "Current Airplane Mode state is unknown. Pass state=on or state=off.")
         if (!shellReady(context)) {
@@ -203,8 +235,12 @@ object SystemToggleTool {
             "cmd connectivity airplane-mode $verb 2>/dev/null || " +
                 "(settings put global airplane_mode_on ${if (desired) 1 else 0} && " +
                 "am broadcast -a android.intent.action.AIRPLANE_MODE --ez state $value)"
-        ShellUtils.runCommand(context, command)
-        return ToolResult(true, "Airplane Mode ${onOff(desired)} requested", desired.toString())
+        val ok = executeShellCommand(context, command)
+        return if (ok) {
+            ToolResult(true, "Airplane Mode ${onOff(desired)} requested", desired.toString())
+        } else {
+            ToolResult(false, "Failed to turn Airplane Mode ${onOff(desired)} via Shizuku/root.")
+        }
     }
 
     private fun setHotspot(context: Context, args: Map<String, String>): ToolResult {
@@ -224,12 +260,19 @@ object SystemToggleTool {
         }
     }
 
-    private fun setFlashlight(context: Context, args: Map<String, String>): ToolResult {
+    private suspend fun setFlashlight(context: Context, args: Map<String, String>): ToolResult {
         val manager = context.getSystemService(Context.CAMERA_SERVICE) as? CameraManager
             ?: return ToolResult(false, "Camera service unavailable.")
         registerTorchCallback(manager)
-        val desired = resolveDesiredState(TorchState.enabled, args)
-            ?: return ToolResult(false, "Current flashlight state is unknown. Pass state=on or state=off.")
+        val explicit = requestedState(args)
+        val current = if (explicit == null) {
+            TorchState.enabled
+                ?: withTimeoutOrNull(TORCH_CALLBACK_TIMEOUT_MS) { TorchState.initialState.await() }
+                ?: false
+        } else {
+            TorchState.enabled
+        }
+        val desired = explicit ?: !requireNotNull(current)
         return try {
             val cameraId = torchCameraId(manager)
                 ?: return ToolResult(false, "No camera flash found.")
@@ -241,7 +284,7 @@ object SystemToggleTool {
         }
     }
 
-    private fun setAutoRotate(context: Context, args: Map<String, String>): ToolResult {
+    private suspend fun setAutoRotate(context: Context, args: Map<String, String>): ToolResult {
         val current = try {
             Settings.System.getInt(context.contentResolver, Settings.System.ACCELEROMETER_ROTATION, 0) == 1
         } catch (_: Exception) {
@@ -262,21 +305,29 @@ object SystemToggleTool {
             if (written) return ToolResult(true, "Auto-rotate ${onOff(desired)}", desired.toString())
         }
         if (shellReady(context)) {
-            ShellUtils.runCommand(
+            val ok = executeShellCommand(
                 context,
                 "settings put system accelerometer_rotation ${if (desired) 1 else 0}",
             )
-            return ToolResult(true, "Auto-rotate ${onOff(desired)} requested", desired.toString())
+            return if (ok) {
+                ToolResult(true, "Auto-rotate ${onOff(desired)} requested", desired.toString())
+            } else {
+                ToolResult(false, "Failed to turn auto-rotate ${onOff(desired)} via Shizuku/root.")
+            }
         }
         return ToolResult(false, "Auto-rotate ${onOff(desired)} needs WRITE_SETTINGS or Shizuku/root.")
     }
 
-    private fun setBatterySaver(context: Context, args: Map<String, String>): ToolResult {
+    private suspend fun setBatterySaver(context: Context, args: Map<String, String>): ToolResult {
         val desired = resolveDesiredState(DeviceUtils.isPowerSaveMode(context), args)
             ?: return ToolResult(false, "Current battery saver state is unknown. Pass state=on or state=off.")
         if (shellReady(context)) {
-            ShellUtils.runCommand(context, "cmd power set-mode ${if (desired) 1 else 0}")
-            return ToolResult(true, "Battery saver ${onOff(desired)} requested", desired.toString())
+            val ok = executeShellCommand(context, "cmd power set-mode ${if (desired) 1 else 0}")
+            return if (ok) {
+                ToolResult(true, "Battery saver ${onOff(desired)} requested", desired.toString())
+            } else {
+                ToolResult(false, "Failed to turn battery saver ${onOff(desired)} via Shizuku/root.")
+            }
         }
         val changed = try {
             android.provider.Settings.Global.putInt(
@@ -294,20 +345,24 @@ object SystemToggleTool {
         }
     }
 
-    private fun setDarkMode(context: Context, args: Map<String, String>): ToolResult {
+    private suspend fun setDarkMode(context: Context, args: Map<String, String>): ToolResult {
         val current =
             (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
                 Configuration.UI_MODE_NIGHT_YES
         val desired = resolveDesiredState(current, args)
             ?: return ToolResult(false, "Current dark mode state is unknown. Pass state=on or state=off.")
         if (shellReady(context)) {
-            ShellUtils.runCommand(context, "cmd uimode night ${if (desired) "yes" else "no"}")
-            return ToolResult(true, "Dark mode ${onOff(desired)} requested", desired.toString())
+            val ok = executeShellCommand(context, "cmd uimode night ${if (desired) "yes" else "no"}")
+            return if (ok) {
+                ToolResult(true, "Dark mode ${onOff(desired)} requested", desired.toString())
+            } else {
+                ToolResult(false, "Failed to turn dark mode ${onOff(desired)} via Shizuku/root.")
+            }
         }
         return ToolResult(false, "Dark mode ${onOff(desired)} needs Shizuku/root.")
     }
 
-    private fun setDnd(context: Context, args: Map<String, String>): ToolResult {
+    private suspend fun setDnd(context: Context, args: Map<String, String>): ToolResult {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
             ?: return ToolResult(false, "Notification service unavailable.")
         val current = try {
@@ -332,8 +387,12 @@ object SystemToggleTool {
             }
         }
         if (shellReady(context)) {
-            ShellUtils.runCommand(context, "cmd notification set_dnd ${if (desired) "on" else "off"}")
-            return ToolResult(true, "Do Not Disturb ${onOff(desired)} requested", desired.toString())
+            val ok = executeShellCommand(context, "cmd notification set_dnd ${if (desired) "on" else "off"}")
+            return if (ok) {
+                ToolResult(true, "Do Not Disturb ${onOff(desired)} requested", desired.toString())
+            } else {
+                ToolResult(false, "Failed to turn Do Not Disturb ${onOff(desired)} via Shizuku/root.")
+            }
         }
         return ToolResult(false, "Do Not Disturb needs notification policy access or Shizuku/root.")
     }
@@ -413,22 +472,29 @@ object SystemToggleTool {
 
     private fun registerTorchCallback(manager: CameraManager) {
         if (TorchState.callbackRegistered) return
-        TorchState.callbackRegistered = true
-        val targetCameraId = runCatching { torchCameraId(manager) }.getOrNull()
-        runCatching {
-            manager.registerTorchCallback(
-                object : CameraManager.TorchCallback() {
-                    override fun onTorchModeChanged(
-                        cameraId: String,
-                        enabled: Boolean,
-                    ) {
-                        if (targetCameraId == null || cameraId == targetCameraId) {
-                            TorchState.enabled = enabled
+        synchronized(TorchState) {
+            if (TorchState.callbackRegistered) return
+            val targetCameraId = runCatching { torchCameraId(manager) }.getOrNull()
+            TorchState.initialState = CompletableDeferred()
+            runCatching {
+                manager.registerTorchCallback(
+                    object : CameraManager.TorchCallback() {
+                        override fun onTorchModeChanged(
+                            cameraId: String,
+                            enabled: Boolean,
+                        ) {
+                            if (targetCameraId == null || cameraId == targetCameraId) {
+                                TorchState.enabled = enabled
+                                if (!TorchState.initialState.isCompleted) {
+                                    TorchState.initialState.complete(enabled)
+                                }
+                            }
                         }
-                    }
-                },
-                null,
-            )
+                    },
+                    Handler(Looper.getMainLooper()),
+                )
+                TorchState.callbackRegistered = true
+            }
         }
     }
 
@@ -464,13 +530,40 @@ object SystemToggleTool {
     private fun shellReady(context: Context): Boolean =
         ShellUtils.isAvailable(context) && ShellUtils.hasPermission(context)
 
+    private suspend fun executeShellCommand(context: Context, command: String): Boolean =
+        withContext(Dispatchers.IO) {
+            var process: Process? = null
+            try {
+                process = ShellUtils.newProcess(
+                    context = context,
+                    command = arrayOf("sh", "-c", command),
+                    notifyOnError = false,
+                ) ?: return@withContext false
+                runCatching { process.inputStream.bufferedReader().use { it.readText() } }
+                runCatching { process.errorStream.bufferedReader().use { it.readText() } }
+                val finished = process.waitFor(SHELL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                if (!finished) {
+                    process.destroy()
+                    return@withContext false
+                }
+                process.exitValue() == 0
+            } catch (_: Exception) {
+                false
+            } finally {
+                runCatching { process?.destroy() }
+            }
+        }
+
     private fun onOff(enabled: Boolean): String = if (enabled) "on" else "off"
 
     private object TorchState {
         @Volatile
-        var enabled: Boolean = false
+        var enabled: Boolean? = null
 
         @Volatile
         var callbackRegistered: Boolean = false
+
+        @Volatile
+        var initialState: CompletableDeferred<Boolean> = CompletableDeferred()
     }
 }

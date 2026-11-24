@@ -65,31 +65,35 @@ object PhotoSemanticEngine {
             MediaStore.Images.Media.DATE_TAKEN,
         )
         val pending = mutableListOf<PhotoResultItem>()
-        context.contentResolver.query(
-            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-            projection,
-            null,
-            null,
-            "${MediaStore.Images.Media.DATE_MODIFIED} DESC",
-        )?.use { cursor ->
-            val idIdx = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
-            val nameIdx = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
-            val bucketIdx = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.BUCKET_DISPLAY_NAME)
-            val dateIdx = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_TAKEN)
-            while (cursor.moveToNext() && pending.size < maxToIndex) {
-                val id = cursor.getLong(idIdx)
-                if (existingIds.contains(id)) continue
-                val uri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
-                pending.add(
-                    PhotoResultItem(
-                        id = id,
-                        contentUri = uri.toString(),
-                        displayName = cursor.getString(nameIdx) ?: "Photo",
-                        bucketName = cursor.getString(bucketIdx) ?: "",
-                        dateTaken = cursor.getLong(dateIdx),
-                    ),
-                )
+        try {
+            context.contentResolver.query(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                null,
+                null,
+                "${MediaStore.Images.Media.DATE_MODIFIED} DESC",
+            )?.use { cursor ->
+                val idIdx = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+                val nameIdx = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
+                val bucketIdx = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.BUCKET_DISPLAY_NAME)
+                val dateIdx = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_TAKEN)
+                while (cursor.moveToNext() && pending.size < maxToIndex) {
+                    val id = cursor.getLong(idIdx)
+                    if (existingIds.contains(id)) continue
+                    val uri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
+                    pending.add(
+                        PhotoResultItem(
+                            id = id,
+                            contentUri = uri.toString(),
+                            displayName = cursor.getString(nameIdx) ?: "Photo",
+                            bucketName = cursor.getString(bucketIdx) ?: "",
+                            dateTaken = cursor.getLong(dateIdx),
+                        ),
+                    )
+                }
             }
+        } catch (_: SecurityException) {
+            return@withContext 0
         }
 
         if (pending.isEmpty()) return@withContext 0
@@ -101,10 +105,16 @@ object PhotoSemanticEngine {
             for (item in pending) {
                 val uri = Uri.parse(item.contentUri)
                 val bitmap = decodeSampledBitmap(context, uri, 256)
-                val ocr = if (bitmap != null) runOcr(recognizer, bitmap) else ""
-                val visualTags = if (bitmap != null) deriveVisualTags(bitmap, item, ocr) else emptyList()
-                val vec = computePhotoVector(bitmap, item, ocr, visualTags)
-                bitmap?.recycle()
+                val ocr: String
+                val visualTags: List<String>
+                val vec: FloatArray
+                try {
+                    ocr = if (bitmap != null) runOcr(recognizer, bitmap) else ""
+                    visualTags = if (bitmap != null) deriveVisualTags(bitmap, item, ocr) else emptyList()
+                    vec = computePhotoVector(bitmap, item, ocr, visualTags)
+                } finally {
+                    bitmap?.recycle()
+                }
 
                 entities.add(
                     PhotoIndexEntity(
@@ -156,11 +166,15 @@ object PhotoSemanticEngine {
         indexed.mapNotNull { entity ->
             val vec = entity.toFloatArray()
             val cos = cosineSimilarity(queryVec, vec)
-            val hay = "${entity.displayName} ${entity.bucketName} ${entity.ocrText} ${entity.sceneTags}".lowercase()
+            val ocrLower = entity.ocrText.lowercase()
+            val tagsLower = entity.sceneTags.lowercase()
+            val nameLower = entity.displayName.lowercase()
+            val bucketLower = entity.bucketName.lowercase()
+            val hay = "$nameLower $bucketLower $ocrLower $tagsLower"
             var lexicalBoost = 0f
             for (t in terms) {
-                if (entity.ocrText.lowercase().contains(t)) lexicalBoost += 0.55f
-                else if (entity.sceneTags.lowercase().contains(t)) lexicalBoost += 0.40f
+                if (ocrLower.contains(t)) lexicalBoost += 0.55f
+                else if (tagsLower.contains(t)) lexicalBoost += 0.40f
                 else if (hay.contains(t)) lexicalBoost += 0.30f
             }
             val score = cos + lexicalBoost
@@ -190,6 +204,9 @@ object PhotoSemanticEngine {
                 if (cont.isActive) cont.resume(visionText.text.take(600))
             }
             .addOnFailureListener {
+                if (cont.isActive) cont.resume("")
+            }
+            .addOnCanceledListener {
                 if (cont.isActive) cont.resume("")
             }
     }

@@ -37,13 +37,15 @@ object AssistantTts {
     @Volatile private var engine: TextToSpeech? = null
     @Volatile private var ready = false
     @Volatile private var pending: Pair<String, VoicePreset>? = null
+    @Volatile private var retryingAfterError = false
 
     fun speak(context: Context, text: String, presetId: String) {
         val clean = text.trim()
         if (clean.isEmpty()) return
         val preset = presetFor(presetId)
+        val appContext = context.applicationContext
         val readyEngine: TextToSpeech? = synchronized(this) {
-            val current = ensureEngineLocked(context.applicationContext)
+            val current = ensureEngineLocked(appContext)
             if (current == null || !ready) {
                 pending = clean to preset
                 null
@@ -52,8 +54,25 @@ object AssistantTts {
             }
         }
         if (readyEngine != null) {
-            applyPreset(readyEngine, preset)
-            readyEngine.speak(clean.take(4000), TextToSpeech.QUEUE_FLUSH, null, "komorebi-tts")
+            val status = runCatching {
+                applyPreset(readyEngine, preset)
+                readyEngine.speak(clean.take(4000), TextToSpeech.QUEUE_FLUSH, null, "komorebi-tts")
+            }.getOrDefault(TextToSpeech.ERROR)
+            if (status != TextToSpeech.ERROR) {
+                retryingAfterError = false
+                return
+            }
+            Log.w(TAG, "TTS speak returned ERROR; resetting engine for retry")
+            synchronized(this) {
+                if (retryingAfterError) {
+                    retryingAfterError = false
+                    return
+                }
+                retryingAfterError = true
+                resetEngineLocked()
+                pending = clean to preset
+                ensureEngineLocked(appContext)
+            }
         }
     }
 
@@ -66,8 +85,25 @@ object AssistantTts {
             .onFailure { Log.w(TAG, "Could not stop TTS", it) }
     }
 
+    fun shutdown() {
+        synchronized(this) {
+            pending = null
+            retryingAfterError = false
+            resetEngineLocked()
+        }
+    }
+
     fun preview(context: Context, presetId: String) {
         speak(context, "Hi, I'm Komorebi. Voice output is ready.", presetId)
+    }
+
+    private fun resetEngineLocked() {
+        val old = engine
+        engine = null
+        ready = false
+        runCatching { old?.stop() }
+        runCatching { old?.shutdown() }
+            .onFailure { Log.w(TAG, "Could not shut down TTS", it) }
     }
 
     private fun ensureEngineLocked(context: Context): TextToSpeech? {
@@ -83,21 +119,23 @@ object AssistantTts {
                         tts.setLanguage(Locale.US)
                     }
                     ready = true
+                    retryingAfterError = false
                     val queued = pending
                     pending = null
                     if (queued != null) {
                         toSpeak = Triple(tts, queued.first, queued.second)
                     }
                 } else {
-                    ready = false
                     pending = null
-                    runCatching { tts?.shutdown() }
-                    engine = null
+                    retryingAfterError = false
+                    resetEngineLocked()
                 }
             }
             toSpeak?.let { (tts, message, preset) ->
-                applyPreset(tts, preset)
-                tts.speak(message.take(4000), TextToSpeech.QUEUE_FLUSH, null, "komorebi-tts")
+                runCatching {
+                    applyPreset(tts, preset)
+                    tts.speak(message.take(4000), TextToSpeech.QUEUE_FLUSH, null, "komorebi-tts")
+                }.onFailure { Log.w(TAG, "Could not speak queued TTS message", it) }
             }
         }
         engine = created

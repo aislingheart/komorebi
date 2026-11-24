@@ -120,6 +120,7 @@ object AutoBackupManager {
     }
 
     private fun listDownloads(context: Context): List<BackupEntry> {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return listLegacy()
         val result = mutableListOf<BackupEntry>()
         context.contentResolver
             .query(

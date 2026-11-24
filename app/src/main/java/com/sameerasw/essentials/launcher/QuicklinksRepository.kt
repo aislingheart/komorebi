@@ -1,8 +1,10 @@
 package com.sameerasw.essentials.launcher
 
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.core.content.ContextCompat
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.net.URLEncoder
@@ -192,7 +194,7 @@ object QuicklinksRepository {
         )
     }
 
-    fun resolveUrl(template: String, argument: String): String {
+    fun resolveUrl(template: String, argument: String, context: Context? = null): String {
         val cleanTemplate = template.trim()
         val cleanArg = argument.trim()
         val encoded = URLEncoder.encode(cleanArg, "UTF-8")
@@ -200,6 +202,12 @@ object QuicklinksRepository {
             .replace("{query}", encoded, ignoreCase = true)
             .replace("{argument}", encoded, ignoreCase = true)
             .replace("{raw}", cleanArg, ignoreCase = true)
+
+        if (resolved.contains("{clipboard}", ignoreCase = true)) {
+            val clipText = context?.let { readClipboardText(it) }.orEmpty()
+            val encodedClip = URLEncoder.encode(clipText, "UTF-8")
+            resolved = resolved.replace("{clipboard}", encodedClip, ignoreCase = true)
+        }
 
         if (!resolved.startsWith("http://", ignoreCase = true) &&
             !resolved.startsWith("https://", ignoreCase = true) &&
@@ -212,13 +220,23 @@ object QuicklinksRepository {
 
     fun launch(context: Context, link: Quicklink, argument: String = ""): Boolean {
         return runCatching {
-            val url = resolveUrl(link.urlTemplate, argument)
+            val url = resolveUrl(link.urlTemplate, argument, context)
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
             true
         }.getOrDefault(false)
+    }
+
+    private fun readClipboardText(context: Context): String {
+        val appContext = context.applicationContext
+        val cm = ContextCompat.getSystemService(appContext, ClipboardManager::class.java) ?: return ""
+        val clip = runCatching { cm.primaryClip }.getOrNull() ?: return ""
+        if (clip.itemCount <= 0) return ""
+        return runCatching {
+            clip.getItemAt(0)?.coerceToText(appContext)?.toString()?.trim().orEmpty()
+        }.getOrDefault("")
     }
 
     private fun persist(context: Context, list: List<Quicklink>) {

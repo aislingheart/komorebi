@@ -167,7 +167,7 @@ object BuiltInLauncherTools {
             closesSearch = true,
             onExecute = { ctx ->
                 val pw = generateStrongPassword(20)
-                copyAndToast(ctx, "Generated Password", pw, "Copied 20-char strong password")
+                copyAndToast(ctx, "Generated Password", pw, "Copied 20-char strong password", sensitive = true)
             },
         ),
         BuiltInLauncherAction(
@@ -433,11 +433,26 @@ object BuiltInLauncherTools {
                 .thenBy { it.first.title.lowercase(Locale.US) },
         )
 
-    private fun copyAndToast(context: Context, label: String, value: String, message: String) {
+    private fun copyAndToast(
+        context: Context,
+        label: String,
+        value: String,
+        message: String,
+        sensitive: Boolean = false,
+    ) {
         val appContext = context.applicationContext
         val cm = ContextCompat.getSystemService(appContext, ClipboardManager::class.java)
-        cm?.setPrimaryClip(ClipData.newPlainText(label, value))
-        ClipboardHistoryManager.recordCopiedText(appContext, value)
+        val clip = ClipData.newPlainText(label, value).apply {
+            if (sensitive && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                description.extras = android.os.PersistableBundle().apply {
+                    putBoolean(android.content.ClipDescription.EXTRA_IS_SENSITIVE, true)
+                }
+            }
+        }
+        cm?.setPrimaryClip(clip)
+        if (!sensitive) {
+            ClipboardHistoryManager.recordCopiedText(appContext, value)
+        }
         Toast.makeText(appContext, message, Toast.LENGTH_SHORT).show()
     }
 

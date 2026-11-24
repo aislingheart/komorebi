@@ -24,6 +24,7 @@ object ScreenContextExtractor {
 
     private const val MAX_NODES = 400
     private const val MAX_CHARS = 6000
+    private const val FRESHNESS_TTL_MS = 120_000L
 
     @Volatile
     private var current: ScreenContext? = null
@@ -40,6 +41,7 @@ object ScreenContextExtractor {
 
     fun concisePrompt(): String? {
         val context = current ?: return null
+        if (System.currentTimeMillis() - context.capturedAt > FRESHNESS_TTL_MS) return null
         return buildString {
             append("Foreground app: ")
             append(context.packageName)

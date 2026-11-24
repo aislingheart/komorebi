@@ -278,6 +278,13 @@ object LauncherCalculator {
         """^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*([0-9.]+))?\s*\)\s+(?:to|in|as|->)\s+(hex|hsl)$""",
         RegexOption.IGNORE_CASE,
     )
+    private val STANDALONE_HEX_COLOR_REGEX = Regex(
+        """^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$""",
+    )
+    private val STANDALONE_RGB_COLOR_REGEX = Regex(
+        """^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*([0-9.]+))?\s*\)$""",
+        RegexOption.IGNORE_CASE,
+    )
 
     private fun evaluateProgrammerOrColor(input: String): CalcResult? {
         BASE_CONV_REGEX.matchEntire(input)?.let { m ->
@@ -312,15 +319,7 @@ object LauncherCalculator {
         HEX_COLOR_REGEX.matchEntire(input)?.let { m ->
             val rawHex = m.groupValues[1]
             val target = m.groupValues[2].lowercase(Locale.US)
-            val expanded = when (rawHex.length) {
-                3 -> rawHex.map { "$it$it" }.joinToString("")
-                6 -> rawHex
-                8 -> rawHex.substring(2) // strip alpha for rgb/hsl
-                else -> return null
-            }
-            val r = expanded.substring(0, 2).toInt(16)
-            val g = expanded.substring(2, 4).toInt(16)
-            val b = expanded.substring(4, 6).toInt(16)
+            val (r, g, b) = parseHexRgb(rawHex) ?: return null
             val resultStr = when (target) {
                 "rgb", "rgba" -> "rgb($r, $g, $b)"
                 "hsl" -> rgbToHslString(r, g, b)
@@ -336,9 +335,9 @@ object LauncherCalculator {
         }
 
         RGB_COLOR_REGEX.matchEntire(input)?.let { m ->
-            val r = m.groupValues[1].toIntOrNull()?.coerceIn(0, 255) ?: return null
-            val g = m.groupValues[2].toIntOrNull()?.coerceIn(0, 255) ?: return null
-            val b = m.groupValues[3].toIntOrNull()?.coerceIn(0, 255) ?: return null
+            val r = m.groupValues[1].toIntOrNull()?.takeIf { it in 0..255 } ?: return null
+            val g = m.groupValues[2].toIntOrNull()?.takeIf { it in 0..255 } ?: return null
+            val b = m.groupValues[3].toIntOrNull()?.takeIf { it in 0..255 } ?: return null
             val target = m.groupValues[5].lowercase(Locale.US)
             val resultStr = when (target) {
                 "hex" -> String.format(Locale.US, "#%02X%02X%02X", r, g, b)
@@ -354,7 +353,49 @@ object LauncherCalculator {
             )
         }
 
+        STANDALONE_HEX_COLOR_REGEX.matchEntire(input)?.let { m ->
+            val rawHex = m.groupValues[1]
+            val (r, g, b) = parseHexRgb(rawHex) ?: return null
+            val rgbStr = "rgb($r, $g, $b)"
+            val hslStr = rgbToHslString(r, g, b)
+            return CalcResult(
+                expression = input,
+                formattedResult = "$rgbStr · $hslStr",
+                subtitle = "Color #${rawHex.uppercase(Locale.US)}",
+                copyValue = rgbStr,
+                category = "Color",
+            )
+        }
+
+        STANDALONE_RGB_COLOR_REGEX.matchEntire(input)?.let { m ->
+            val r = m.groupValues[1].toIntOrNull()?.takeIf { it in 0..255 } ?: return null
+            val g = m.groupValues[2].toIntOrNull()?.takeIf { it in 0..255 } ?: return null
+            val b = m.groupValues[3].toIntOrNull()?.takeIf { it in 0..255 } ?: return null
+            val hexStr = String.format(Locale.US, "#%02X%02X%02X", r, g, b)
+            val hslStr = rgbToHslString(r, g, b)
+            return CalcResult(
+                expression = input,
+                formattedResult = hexStr,
+                subtitle = "Color • $hslStr",
+                copyValue = hexStr,
+                category = "Color",
+            )
+        }
+
         return null
+    }
+
+    private fun parseHexRgb(rawHex: String): Triple<Int, Int, Int>? {
+        val expanded = when (rawHex.length) {
+            3 -> rawHex.map { "$it$it" }.joinToString("")
+            6 -> rawHex
+            8 -> rawHex.substring(2) // strip alpha for rgb/hsl
+            else -> return null
+        }
+        val r = expanded.substring(0, 2).toInt(16)
+        val g = expanded.substring(2, 4).toInt(16)
+        val b = expanded.substring(4, 6).toInt(16)
+        return Triple(r, g, b)
     }
 
     private fun parseIntLiteral(raw: String): Long? {
@@ -392,7 +433,7 @@ object LauncherCalculator {
                 else -> ((rf - gf) / d + 4.0)
             } / 6.0
         }
-        return "hsl(${round(h * 360).toInt()}, ${round(s * 100).toInt()}%, ${round(l * 100).toInt()}%)"
+        return "hsl(${round(h * 360).toInt()}°, ${round(s * 100).toInt()}%, ${round(l * 100).toInt()}%)"
     }
 
     // -------------------------------------------------------------------------
@@ -953,9 +994,24 @@ object LauncherCalculator {
         UnitDef(UnitFamily.MASS, "st", 6350.29318, setOf("st", "stone", "stones")),
 
         // Temperature (handled specially)
-        UnitDef(UnitFamily.TEMPERATURE, "°C", 1.0, setOf("c", "°c", "celsius", "centigrade")),
-        UnitDef(UnitFamily.TEMPERATURE, "°F", 1.0, setOf("f", "°f", "fahrenheit")),
-        UnitDef(UnitFamily.TEMPERATURE, "K", 1.0, setOf("k", "kelvin")),
+        UnitDef(
+            UnitFamily.TEMPERATURE,
+            "°C",
+            1.0,
+            setOf("c", "°c", "° c", "deg c", "degc", "degree c", "degrees c", "celsius", "deg celsius", "degrees celsius", "centigrade"),
+        ),
+        UnitDef(
+            UnitFamily.TEMPERATURE,
+            "°F",
+            1.0,
+            setOf("f", "°f", "° f", "deg f", "degf", "degree f", "degrees f", "fahrenheit", "deg fahrenheit", "degrees fahrenheit"),
+        ),
+        UnitDef(
+            UnitFamily.TEMPERATURE,
+            "K",
+            1.0,
+            setOf("k", "kelvin", "kelvins", "deg k", "degrees kelvin"),
+        ),
 
         // Data (binary 1024 base = byte)
         UnitDef(UnitFamily.DATA, "B", 1.0, setOf("b", "byte", "bytes")),
@@ -1070,22 +1126,26 @@ object LauncherCalculator {
     }
 
     private val UNIT_CONV_REGEX = Regex(
-        """^(-?\d+(?:[.,]\d+)?)\s*([^\s\d]+(?:\s+[^\s\d]+)?)\s+(?:to|in|as|->)\s+([^\s\d]+(?:\s+[^\s\d]+)?)$""",
+        """^([+-]?\s*\d+(?:[.,]\d+)?)\s*([^\s\d]+(?:\s+[^\s\d]+)?)\s+(?:to|in|as|->)\s+([^\s\d]+(?:\s+[^\s\d]+)?)$""",
         RegexOption.IGNORE_CASE,
     )
 
     private val IMPLICIT_SUFFIX_REGEX = Regex(
-        """^(-?\d+(?:[.,]\d+)?)\s*([a-zA-Z°²/]+(?:\s+[a-zA-Z°²/]+)?)$""",
+        """^([+-]?\s*\d+(?:[.,]\d+)?)\s*([a-zA-Z°²/]+(?:\s+[a-zA-Z°²/]+)?)$""",
     )
     private val IMPLICIT_PREFIX_REGEX = Regex(
-        """^([a-zA-Z°²/]+(?:\s+[a-zA-Z°²/]+)?)\s*(-?\d+(?:[.,]\d+)?)$""",
+        """^([a-zA-Z°²/]+(?:\s+[a-zA-Z°²/]+)?)\s*([+-]?\s*\d+(?:[.,]\d+)?)$""",
     )
 
     private fun normalizeUnitKey(raw: String): String =
         raw.trim().lowercase(Locale.ROOT).replace(Regex("\\s+"), " ")
 
     private fun parseQuantityNumber(raw: String): Double? {
-        val cleaned = raw.trim().replace("\u00A0", "").replace(" ", "")
+        val cleaned = raw.trim()
+            .replace('\u2212', '-')
+            .replace('\u2013', '-')
+            .replace("\u00A0", "")
+            .replace(" ", "")
         if (cleaned.isEmpty()) return null
         val symbols = DecimalFormatSymbols.getInstance(Locale.getDefault())
         val decimal = symbols.decimalSeparator
@@ -1113,7 +1173,8 @@ object LauncherCalculator {
     }
 
     private fun evaluateUnitConversion(input: String): CalcResult? {
-        UNIT_CONV_REGEX.matchEntire(input)?.let { m ->
+        val normalizedInput = input.replace('\u2212', '-').replace('\u2013', '-')
+        UNIT_CONV_REGEX.matchEntire(normalizedInput)?.let { m ->
             val value = parseQuantityNumber(m.groupValues[1]) ?: return null
             val fromUnit = UNIT_LOOKUP[normalizeUnitKey(m.groupValues[2])] ?: return null
             val toUnit = UNIT_LOOKUP[normalizeUnitKey(m.groupValues[3])] ?: return null
@@ -1121,7 +1182,7 @@ object LauncherCalculator {
             return buildConversionResult(input, value, fromUnit, toUnit)
         }
 
-        val (value, unit) = parseImplicitUnit(input) ?: return null
+        val (value, unit) = parseImplicitUnit(normalizedInput) ?: return null
         val target = implicitTargetUnit(unit, value) ?: return null
         return buildConversionResult(input, value, unit, target)
     }
@@ -1360,38 +1421,49 @@ object LauncherCalculator {
     // -------------------------------------------------------------------------
 
     private val PERCENT_OF_REGEX = Regex(
-        """^(\d+(?:\.\d+)?)\s*%\s*of\s*(-?\d+(?:\.\d+)?)$""",
+        """^(-?\d+(?:\.\d+)?)(?:\s*%\s*|\s+(?:percent|pct)\s+)of\s+(.+)$""",
         RegexOption.IGNORE_CASE,
     )
 
     private val PERCENT_ADJUST_REGEX = Regex(
-        """^(.+?)\s*([+\-*/])\s*(\d+(?:\.\d+)?)\s*%$""",
+        """^(.+?)\s*([+\-*/])\s*(\d+(?:\.\d+)?)\s*(?:%|percent|pct)$""",
+        RegexOption.IGNORE_CASE,
     )
+
+    private val IMPLICIT_MUL_DETECT_REGEX = Regex(
+        """(?:\d|\))\s*\(|\)\s*(?:\d|[a-zA-Z])|\d\s*(?:pi|tau|e|sqrt|cbrt|sin|cos|tan|asin|acos|atan|log|ln|abs|ceil|floor|round|exp)\b""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    private val MATH_CONSTANTS = setOf("pi", "tau", "e")
 
     private fun evaluateArithmetic(input: String): CalcResult? {
         val trimmed = input.trim()
         if (trimmed.isEmpty()) return null
+        val normalized = trimmed.replace('\u2212', '-').replace('\u2013', '-')
 
         // Ignore plain phone numbers or ISO dates
-        if (trimmed.startsWith('+') && !trimmed.drop(1).any { it in "+-*×/÷^%(" }) return null
-        if (trimmed.matches(Regex("""^\d{2,4}-\d{1,4}-\d{1,4}$"""))) return null
+        if (normalized.startsWith('+') && !normalized.drop(1).any { it in "+-*×/÷^%(" }) return null
+        if (normalized.matches(Regex("""^\d{2,4}-\d{1,4}-\d{1,4}$"""))) return null
 
-        PERCENT_OF_REGEX.matchEntire(trimmed)?.let { m ->
+        PERCENT_OF_REGEX.matchEntire(normalized)?.let { m ->
             val pct = m.groupValues[1].toDoubleOrNull() ?: return null
-            val base = m.groupValues[2].toDoubleOrNull() ?: return null
+            val rightExpr = m.groupValues[2].trim()
+            val base = tryParseExpression(rightExpr) ?: return null
             val res = (pct / 100.0) * base
+            if (res.isNaN() || res.isInfinite()) return null
             val formatted = formatNumber(res)
             return CalcResult(
                 expression = trimmed,
                 formattedResult = formatted,
-                subtitle = "Percentage ($pct% of ${formatNumber(base)})",
+                subtitle = "Percentage (${formatNumber(pct)}% of ${formatNumber(base)})",
                 copyValue = formatted,
                 category = "Calculator",
             )
         }
 
         // Handle "200 + 15%", "200 - 10%", "200 * 15%", "200 / 50%"
-        PERCENT_ADJUST_REGEX.matchEntire(trimmed)?.let { m ->
+        PERCENT_ADJUST_REGEX.matchEntire(normalized)?.let { m ->
             val leftExpr = m.groupValues[1].trim()
             val op = m.groupValues[2]
             val pct = m.groupValues[3].toDoubleOrNull() ?: return null
@@ -1421,14 +1493,15 @@ object LauncherCalculator {
             }
         }
 
-        // Must contain an operator or a supported math function call so plain numbers don't trigger
-        val hasOperator = trimmed.any { it in "+-*×/÷^%" } ||
-            Regex("""(?<=\d)\s*x\s*(?=\d|\()""", RegexOption.IGNORE_CASE).containsMatchIn(trimmed)
+        // Must contain an operator, implicit multiplication, or a supported math function call so plain numbers don't trigger
+        val hasOperator = normalized.any { it in "+-*×/÷^%" } ||
+            Regex("""(?<=\d)\s*x\s*(?=\d|\()""", RegexOption.IGNORE_CASE).containsMatchIn(normalized)
         val hasFunction = Regex("""\b(sqrt|cbrt|sin|cos|tan|asin|acos|atan|log|ln|abs|ceil|floor|round|exp)\s*\(""", RegexOption.IGNORE_CASE)
-            .containsMatchIn(trimmed)
-        if (!hasOperator && !hasFunction) return null
+            .containsMatchIn(normalized)
+        val hasImplicitMul = IMPLICIT_MUL_DETECT_REGEX.containsMatchIn(normalized)
+        if (!hasOperator && !hasFunction && !hasImplicitMul) return null
 
-        val value = tryParseExpression(trimmed) ?: return null
+        val value = tryParseExpression(normalized) ?: return null
         if (value.isNaN() || value.isInfinite()) return null
 
         val formatted = formatNumber(value)
@@ -1443,6 +1516,8 @@ object LauncherCalculator {
 
     private fun tryParseExpression(raw: String): Double? {
         val normalized = raw
+            .replace('\u2212', '-')
+            .replace('\u2013', '-')
             .replace('×', '*')
             .replace('÷', '/')
             .replace(Regex("""(?<=[\d)])\s*[xX]\s*(?=[\d(a-zA-Z])"""), "*")
@@ -1468,6 +1543,7 @@ object LauncherCalculator {
     private class ExpressionParser(private val input: String) {
         private var pos = -1
         private var ch: Char = ' '
+        private var lastFactorEndedWithParen = false
 
         private fun nextChar() {
             pos++
@@ -1484,6 +1560,13 @@ object LauncherCalculator {
                 nextChar()
                 return true
             }
+            return false
+        }
+
+        private fun isImplicitMultiplicationNext(): Boolean {
+            skipWhitespace()
+            if (ch == '(' || ch in 'a'..'z' || ch in 'A'..'Z') return true
+            if (lastFactorEndedWithParen && (ch in '0'..'9' || ch == '.')) return true
             return false
         }
 
@@ -1521,6 +1604,7 @@ object LauncherCalculator {
                         if (divisor == 0.0) throw ArithmeticException("Modulo by zero")
                         x %= divisor
                     }
+                    isImplicitMultiplicationNext() -> x *= parseFactor()
                     else -> return x
                 }
             }
@@ -1532,10 +1616,12 @@ object LauncherCalculator {
             if (eat('-')) return -parseFactor()
 
             var x: Double
+            var endedWithParen = false
             val startPos = pos
             if (eat('(')) {
                 x = parseExpression()
                 if (!eat(')')) throw IllegalArgumentException("Missing ')'")
+                endedWithParen = true
             } else if ((ch in '0'..'9') || ch == '.') {
                 while ((ch in '0'..'9') || ch == '.') nextChar()
                 val numStr = input.substring(startPos, pos)
@@ -1544,9 +1630,10 @@ object LauncherCalculator {
                 while (ch in 'a'..'z' || ch in 'A'..'Z' || ch in '0'..'9') nextChar()
                 val ident = input.substring(startPos, pos).lowercase(Locale.US)
                 skipWhitespace()
-                x = if (eat('(')) {
+                x = if (ident !in MATH_CONSTANTS && eat('(')) {
                     val arg = parseExpression()
                     if (!eat(')')) throw IllegalArgumentException("Missing ')' after $ident")
+                    endedWithParen = true
                     applyFunction(ident, arg)
                 } else {
                     when (ident) {
@@ -1562,7 +1649,9 @@ object LauncherCalculator {
 
             if (eat('^')) {
                 x = x.pow(parseFactor())
+                endedWithParen = lastFactorEndedWithParen
             }
+            lastFactorEndedWithParen = endedWithParen
             return x
         }
 

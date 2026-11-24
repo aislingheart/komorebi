@@ -550,20 +550,29 @@ object InternalSettingsCatalog {
             ),
             control = InteractiveSettingControl.Choice(
                 options = listOf(
-                    SettingChoiceOption("google", "Google"),
-                    SettingChoiceOption("duckduckgo", "DuckDuckGo"),
-                    SettingChoiceOption("brave", "Brave"),
-                    SettingChoiceOption("startpage", "Startpage"),
-                    SettingChoiceOption("kagi", "Kagi"),
-                    SettingChoiceOption("ecosia", "Ecosia"),
-                    SettingChoiceOption("bing", "Bing"),
+                    SettingChoiceOption("Google", "Google"),
+                    SettingChoiceOption("DuckDuckGo", "DuckDuckGo"),
+                    SettingChoiceOption("Brave Search", "Brave Search"),
+                    SettingChoiceOption("Startpage", "Startpage"),
+                    SettingChoiceOption("Kagi", "Kagi"),
+                    SettingChoiceOption("Ecosia", "Ecosia"),
+                    SettingChoiceOption("Bing", "Bing"),
                 ),
                 readSelectedId = { ctx ->
-                    SettingsRepository(ctx).getString(SettingsRepository.KEY_PIXEL_SEARCH_ENGINE, "google")
-                        ?: "google"
+                    val raw = SettingsRepository(ctx).getPixelSearchEngine()
+                    when (raw.trim().lowercase()) {
+                        "google" -> "Google"
+                        "duckduckgo" -> "DuckDuckGo"
+                        "brave", "brave search" -> "Brave Search"
+                        "startpage" -> "Startpage"
+                        "kagi" -> "Kagi"
+                        "ecosia" -> "Ecosia"
+                        "bing" -> "Bing"
+                        else -> raw
+                    }
                 },
                 writeSelectedId = { ctx, id ->
-                    SettingsRepository(ctx).putString(SettingsRepository.KEY_PIXEL_SEARCH_ENGINE, id)
+                    SettingsRepository(ctx).setPixelSearchEngine(id)
                     SettingActionOutcome(applied = true)
                 },
                 fallbackIntent = ::searchSettingsIntent,

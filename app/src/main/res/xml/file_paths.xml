@@ -1,21 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <cache-path
-        name="cache"
-        path="." />
-    <external-cache-path
-        name="external_cache"
-        path="." />
+        name="raycast_cache"
+        path="raycast_cache/" />
     <external-files-path
         name="downloads"
         path="Download/" />
     <files-path
-        name="internal_files"
-        path="." />
-    <external-files-path
-        name="external_files_root"
-        path="." />
-    <external-path
-        name="external_storage_root"
-        path="." />
+        name="raycast_support"
+        path="raycast_support/" />
+    <files-path
+        name="raycast_extensions"
+        path="raycast_extensions/" />
 </paths>

@@ -202,17 +202,35 @@ object DeviceTools {
         )
     }
 
+    private val TIMEOUT_TOKEN_REGEX = Regex(
+        """(\d+)\s*(hours?|hrs?|h|minutes?|mins?|m|seconds?|secs?|s)(?![a-zA-Z])""",
+    )
+
     private fun parseTimeoutMillis(raw: String): Long? {
         if (raw == "never") return 60L * 60L * 1000L
-        val match = Regex("""^(\d+)\s*([smh])$""").find(raw) ?: return null
-        val amount = match.groupValues[1].toLongOrNull() ?: return null
-        if (amount <= 0) return null
-        return when (match.groupValues[2]) {
-            "s" -> amount * 1000L
-            "m" -> amount * 60L * 1000L
-            "h" -> amount * 60L * 60L * 1000L
-            else -> null
+        val normalized = raw.trim().lowercase(Locale.US)
+        val matches = TIMEOUT_TOKEN_REGEX.findAll(normalized).toList()
+        if (matches.isEmpty()) return null
+        val remainder = TIMEOUT_TOKEN_REGEX.replace(normalized, "")
+            .replace(Regex("""\band\b"""), "")
+            .replace(",", "")
+            .trim()
+        if (remainder.isNotEmpty()) return null
+
+        var totalMillis = 0L
+        for (match in matches) {
+            val amount = match.groupValues[1].toLongOrNull() ?: return null
+            if (amount <= 0) return null
+            val unit = match.groupValues[2]
+            val factor = when {
+                unit.startsWith("h") -> 60L * 60L * 1000L
+                unit.startsWith("m") -> 60L * 1000L
+                else -> 1000L
+            }
+            if (amount > Long.MAX_VALUE / factor) return 60L * 60L * 1000L
+            totalMillis += amount * factor
         }
+        return totalMillis.takeIf { it > 0L }
     }
 
     private fun formatGib(bytes: Long): String =

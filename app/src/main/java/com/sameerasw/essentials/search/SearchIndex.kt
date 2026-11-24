@@ -46,9 +46,59 @@ object SearchIndex {
         val includeUnsupportedFeatures: Boolean,
         val includeLegacyFeatures: Boolean,
         val hadContactsPermission: Boolean,
-        val hadFilesPermission: Boolean,
+        val hadMediaPermission: Boolean,
+        val hadStoragePermission: Boolean,
         val builtAtMs: Long,
     ) {
+        constructor(
+            apps: List<NotificationApp>,
+            contacts: List<PixelSearchResultItem.ContactItem>,
+            files: FileSearchUtil.FileIndex,
+            settings: List<SearchableItem>,
+            systemSettings: List<PixelSearchResultItem.SystemSettingItem>,
+            shortcuts: List<DiscoveredShortcut>,
+            appFunctions: List<AppFunctionItem>,
+            providers: List<SearchProvider>,
+            includeUnsupportedFeatures: Boolean,
+            includeLegacyFeatures: Boolean,
+            hadContactsPermission: Boolean,
+            hadFilesPermission: Boolean,
+            builtAtMs: Long,
+        ) : this(
+            apps = apps,
+            contacts = contacts,
+            files = files,
+            settings = settings,
+            systemSettings = systemSettings,
+            shortcuts = shortcuts,
+            appFunctions = appFunctions,
+            providers = providers,
+            includeUnsupportedFeatures = includeUnsupportedFeatures,
+            includeLegacyFeatures = includeLegacyFeatures,
+            hadContactsPermission = hadContactsPermission,
+            hadMediaPermission = hadFilesPermission,
+            hadStoragePermission = hadFilesPermission,
+            builtAtMs = builtAtMs,
+        )
+
+        val hadFilesPermission: Boolean
+            get() = hadMediaPermission || hadStoragePermission
+
+        fun isFresh(
+            now: Long,
+            unsupported: Boolean,
+            legacy: Boolean,
+            contactsPerm: Boolean,
+            mediaPerm: Boolean,
+            storagePerm: Boolean,
+        ): Boolean =
+            now - builtAtMs <= TTL_MS &&
+                includeUnsupportedFeatures == unsupported &&
+                includeLegacyFeatures == legacy &&
+                hadContactsPermission == contactsPerm &&
+                hadMediaPermission == mediaPerm &&
+                hadStoragePermission == storagePerm
+
         fun isFresh(
             now: Long,
             unsupported: Boolean,
@@ -56,11 +106,14 @@ object SearchIndex {
             contactsPerm: Boolean,
             filesPerm: Boolean,
         ): Boolean =
-            now - builtAtMs <= TTL_MS &&
-                includeUnsupportedFeatures == unsupported &&
-                includeLegacyFeatures == legacy &&
-                hadContactsPermission == contactsPerm &&
-                hadFilesPermission == filesPerm
+            isFresh(
+                now = now,
+                unsupported = unsupported,
+                legacy = legacy,
+                contactsPerm = contactsPerm,
+                mediaPerm = filesPerm,
+                storagePerm = filesPerm,
+            )
     }
 
     private const val TTL_MS = 5 * 60_000L
@@ -83,24 +136,27 @@ object SearchIndex {
         val appContext = context.applicationContext
         ensureInvalidationReceiver(appContext)
         val contactsPerm = hasContactsPermission(appContext)
-        val filesPerm = hasFilesPermission(appContext)
+        val mediaPerm = hasMediaPermission(appContext)
+        val storagePerm = hasStoragePermission(appContext)
         val now = System.currentTimeMillis()
         snapshot?.let {
-            if (it.isFresh(now, includeUnsupportedFeatures, includeLegacyFeatures, contactsPerm, filesPerm)) {
+            if (it.isFresh(now, includeUnsupportedFeatures, includeLegacyFeatures, contactsPerm, mediaPerm, storagePerm)) {
                 return@withContext it
             }
         }
         buildMutex.withLock {
             val recheckedNow = System.currentTimeMillis()
             val recheckedContactsPerm = hasContactsPermission(appContext)
-            val recheckedFilesPerm = hasFilesPermission(appContext)
+            val recheckedMediaPerm = hasMediaPermission(appContext)
+            val recheckedStoragePerm = hasStoragePermission(appContext)
             snapshot?.let {
                 if (it.isFresh(
                         recheckedNow,
                         includeUnsupportedFeatures,
                         includeLegacyFeatures,
                         recheckedContactsPerm,
-                        recheckedFilesPerm,
+                        recheckedMediaPerm,
+                        recheckedStoragePerm,
                     )
                 ) {
                     return@withContext it
@@ -111,7 +167,8 @@ object SearchIndex {
                 includeUnsupportedFeatures = includeUnsupportedFeatures,
                 includeLegacyFeatures = includeLegacyFeatures,
                 contactsPerm = recheckedContactsPerm,
-                filesPerm = recheckedFilesPerm,
+                mediaPerm = recheckedMediaPerm,
+                storagePerm = recheckedStoragePerm,
                 builtAtMs = recheckedNow,
             )
             snapshot = built
@@ -130,9 +187,11 @@ object SearchIndex {
         ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) ==
             PackageManager.PERMISSION_GRANTED
 
-    private fun hasFilesPermission(context: Context): Boolean =
-        PermissionUtils.hasMediaPermissions(context) ||
-            PermissionUtils.hasManageExternalStoragePermission(context) ||
+    private fun hasMediaPermission(context: Context): Boolean =
+        PermissionUtils.hasMediaPermissions(context)
+
+    private fun hasStoragePermission(context: Context): Boolean =
+        PermissionUtils.hasManageExternalStoragePermission(context) ||
             PermissionUtils.hasStoragePermission(context)
 
     private fun ensureInvalidationReceiver(context: Context) {
@@ -162,7 +221,8 @@ object SearchIndex {
         includeUnsupportedFeatures: Boolean,
         includeLegacyFeatures: Boolean,
         contactsPerm: Boolean,
-        filesPerm: Boolean,
+        mediaPerm: Boolean,
+        storagePerm: Boolean,
         builtAtMs: Long,
     ): Snapshot = coroutineScope {
         val appContext = context.applicationContext
@@ -171,7 +231,7 @@ object SearchIndex {
             if (contactsPerm) ContactsSearchUtil.loadAll(appContext) else emptyList()
         }
         val filesDeferred = async {
-            if (filesPerm) FileSearchUtil.buildFileIndex(appContext) else FileSearchUtil.FileIndex()
+            if (mediaPerm || storagePerm) FileSearchUtil.buildFileIndex(appContext) else FileSearchUtil.FileIndex()
         }
         val settingsDeferred = async {
             SearchRegistry.indexItems(
@@ -196,7 +256,8 @@ object SearchIndex {
             includeUnsupportedFeatures = includeUnsupportedFeatures,
             includeLegacyFeatures = includeLegacyFeatures,
             hadContactsPermission = contactsPerm,
-            hadFilesPermission = filesPerm,
+            hadMediaPermission = mediaPerm,
+            hadStoragePermission = storagePerm,
             builtAtMs = builtAtMs,
         )
     }

@@ -14,6 +14,7 @@ import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
 import android.os.Environment
+import android.os.SystemClock
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import com.example.autoupdater.UpdateFeatures
@@ -21,6 +22,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.net.URI
+import java.util.Locale
 
 class AutoUpdateManagerHelper(
     private val context: Context,
@@ -53,6 +56,11 @@ class AutoUpdateManagerHelper(
             if (apkUrl.isBlank()) {
                 withContext(Dispatchers.Main) { onError("Missing download URL") }
                 return@withContext DownloadResult.Failed("Missing download URL")
+            }
+
+            if (!isAllowedUpdateUrl(apkUrl)) {
+                withContext(Dispatchers.Main) { onError("Untrusted download URL") }
+                return@withContext DownloadResult.Failed("Untrusted download URL")
             }
 
             try {
@@ -96,7 +104,8 @@ class AutoUpdateManagerHelper(
                 val query = DownloadManager.Query().setFilterById(downloadId)
 
                 var lastReportedProgress = -1
-                while (true) {
+                val deadlineMs = SystemClock.elapsedRealtime() + DOWNLOAD_TIMEOUT_MS
+                while (SystemClock.elapsedRealtime() < deadlineMs) {
                     val state =
                         downloadManager.query(query)?.use { cursor ->
                             if (!cursor.moveToFirst()) {
@@ -143,8 +152,10 @@ class AutoUpdateManagerHelper(
 
                     delay(250L)
                 }
-                @Suppress("UNREACHABLE_CODE")
-                DownloadResult.Failed("Unknown error")
+
+                runCatching { downloadManager.remove(downloadId) }
+                withContext(Dispatchers.Main) { onError("Download timed out") }
+                DownloadResult.Failed("Download timed out")
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -184,4 +195,31 @@ class AutoUpdateManagerHelper(
         }.getOrDefault(false)
 
     fun getCurrentAppVersionName(): String = autoUpdaterManager.getCurrentAppVersionName()
+
+    companion object {
+        private const val DOWNLOAD_TIMEOUT_MS = 5 * 60 * 1000L // 5 minutes
+        private val ALLOWED_UPDATE_HOSTS =
+            setOf(
+                "github.com",
+                "objects.githubusercontent.com",
+                "release-assets.githubusercontent.com",
+                "api.github.com",
+            )
+
+        fun isAllowedUpdateUrl(url: String): Boolean {
+            if (url.isBlank()) return false
+            return try {
+                val uri = URI(url.trim())
+                val scheme = uri.scheme?.lowercase(Locale.ROOT)
+                val host = uri.host?.lowercase(Locale.ROOT)
+                scheme == "https" &&
+                    uri.userInfo == null &&
+                    (uri.port == -1 || uri.port == 443) &&
+                    host != null &&
+                    host in ALLOWED_UPDATE_HOSTS
+            } catch (_: Exception) {
+                false
+            }
+        }
+    }
 }

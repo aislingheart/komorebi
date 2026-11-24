@@ -42,6 +42,18 @@ enum class ExtensionCapability(
         description = "Allow executing local shell commands via the CLI bridge",
         defaultAllowed = false,
     ),
+    HEALTH_DATA(
+        key = "health_data",
+        title = "Health Data",
+        description = "Allow reading Health Connect metrics such as steps, sleep, and daily summaries",
+        defaultAllowed = false,
+    ),
+    SCREEN_CONTEXT(
+        key = "screen_context",
+        title = "Screen Context",
+        description = "Allow reading selected text captured from the active screen",
+        defaultAllowed = false,
+    ),
 }
 
 object ExtensionPermissionManager {

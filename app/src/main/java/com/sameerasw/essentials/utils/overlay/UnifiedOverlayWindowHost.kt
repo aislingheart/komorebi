@@ -28,6 +28,7 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.OnBackPressedDispatcherOwner
+import androidx.activity.result.ActivityResult
 import androidx.activity.result.ActivityResultRegistry
 import androidx.activity.result.ActivityResultRegistryOwner
 import androidx.activity.result.contract.ActivityResultContract
@@ -255,26 +256,38 @@ class UnifiedOverlayWindowHost(
             input: I,
             options: ActivityOptionsCompat?,
         ) {
-            if (contract is ActivityResultContracts.RequestPermission &&
-                input is String &&
-                ContextCompat.checkSelfPermission(appContext, input) == PackageManager.PERMISSION_GRANTED
-            ) {
-                @Suppress("UNCHECKED_CAST")
-                dispatchResult(requestCode, true as O)
-                return
-            }
-            if (contract is ActivityResultContracts.RequestPermission) {
-                runCatching {
-                    appContext.startActivity(
-                        Intent(
-                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                            Uri.parse("package:" + appContext.packageName),
-                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                    )
+            when (contract) {
+                is ActivityResultContracts.RequestPermission -> {
+                    if (input is String &&
+                        ContextCompat.checkSelfPermission(appContext, input) == PackageManager.PERMISSION_GRANTED
+                    ) {
+                        @Suppress("UNCHECKED_CAST")
+                        dispatchResult(requestCode, true as O)
+                        return
+                    }
+                    runCatching {
+                        appContext.startActivity(
+                            Intent(
+                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.parse("package:" + appContext.packageName),
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                    @Suppress("UNCHECKED_CAST")
+                    dispatchResult(requestCode, false as O)
+                }
+                is ActivityResultContracts.RequestMultiplePermissions -> {
+                    @Suppress("UNCHECKED_CAST")
+                    dispatchResult(requestCode, emptyMap<String, Boolean>() as O)
+                }
+                is ActivityResultContracts.StartActivityForResult -> {
+                    @Suppress("UNCHECKED_CAST")
+                    dispatchResult(requestCode, ActivityResult(Activity.RESULT_CANCELED, null) as O)
+                }
+                else -> {
+                    // Overlay host cannot deliver activity results for arbitrary contracts; skip safely.
                 }
             }
-            @Suppress("UNCHECKED_CAST")
-            dispatchResult(requestCode, Activity.RESULT_CANCELED as O)
         }
     }
 }

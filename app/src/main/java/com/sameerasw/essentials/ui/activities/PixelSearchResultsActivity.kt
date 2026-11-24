@@ -740,6 +740,7 @@ fun PixelSearchResultsScreen(
     }
 
     var assistantFeedback by remember { mutableStateOf<AssistantFeedback?>(null) }
+    var pendingToolConfirmation by remember { mutableStateOf<PendingToolConfirmation?>(null) }
 
     var clipboardContent by remember { mutableStateOf<ClipboardContent?>(null) }
     var clipboardCardDismissed by remember { mutableStateOf(false) }
@@ -845,8 +846,9 @@ fun PixelSearchResultsScreen(
     }
 
     fun speakVoiceResponse(text: String) {
-        if (!voiceQueryPending || !voiceTtsEnabled) return
+        if (!voiceQueryPending) return
         voiceQueryPending = false
+        if (!voiceTtsEnabled || text.isBlank()) return
         AssistantTts.speak(context, text, voiceTtsPreset)
     }
 
@@ -882,14 +884,6 @@ fun PixelSearchResultsScreen(
         }
     }
 
-    val prefixSuggestion = remember(settledQuery, activeScope, discoveredProviders) {
-        if (activeScope == null) {
-            SearchProviderDiscovery.matchPrefixSuggestion(settledQuery, discoveredProviders)
-        } else {
-            null
-        }
-    }
-
     val isAppsEnabled = remember(settingsRefreshNonce) { repository.isPixelSearchResultAppsEnabled() }
     val isContactsEnabled = remember(settingsRefreshNonce) { repository.isPixelSearchResultContactsEnabled() }
     val isMediaEnabled = remember(settingsRefreshNonce) { repository.isPixelSearchResultMediaEnabled() }
@@ -897,6 +891,20 @@ fun PixelSearchResultsScreen(
     val isSettingsEnabled = remember(settingsRefreshNonce) { repository.isPixelSearchResultSettingsEnabled() }
     val isShortcutsEnabled = remember(settingsRefreshNonce) { repository.isPixelSearchResultShortcutsEnabled() }
     val isWebEnabled = remember(settingsRefreshNonce) { repository.isPixelSearchResultWebEnabled() }
+    val visibleProviders = remember(discoveredProviders, isWebEnabled) {
+        if (isWebEnabled) {
+            discoveredProviders
+        } else {
+            discoveredProviders.filter { it.kind != SearchProviderKind.WEB }
+        }
+    }
+    val prefixSuggestion = remember(settledQuery, activeScope, visibleProviders) {
+        if (activeScope == null) {
+            SearchProviderDiscovery.matchPrefixSuggestion(settledQuery, visibleProviders)
+        } else {
+            null
+        }
+    }
     val isBubblesWebEnabled = remember(settingsRefreshNonce) { repository.isPixelSearchBubblesWebEnabled() }
     val searchEngine = remember(settingsRefreshNonce) { repository.getPixelSearchEngine() }
     val reachabilityLayout = remember(settingsRefreshNonce) { repository.isPixelSearchReachabilityEnabled() }
@@ -961,6 +969,18 @@ fun PixelSearchResultsScreen(
     LaunchedEffect(settledQuery) {
         assistantFeedback = null
     }
+    LaunchedEffect(calcResult, voiceQueryPending) {
+        val result = calcResult ?: return@LaunchedEffect
+        if (voiceQueryPending) {
+            speakVoiceResponse(result.formattedResult)
+        }
+    }
+    LaunchedEffect(assistantFeedback, voiceQueryPending) {
+        val feedback = assistantFeedback ?: return@LaunchedEffect
+        if (voiceQueryPending) {
+            speakVoiceResponse(feedback.message)
+        }
+    }
     var matchingToolActions by remember { mutableStateOf<List<BuiltInLauncherAction>>(emptyList()) }
     var matchingSnippets by remember { mutableStateOf<List<com.sameerasw.essentials.launcher.TextSnippet>>(emptyList()) }
     var matchingQuicklinks by remember { mutableStateOf<List<com.sameerasw.essentials.launcher.Quicklink>>(emptyList()) }
@@ -974,7 +994,14 @@ fun PixelSearchResultsScreen(
             val mem = assistantMemoryActions(q, context, scope) { success, message ->
                 assistantFeedback = AssistantFeedback(success, message)
             }
-            val reg = assistantRegistryActions(q, context, scope) { success, message ->
+            val reg = assistantRegistryActions(
+                query = q,
+                context = context,
+                scope = scope,
+                onRequestConfirmation = { title, description, proceed ->
+                    pendingToolConfirmation = PendingToolConfirmation(title, description, proceed)
+                },
+            ) { success, message ->
                 assistantFeedback = AssistantFeedback(success, message)
             }
             val tools = runCatching {
@@ -993,12 +1020,12 @@ fun PixelSearchResultsScreen(
         matchingSnippets = refreshed.second
         matchingQuicklinks = refreshed.third
     }
-    val matchingProviders = remember(settledQuery, activeScope, discoveredProviders) {
+    val matchingProviders = remember(settledQuery, activeScope, visibleProviders) {
         val q = settledQuery.trim()
         if (activeScope != null || q.isEmpty()) {
             emptyList()
         } else {
-            discoveredProviders.mapNotNull { provider ->
+            visibleProviders.mapNotNull { provider ->
                 val score = FuzzySearchUtil.scoreFields(
                     query = q,
                     primary = provider.title,
@@ -1235,7 +1262,7 @@ fun PixelSearchResultsScreen(
                     }
 
                     SearchProviderKind.CONTACTS -> {
-                        val contacts = if (trimmed.isNotEmpty() && ContextCompat.checkSelfPermission(
+                        val contacts = if (ContextCompat.checkSelfPermission(
                                 context,
                                 android.Manifest.permission.READ_CONTACTS,
                             ) == PackageManager.PERMISSION_GRANTED
@@ -1245,7 +1272,7 @@ fun PixelSearchResultsScreen(
                                 repository.isEnableUnsupportedFeatures(),
                                 repository.isShowLegacyFeatures(),
                             )
-                            ContactsSearchUtil.search(context, index.contacts, trimmed)
+                            ContactsSearchUtil.search(context, index.contacts, trimmed, limit = 20)
                         } else {
                             emptyList()
                         }
@@ -1266,8 +1293,9 @@ fun PixelSearchResultsScreen(
                     }
 
                     SearchProviderKind.FILES -> {
-                        val docs = if (trimmed.isNotEmpty() &&
-                            (PermissionUtils.hasManageExternalStoragePermission(context) || PermissionUtils.hasStoragePermission(context))
+                        val docs = if (
+                            PermissionUtils.hasManageExternalStoragePermission(context) ||
+                                PermissionUtils.hasStoragePermission(context)
                         ) {
                             val index = SearchIndex.get(
                                 context,
@@ -1475,7 +1503,14 @@ fun PixelSearchResultsScreen(
                     val mem = assistantMemoryActions(q, context, scope) { success, message ->
                         assistantFeedback = AssistantFeedback(success, message)
                     }
-                    val reg = assistantRegistryActions(q, context, scope) { success, message ->
+                    val reg = assistantRegistryActions(
+                        query = q,
+                        context = context,
+                        scope = scope,
+                        onRequestConfirmation = { title, description, proceed ->
+                            pendingToolConfirmation = PendingToolConfirmation(title, description, proceed)
+                        },
+                    ) { success, message ->
                         assistantFeedback = AssistantFeedback(success, message)
                     }
                     (LauncherAssistantCommands.match(context, q) +
@@ -1500,7 +1535,6 @@ fun PixelSearchResultsScreen(
                 }
 
                 if (cachedIndex == null) {
-                    spinnerJob.cancel()
                     withContext(Dispatchers.Main) {
                         settledQuery = q
                         calcResultState.value = evalCalc
@@ -1511,7 +1545,6 @@ fun PixelSearchResultsScreen(
                         internalCommands = matchedCommands
                         systemSettingResults = fastSystemSettings
                         settingResults = fastMappedSettings
-                        isSearching = false
                     }
                 }
 
@@ -1696,6 +1729,16 @@ fun PixelSearchResultsScreen(
     // Single source of truth for the ONE highlighted most-likely result and Enter/Search execution
     val trimmedQuery = settledQuery.trim()
     val hasMediaPerm = remember(activeScope) { PermissionUtils.hasMediaPermissions(context) }
+    val hasContactsPerm = remember(activeScope) {
+        ContextCompat.checkSelfPermission(
+            context,
+            android.Manifest.permission.READ_CONTACTS,
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+    val hasStoragePerm = remember(activeScope) {
+        PermissionUtils.hasManageExternalStoragePermission(context) ||
+            PermissionUtils.hasStoragePermission(context)
+    }
     val hasExactQuicklinkMatch =
         activeScope == null &&
             matchingQuicklinks.firstOrNull()?.let {
@@ -1718,10 +1761,10 @@ fun PixelSearchResultsScreen(
             hasApps = isAppsEnabled && appResults.isNotEmpty(),
             hasPrefixSuggestion = activeScope == null && prefixSuggestion != null,
             hasExactPrefixSuggestion = activeScope == null && prefixSuggestion != null && prefixSuggestion.ghostSuffix.isEmpty(),
-            hasContacts = isContactsEnabled && contactResults.isNotEmpty(),
+            hasContacts = (isContactsEnabled || activeScope?.kind == SearchProviderKind.CONTACTS) && contactResults.isNotEmpty(),
             hasNotifications = activeScope == null && notificationsSearchEnabled && notificationResults.isNotEmpty(),
             hasMedia = isMediaEnabled && mediaResults.isNotEmpty(),
-            hasFiles = isFilesEnabled && fileResults.isNotEmpty(),
+            hasFiles = (isFilesEnabled || activeScope?.kind == SearchProviderKind.FILES) && fileResults.isNotEmpty(),
             hasSystemSettings = isSettingsEnabled && systemSettingResults.isNotEmpty(),
             hasEssentialSettings = isSettingsEnabled && settingResults.isNotEmpty(),
             hasShortcuts = activeScope == null && isShortcutsEnabled && shortcutResults.isNotEmpty(),
@@ -2003,13 +2046,7 @@ fun PixelSearchResultsScreen(
 
             TopSearchTarget.MATCHING_PROVIDER -> {
                 val provider = matchingProviders.firstOrNull() ?: return
-                if (provider.kind == SearchProviderKind.APP_INTENT || provider.kind == SearchProviderKind.WEB) {
-                    keyboardController?.hide()
-                    SearchProviderDiscovery.launchScopedProviderSearch(context, provider, queryState.value)
-                    onFinish()
-                } else {
-                    enterScope(provider)
-                }
+                enterScope(provider)
             }
 
             TopSearchTarget.WEB_SEARCH -> {
@@ -2553,8 +2590,8 @@ fun PixelSearchResultsScreen(
                         }
                     }
 
-                    if (discoveredProviders.isNotEmpty()) {
-                        val orderedProviders = discoveredProviders.take(maxResults.coerceAtMost(12)).inReachabilityOrder(reachabilityLayout)
+                    if (visibleProviders.isNotEmpty()) {
+                        val orderedProviders = visibleProviders.take(maxResults.coerceAtMost(12)).inReachabilityOrder(reachabilityLayout)
                         if (!reachabilityLayout) {
                             item(key = "providers_header") {
                                 SearchSectionHeader("Search Providers & App Links")
@@ -2975,15 +3012,52 @@ fun PixelSearchResultsScreen(
                 }
 
                 // CONTACTS
-                if (isContactsEnabled && contactResults.isNotEmpty()) {
-                    item(key = "contacts_section") {
+                if (activeScope?.kind == SearchProviderKind.CONTACTS && !hasContactsPerm) {
+                    item(key = "scoped_contacts_perm_section") {
                         Column(
                             modifier = Modifier.fillMaxWidth().animateItem(),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             SearchSectionHeader(stringResource(R.string.pixel_search_section_contacts))
                             RoundedCardContainer {
-                                contactResults.take(maxResults).withIndex().toList().inReachabilityOrder(reachabilityLayout).forEach { (origIndex, contact) ->
+                                FeatureCard(
+                                    title = "Grant Contacts Permission",
+                                    description = "Allow contacts access to search and call people inline",
+                                    isEnabled = true,
+                                    onToggle = {},
+                                    onClick = {
+                                        HapticUtil.performVirtualKeyHaptic(view)
+                                        context.startActivity(
+                                            Intent().setClassName(context, "com.sameerasw.essentials.SettingsActivity").apply {
+                                                putExtra("expand_permissions", true)
+                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            },
+                                        )
+                                        onFinish()
+                                    },
+                                    containerColor = normalCardColor,
+                                    iconRes = R.drawable.rounded_call_24,
+                                    showToggle = false,
+                                    hasMoreSettings = false,
+                                )
+                            }
+                        }
+                    }
+                }
+                if ((isContactsEnabled || activeScope?.kind == SearchProviderKind.CONTACTS) && contactResults.isNotEmpty()) {
+                    item(key = "contacts_section") {
+                        val contactsToShow = if (activeScope?.kind == SearchProviderKind.CONTACTS) {
+                            contactResults
+                        } else {
+                            contactResults.take(maxResults)
+                        }
+                        Column(
+                            modifier = Modifier.fillMaxWidth().animateItem(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            SearchSectionHeader(stringResource(R.string.pixel_search_section_contacts))
+                            RoundedCardContainer {
+                                contactsToShow.withIndex().toList().inReachabilityOrder(reachabilityLayout).forEach { (origIndex, contact) ->
                                     val isTopmost = origIndex == 0 && topTarget == TopSearchTarget.CONTACT
                                     ListItem(
                                         onClick = {
@@ -3253,15 +3327,52 @@ fun PixelSearchResultsScreen(
                 }
 
                 // FILES
-                if (isFilesEnabled && fileResults.isNotEmpty()) {
-                    item(key = "files_section") {
+                if (activeScope?.kind == SearchProviderKind.FILES && !hasStoragePerm) {
+                    item(key = "scoped_files_perm_section") {
                         Column(
                             modifier = Modifier.fillMaxWidth().animateItem(),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             SearchSectionHeader(stringResource(R.string.pixel_search_section_files))
                             RoundedCardContainer {
-                                fileResults.take(maxResults).withIndex().toList().inReachabilityOrder(reachabilityLayout).forEach { (origIndex, file) ->
+                                FeatureCard(
+                                    title = "Grant Files Permission",
+                                    description = "Allow file access to search and browse device documents inline",
+                                    isEnabled = true,
+                                    onToggle = {},
+                                    onClick = {
+                                        HapticUtil.performVirtualKeyHaptic(view)
+                                        context.startActivity(
+                                            Intent().setClassName(context, "com.sameerasw.essentials.SettingsActivity").apply {
+                                                putExtra("expand_permissions", true)
+                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            },
+                                        )
+                                        onFinish()
+                                    },
+                                    containerColor = normalCardColor,
+                                    iconRes = R.drawable.rounded_description_24,
+                                    showToggle = false,
+                                    hasMoreSettings = false,
+                                )
+                            }
+                        }
+                    }
+                }
+                if ((isFilesEnabled || activeScope?.kind == SearchProviderKind.FILES) && fileResults.isNotEmpty()) {
+                    item(key = "files_section") {
+                        val filesToShow = if (activeScope?.kind == SearchProviderKind.FILES) {
+                            fileResults
+                        } else {
+                            fileResults.take(maxResults)
+                        }
+                        Column(
+                            modifier = Modifier.fillMaxWidth().animateItem(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            SearchSectionHeader(stringResource(R.string.pixel_search_section_files))
+                            RoundedCardContainer {
+                                filesToShow.withIndex().toList().inReachabilityOrder(reachabilityLayout).forEach { (origIndex, file) ->
                                     val isTopmost = origIndex == 0 && topTarget == TopSearchTarget.FILE
                                     ListItem(
                                         onClick = {
@@ -3557,19 +3668,14 @@ fun PixelSearchResultsScreen(
                                     val isTopmost = origIndex == 0 && topTarget == TopSearchTarget.MATCHING_PROVIDER
                                     RaycastCommandRow(
                                         title = provider.title,
-                                        subtitle = "Search \"${settledQuery.trim()}\" in ${provider.title}",
+                                        subtitle = provider.subtitle.ifBlank { "Search in ${provider.title}" },
                                         badge = provider.category,
                                         iconRes = provider.iconRes,
                                         iconBitmap = provider.appIcon,
                                         containerColor = if (isTopmost) highlightColor else normalCardColor,
                                         onClick = {
                                             HapticUtil.performVirtualKeyHaptic(view)
-                                            if (provider.kind == SearchProviderKind.APP_INTENT || provider.kind == SearchProviderKind.WEB) {
-                                                SearchProviderDiscovery.launchScopedProviderSearch(context, provider, queryState.value)
-                                                onFinish()
-                                            } else {
-                                                enterScope(provider)
-                                            }
+                                            enterScope(provider)
                                         },
                                     )
                                 }
@@ -3579,17 +3685,25 @@ fun PixelSearchResultsScreen(
                 }
 
                 // WEB SEARCH
-                if ((activeScope == null || activeScope?.kind == SearchProviderKind.WEB) &&
-                    isWebEnabled &&
-                    settledQuery.isNotBlank()
-                ) {
+                val showWebSection =
+                    (activeScope?.kind == SearchProviderKind.WEB) ||
+                        (activeScope == null && isWebEnabled && settledQuery.isNotBlank())
+                if (showWebSection) {
                     val isTopmost = topTarget == TopSearchTarget.WEB_SEARCH
                     item(key = "web_section") {
-                        val isUrl = remember(settledQuery) { isLikelyUrl(settledQuery.trim()) }
-                        val actionTitle = if (isUrl) {
-                            stringResource(R.string.pixel_search_open_url_action, settledQuery)
+                        val trimmedWebQuery = settledQuery.trim()
+                        val isUrl = remember(trimmedWebQuery) {
+                            trimmedWebQuery.isNotEmpty() && isLikelyUrl(trimmedWebQuery)
+                        }
+                        val actionTitle = when {
+                            trimmedWebQuery.isEmpty() -> "Search the web with $searchEngine"
+                            isUrl -> stringResource(R.string.pixel_search_open_url_action, trimmedWebQuery)
+                            else -> stringResource(R.string.pixel_search_web_search_action, trimmedWebQuery)
+                        }
+                        val actionDescription = if (trimmedWebQuery.isEmpty()) {
+                            "Type a search query or URL and press search"
                         } else {
-                            stringResource(R.string.pixel_search_web_search_action, settledQuery)
+                            null
                         }
                         val webIcon = if (isUrl) R.drawable.rounded_link_24 else R.drawable.rounded_language_24
 
@@ -3601,12 +3715,18 @@ fun PixelSearchResultsScreen(
                             RoundedCardContainer {
                                 FeatureCard(
                                     title = actionTitle,
+                                    description = actionDescription,
                                     isEnabled = true,
                                     onToggle = {},
                                     onClick = {
                                         HapticUtil.performVirtualKeyHaptic(view)
-                                        launchWebSearch(context, settledQuery, isBubblesWebEnabled, searchEngine)
-                                        onFinish()
+                                        if (trimmedWebQuery.isNotEmpty()) {
+                                            launchWebSearch(context, trimmedWebQuery, isBubblesWebEnabled, searchEngine)
+                                            onFinish()
+                                        } else {
+                                            runCatching { focusRequester.requestFocus() }
+                                            keyboardController?.show()
+                                        }
                                     },
                                     containerColor = if (isTopmost) highlightColor else normalCardColor,
                                     iconRes = webIcon,
@@ -3854,6 +3974,36 @@ fun PixelSearchResultsScreen(
             QrCodeDialog(
                 text = text,
                 onDismiss = { qrDialogText = null },
+            )
+        }
+
+        pendingToolConfirmation?.let { pending ->
+            AlertDialog(
+                onDismissRequest = { pendingToolConfirmation = null },
+                title = { Text("Confirm ${pending.title}") },
+                text = {
+                    Text(
+                        pending.description.ifBlank {
+                            "Are you sure you want to run \"${pending.title}\"?"
+                        },
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val action = pending.onConfirm
+                            pendingToolConfirmation = null
+                            action()
+                        },
+                    ) {
+                        Text("Confirm")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingToolConfirmation = null }) {
+                        Text("Cancel")
+                    }
+                },
             )
         }
     }
@@ -5464,6 +5614,7 @@ private fun assistantRegistryActions(
     query: String,
     context: Context,
     scope: CoroutineScope,
+    onRequestConfirmation: (title: String, description: String, proceed: () -> Unit) -> Unit,
     onResult: (Boolean, String) -> Unit,
 ): List<BuiltInLauncherAction> {
     if (query.isBlank()) return emptyList()
@@ -5490,6 +5641,23 @@ private fun assistantRegistryActions(
         .take(6)
         .map { (tool, _) ->
             val args = assistantToolArgs(tool.id, query)
+            val runTool: (Context) -> Unit = { ctx ->
+                scope.launch {
+                    val result = withContext(Dispatchers.IO) {
+                        AssistantToolRegistry.execute(ctx, tool.id, args)
+                    }
+                    val text = buildString {
+                        append(result.message)
+                        result.data?.takeIf { it.isNotBlank() }?.let {
+                            append("\n")
+                            append(it.take(4000))
+                        }
+                    }
+                    withContext(Dispatchers.Main) {
+                        onResult(result.success, text)
+                    }
+                }
+            }
             BuiltInLauncherAction(
                 id = "tool_${tool.id}",
                 title = tool.title,
@@ -5499,16 +5667,12 @@ private fun assistantRegistryActions(
                 keywords = tool.keywords,
                 closesSearch = false,
                 onExecute = { ctx ->
-                    scope.launch {
-                        val result = AssistantToolRegistry.execute(ctx, tool.id, args)
-                        val text = buildString {
-                            append(result.message)
-                            result.data?.takeIf { it.isNotBlank() }?.let {
-                                append("\n")
-                                append(it.take(4000))
-                            }
+                    if (tool.requiresConfirmation) {
+                        onRequestConfirmation(tool.title, tool.description) {
+                            runTool(ctx)
                         }
-                        onResult(result.success, text)
+                    } else {
+                        runTool(ctx)
                     }
                 },
             )
@@ -5699,6 +5863,12 @@ private fun voiceErrorMessage(error: Int): String = when (error) {
 }
 
 private data class AssistantFeedback(val success: Boolean, val message: String)
+
+private data class PendingToolConfirmation(
+    val title: String,
+    val description: String,
+    val onConfirm: () -> Unit,
+)
 
 private fun assistantToolMatchScore(
     tool: com.sameerasw.essentials.assistant.tools.AssistantTool,

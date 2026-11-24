@@ -15,7 +15,6 @@ import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.provider.CalendarContract
 import androidx.core.content.ContextCompat
 import java.time.Instant
@@ -65,6 +64,7 @@ object CalendarWriteTool {
             description = "Delete a calendar event by its ID",
             keywords = listOf("delete event", "remove event", "cancel event", "calendar"),
             parametersJson = DELETE_SCHEMA,
+            requiresConfirmation = true,
             execute = { context, args -> deleteEvent(context, args) },
         ),
         AssistantTool(
@@ -81,8 +81,6 @@ object CalendarWriteTool {
         context: Context,
         args: Map<String, String>,
     ): ToolResult {
-        calendarPermissionError(context)?.let { return it }
-
         val title = (args["title"] ?: args["name"] ?: "").trim()
         if (title.isEmpty()) return ToolResult(false, "An event title is required.")
 
@@ -124,13 +122,13 @@ object CalendarWriteTool {
         context: Context,
         args: Map<String, String>,
     ): ToolResult {
-        calendarPermissionError(context)?.let { return it }
-
         val eventId = (args["eventId"] ?: args["event_id"] ?: args["id"] ?: "").trim()
         if (eventId.isEmpty()) return ToolResult(false, "An event ID is required.")
+        val id = eventId.toLongOrNull()
+            ?: return ToolResult(false, "Event ID '$eventId' is not numeric.")
 
         val intent = Intent(Intent.ACTION_EDIT).apply {
-            data = Uri.withAppendedPath(CalendarContract.Events.CONTENT_URI, eventId)
+            data = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, id)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
 
@@ -320,17 +318,6 @@ object CalendarWriteTool {
     private fun hasWritePermission(context: Context): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_CALENDAR) ==
             PackageManager.PERMISSION_GRANTED
-
-    private fun calendarPermissionError(context: Context): ToolResult? {
-        val read = hasReadPermission(context)
-        val write = hasWritePermission(context)
-        if (read && write) return null
-        val missing = buildList {
-            if (!read) add("READ_CALENDAR")
-            if (!write) add("WRITE_CALENDAR")
-        }.joinToString(" and ")
-        return ToolResult(false, "$missing permission is required to use the calendar.")
-    }
 
     private fun launch(
         context: Context,

@@ -20,6 +20,7 @@ import com.sameerasw.essentials.R
 import com.sameerasw.essentials.data.repository.SettingsRepository
 
 object ShellUtils {
+    @Volatile
     private var lastAlertTime = 0L
     private const val ALERT_COOLDOWN = 180000L // 3 minutes
 
@@ -138,6 +139,11 @@ object ShellUtils {
             Thread(r, "shell-watchdog").apply { isDaemon = true }
         }
 
+    private val stderrDrainExecutor =
+        java.util.concurrent.Executors.newCachedThreadPool { r ->
+            Thread(r, "shell-stderr-drain").apply { isDaemon = true }
+        }
+
     private fun java.io.Reader.readCapped(limit: Int): String {
         val sb = StringBuilder()
         val buf = CharArray(8192)
@@ -158,12 +164,29 @@ object ShellUtils {
         try {
             val process = newProcess(context, arrayOf("sh", "-c", command), featureName, notifyOnError)
             process?.let {
-                val timeout = watchdog.schedule({ it.destroy() }, OUTPUT_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+                val timeout =
+                    watchdog.schedule(
+                        { runCatching { it.destroyForcibly() } },
+                        OUTPUT_TIMEOUT_MS,
+                        java.util.concurrent.TimeUnit.MILLISECONDS,
+                    )
+                val stderrDrain =
+                    stderrDrainExecutor.submit {
+                        runCatching {
+                            it.errorStream.use { err ->
+                                val buf = ByteArray(8192)
+                                while (err.read(buf) >= 0) {
+                                    // discard stderr to avoid 64 KB pipe buffer deadlock
+                                }
+                            }
+                        }
+                    }
                 try {
                     it.inputStream.bufferedReader().use { reader -> reader.readCapped(MAX_OUTPUT_CHARS) }.trim()
                 } finally {
                     timeout.cancel(false)
-                    it.destroy()
+                    runCatching { it.destroyForcibly() }
+                    stderrDrain.cancel(true)
                 }
             }
         } catch (e: Exception) {
@@ -232,6 +255,15 @@ object ShellUtils {
         title: String,
         message: String,
     ) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            androidx.core.content.ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.POST_NOTIFICATIONS,
+            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+
         val currentTime = System.currentTimeMillis()
         if (currentTime - lastAlertTime < ALERT_COOLDOWN) return
         lastAlertTime = currentTime
@@ -290,6 +322,10 @@ object ShellUtils {
                     restartPendingIntent,
                 )
 
-        notificationManager.notify(9001, builder.build())
+        try {
+            notificationManager.notify(9001, builder.build())
+        } catch (_: SecurityException) {
+            // Notification permission revoked or blocked by OS
+        }
     }
 }

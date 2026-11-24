@@ -31,6 +31,7 @@ object CliBridge {
         command: String,
         cwd: String? = null,
         timeoutMs: Long = 15_000,
+        extensionId: String? = null,
     ): CliResult {
         val trimmed = command.trim()
         if (trimmed.isEmpty()) {
@@ -57,6 +58,15 @@ object CliBridge {
             }
 
             "pbpaste" -> {
+                if (!extensionId.isNullOrBlank() &&
+                    !ExtensionPermissionManager.isAllowed(context, extensionId, ExtensionCapability.CLIPBOARD)
+                ) {
+                    return CliResult(
+                        stdout = "",
+                        stderr = "Clipboard access is disabled for this extension. Enable it in Extensions permissions.",
+                        exitCode = 126,
+                    )
+                }
                 val text = runCatching {
                     val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
                     val clip = cm?.primaryClip

@@ -55,6 +55,20 @@ object RoutinesEngine {
 
     private val VOLUME_STREAMS = setOf("media", "ring", "alarm", "notification", "notifications")
 
+    private val TIMER_DURATION_REGEX = Regex(
+        """\b\d+\s*(?:hours?|hrs?|hr|h|minutes?|mins?|min|m|seconds?|secs?|sec|s)(?:\s*(?:and\s*)?\d+\s*(?:hours?|hrs?|hr|h|minutes?|mins?|min|m|seconds?|secs?|sec|s))*\b""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    private val ALARM_TIME_REGEX = Regex(
+        """\b\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)\b|\b\d{1,2}:\d{2}\b|\b\d{1,2}\b""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    private val KEY_VALUE_REGEX = Regex(
+        """([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|(\S+))""",
+    )
+
     suspend fun run(
         context: Context,
         routine: AssistantRoutine,
@@ -67,10 +81,10 @@ object RoutinesEngine {
                 continue
             }
 
-            val tool = AssistantToolRegistry.match(step)
-                .map { it.first }
-                .firstOrNull { it.id !in ROUTINE_TOOL_IDS }
-                ?: resolveByCommand(step)
+            val tool = resolveByCommand(step)
+                ?: AssistantToolRegistry.match(step)
+                    .map { it.first }
+                    .firstOrNull { it.id !in ROUTINE_TOOL_IDS }
             if (tool == null) {
                 results += ToolResult(false, "No assistant tool matches step '$step'.", step)
                 continue
@@ -134,7 +148,8 @@ object RoutinesEngine {
         toolId: String,
         step: String,
     ): Map<String, String> {
-        val tokens = step.trim()
+        val trimmedStep = step.trim()
+        val tokens = trimmedStep
             .lowercase(Locale.ROOT)
             .split(Regex("\\s+"))
             .filter { it.isNotBlank() }
@@ -178,17 +193,30 @@ object RoutinesEngine {
                 args
             }
 
-            "timer" -> tokens.lastOrNull { token ->
-                token != "timer" && token.any { it.isDigit() }
-            }?.let { duration -> mapOf("duration" to duration) } ?: emptyMap()
+            "timer" -> {
+                val kv = parseKeyValue(trimmedStep)
+                if (kv.isNotEmpty()) {
+                    kv
+                } else {
+                    val duration = TIMER_DURATION_REGEX.find(trimmedStep)?.value?.trim()
+                        ?: tokens.lastOrNull { token -> token != "timer" && token.any { it.isDigit() } }
+                    if (duration != null) mapOf("duration" to duration) else emptyMap()
+                }
+            }
 
-            "alarm" -> tokens.firstOrNull { token ->
-                Regex("\\d{1,2}(:\\d{2})?\\s*(am|pm)?").matches(token)
-            }?.let { time -> mapOf("time" to time) } ?: emptyMap()
+            "alarm" -> {
+                val kv = parseKeyValue(trimmedStep)
+                if (kv.isNotEmpty()) {
+                    kv
+                } else {
+                    val time = ALARM_TIME_REGEX.find(trimmedStep)?.value?.trim()
+                    if (time != null) mapOf("time" to time) else emptyMap()
+                }
+            }
 
             "notification_digest" -> emptyMap()
 
-            else -> parseKeyValue(tokens)
+            else -> parseKeyValue(trimmedStep)
         }
     }
 
@@ -227,13 +255,17 @@ object RoutinesEngine {
         return ToolResult(true, "${routines.size} routine(s) available.", data)
     }
 
-    private fun parseKeyValue(tokens: List<String>): Map<String, String> =
-        tokens.mapNotNull { token ->
-            val separator = token.indexOf('=')
-            if (separator <= 0 || separator == token.lastIndex) {
-                null
-            } else {
-                token.substring(0, separator) to token.substring(separator + 1)
+    private fun parseKeyValue(step: String): Map<String, String> {
+        val out = mutableMapOf<String, String>()
+        KEY_VALUE_REGEX.findAll(step).forEach { match ->
+            val key = match.groupValues[1].lowercase(Locale.ROOT)
+            val value = match.groupValues[2].ifEmpty {
+                match.groupValues[3].ifEmpty { match.groupValues[4] }
             }
-        }.toMap()
+            if (key.isNotEmpty() && value.isNotEmpty()) {
+                out[key] = value
+            }
+        }
+        return out
+    }
 }

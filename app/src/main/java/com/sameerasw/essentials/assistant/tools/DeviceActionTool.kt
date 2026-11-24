@@ -12,6 +12,7 @@ package com.sameerasw.essentials.assistant.tools
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.media.MediaScannerConnection
 import android.os.Build
 import android.provider.Settings
 import com.sameerasw.essentials.utils.DeviceLockUtils
@@ -111,6 +112,14 @@ object DeviceActionTool {
             ShellUtils.runCommandWithOutput(context, command, notifyOnError = false)
         }
         return if (output?.contains("__komorebi_ok__") == true) {
+            runCatching {
+                MediaScannerConnection.scanFile(
+                    context.applicationContext,
+                    arrayOf(path),
+                    arrayOf("image/png"),
+                    null,
+                )
+            }
             ToolResult(true, "Screenshot saved", path)
         } else {
             ToolResult(false, "Screenshot failed. Check Shizuku/root access and try again.")

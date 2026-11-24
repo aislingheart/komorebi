@@ -13,11 +13,22 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.IBinder
 import android.os.RemoteException
+import com.sameerasw.essentials.shizuku.ShizukuProcessHelper
 import moe.shizuku.server.IShizukuService
 import rikka.shizuku.Shizuku
 import rikka.shizuku.ShizukuProvider
+import java.io.InputStream
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 object ShizukuUtils {
+    private const val COMMAND_TIMEOUT_MS = 10_000L
+
+    private val streamDrainExecutor =
+        Executors.newCachedThreadPool { r ->
+            Thread(r, "shizuku-stream-drain").apply { isDaemon = true }
+        }
+
     private var binder: IBinder? = null
 
     private fun shizukuPermissionInfo(context: Context) =
@@ -105,13 +116,13 @@ object ShizukuUtils {
         }
     }
 
+    /**
+     * Checks if Shizuku is installed and the binder is alive.
+     */
     fun isShizukuAvailable(): Boolean =
         try {
             Shizuku.pingBinder()
-            true
-        } catch (
-            @Suppress("UNUSED_PARAMETER") e: Exception,
-        ) {
+        } catch (_: Throwable) {
             false
         }
 
@@ -128,14 +139,40 @@ object ShizukuUtils {
     fun runCommand(command: String) {
         if (!hasPermission() || !isBinderAlive) return
 
-        val service = IShizukuService.Stub.asInterface(binder)
+        val process =
+            try {
+                ShizukuProcessHelper.newProcess(arrayOf("sh", "-c", command), null, "/")
+            } catch (_: Exception) {
+                null
+            } ?: return
+
+        val stdoutDrain =
+            streamDrainExecutor.submit {
+                runCatching { process.inputStream.use { it.drainFully() } }
+            }
+        val stderrDrain =
+            streamDrainExecutor.submit {
+                runCatching { process.errorStream.use { it.drainFully() } }
+            }
         try {
-            val process = service.newProcess(arrayOf("sh", "-c", command), null, "/")
-            process?.waitFor()
-        } catch (
-            @Suppress("UNUSED_PARAMETER") e: Exception,
-        ) {
+            process.waitFor(COMMAND_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+        } catch (_: Exception) {
             // Command execution failed
+        } finally {
+            runCatching { process.destroyForcibly() }
+            runCatching { stdoutDrain.get(500L, TimeUnit.MILLISECONDS) }
+            runCatching { stderrDrain.get(500L, TimeUnit.MILLISECONDS) }
+            stdoutDrain.cancel(true)
+            stderrDrain.cancel(true)
+        }
+    }
+
+    private fun InputStream.drainFully() {
+        val buf = ByteArray(8192)
+        while (read(buf) >= 0) {
+            // discard
         }
     }
 

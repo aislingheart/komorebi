@@ -32,6 +32,8 @@ data class ActiveNotificationItem(
 
 object ActiveNotificationStore {
 
+    private val lock = Any()
+
     @Volatile
     private var items: List<ActiveNotificationItem> = emptyList()
     private val labelCache = ConcurrentHashMap<String, String>()
@@ -43,18 +45,31 @@ object ActiveNotificationStore {
 
     fun refresh(service: NotificationListenerService) {
         val notifications = runCatching { service.activeNotifications }.getOrNull() ?: return
-        items = notifications
+        val mapped = notifications
             .mapNotNull { toItem(service, it) }
             .sortedByDescending { it.postedAt }
+        synchronized(lock) {
+            items = mapped
+        }
     }
 
     fun onPosted(service: NotificationListenerService, notification: StatusBarNotification) {
         val item = toItem(service, notification) ?: return
-        items = (items.filterNot { it.key == item.key } + item).sortedByDescending { it.postedAt }
+        synchronized(lock) {
+            items = (items.filterNot { it.key == item.key } + item).sortedByDescending { it.postedAt }
+        }
     }
 
     fun onRemoved(key: String) {
-        items = items.filterNot { it.key == key }
+        synchronized(lock) {
+            items = items.filterNot { it.key == key }
+        }
+    }
+
+    fun clear() {
+        synchronized(lock) {
+            items = emptyList()
+        }
     }
 
     fun all(): List<ActiveNotificationItem> = items

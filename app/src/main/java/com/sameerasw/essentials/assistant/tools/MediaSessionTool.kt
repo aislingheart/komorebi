@@ -14,9 +14,12 @@ import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+import android.os.SystemClock
+import android.view.KeyEvent
 
 object MediaSessionTool {
     private const val EMPTY_SCHEMA = """{"type":"object","properties":{}}"""
@@ -29,7 +32,7 @@ object MediaSessionTool {
             id = "media_play",
             title = "Play Media",
             description = "Resume playback on the active media session",
-            keywords = listOf("play", "resume", "media", "music", "pause"),
+            keywords = listOf("play", "resume", "media", "music"),
             parametersJson = EMPTY_SCHEMA,
             execute = { context, _ -> play(context) },
         ),
@@ -75,17 +78,29 @@ object MediaSessionTool {
         ),
     )
 
-    private fun play(context: Context): ToolResult = withController(context) { controller ->
+    private fun play(context: Context): ToolResult = withController(
+        context = context,
+        fallbackKeyCode = KeyEvent.KEYCODE_MEDIA_PLAY,
+        fallbackSuccessMessage = "Sent play media command",
+    ) { controller ->
         controller.transportControls.play()
         "Playing ${controller.packageName}"
     }
 
-    private fun pause(context: Context): ToolResult = withController(context) { controller ->
+    private fun pause(context: Context): ToolResult = withController(
+        context = context,
+        fallbackKeyCode = KeyEvent.KEYCODE_MEDIA_PAUSE,
+        fallbackSuccessMessage = "Sent pause media command",
+    ) { controller ->
         controller.transportControls.pause()
         "Paused ${controller.packageName}"
     }
 
-    private fun toggle(context: Context): ToolResult = withController(context) { controller ->
+    private fun toggle(context: Context): ToolResult = withController(
+        context = context,
+        fallbackKeyCode = KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+        fallbackSuccessMessage = "Toggled media playback",
+    ) { controller ->
         val state = controller.playbackState?.state
         if (state == PlaybackState.STATE_PLAYING) {
             controller.transportControls.pause()
@@ -99,7 +114,11 @@ object MediaSessionTool {
     private fun skip(
         context: Context,
         next: Boolean,
-    ): ToolResult = withController(context) { controller ->
+    ): ToolResult = withController(
+        context = context,
+        fallbackKeyCode = if (next) KeyEvent.KEYCODE_MEDIA_NEXT else KeyEvent.KEYCODE_MEDIA_PREVIOUS,
+        fallbackSuccessMessage = if (next) "Skipped to next track" else "Skipped to previous track",
+    ) { controller ->
         if (next) {
             controller.transportControls.skipToNext()
             "Skipped to next track"
@@ -130,18 +149,36 @@ object MediaSessionTool {
 
     private fun withController(
         context: Context,
+        fallbackKeyCode: Int,
+        fallbackSuccessMessage: String,
         block: (MediaController) -> String,
     ): ToolResult {
         val controller = activeController(context)
-            ?: return ToolResult(
-                false,
-                "No active media session. Start playback in a media app and grant notification listener access.",
-            )
-        return try {
-            ToolResult(true, block(controller), controller.packageName)
-        } catch (e: Exception) {
-            ToolResult(false, "Media control failed: ${e.message ?: e.javaClass.simpleName}")
+        if (controller != null) {
+            return try {
+                ToolResult(true, block(controller), controller.packageName)
+            } catch (e: Exception) {
+                ToolResult(false, "Media control failed: ${e.message ?: e.javaClass.simpleName}")
+            }
         }
+        if (dispatchMediaKey(context, fallbackKeyCode)) {
+            return ToolResult(true, fallbackSuccessMessage)
+        }
+        return ToolResult(
+            false,
+            "No active media session. Start playback in a media app and grant notification listener access.",
+        )
+    }
+
+    private fun dispatchMediaKey(context: Context, keyCode: Int): Boolean {
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            ?: return false
+        return runCatching {
+            val now = SystemClock.uptimeMillis()
+            audioManager.dispatchMediaKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_DOWN, keyCode, 0))
+            audioManager.dispatchMediaKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_UP, keyCode, 0))
+            true
+        }.getOrDefault(false)
     }
 
     private fun activeController(context: Context): MediaController? {
